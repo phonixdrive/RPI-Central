@@ -1,8 +1,3 @@
-#
-//  _config.yml
-//  RPI Central
-//
-//  Created by Neil Shrestha on 10/3/25.
-//
-
 theme: jekyll-theme-cayman
+title: RPI Central
+description: ""
