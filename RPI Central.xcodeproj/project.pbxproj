@@ -29,9 +29,24 @@
 		0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "RPI CentralUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0D8EAA3E2E90A31D0099AA02 /* Exceptions for "RPI Central" folder in "RPI Central" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				about.md,
+				index.md,
+				"RPI Central proposal 2.pdf",
+			);
+			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0D3BAF162E909BB3006793BF /* RPI Central */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0D8EAA3E2E90A31D0099AA02 /* Exceptions for "RPI Central" folder in "RPI Central" target */,
+			);
 			path = "RPI Central";
 			sourceTree = "<group>";
 		};
