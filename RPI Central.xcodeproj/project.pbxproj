@@ -36,7 +36,7 @@
 		0D8EAA3D2E90A31D0099AA02 /* index.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = index.md; sourceTree = "<group>"; };
 		0D8EAA3F2E90A3A80099AA02 /* read.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = read.md; sourceTree = "<group>"; };
 		0D8EAA412E90A3D90099AA02 /* _config.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = _config.yml; sourceTree = "<group>"; };
-		0D8EAA432E90A4820099AA02 /* RPI Central proposal 2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "RPI Central proposal 2.pdf"; sourceTree = "<group>"; };
+		0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = rpiproposal.jpg; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -85,7 +85,7 @@
 		0D3BAF0B2E909BB3006793BF = {
 			isa = PBXGroup;
 			children = (
-				0D8EAA432E90A4820099AA02 /* RPI Central proposal 2.pdf */,
+				0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */,
 				0D8EAA3F2E90A3A80099AA02 /* read.md */,
 				0D8EAA3D2E90A31D0099AA02 /* index.md */,
 				0D8EAA3C2E90A31D0099AA02 /* about.md */,
