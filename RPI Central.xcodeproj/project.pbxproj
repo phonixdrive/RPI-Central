@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0D8EAA402E90A3AE0099AA02 /* read.md in Resources */ = {isa = PBXBuildFile; fileRef = 0D8EAA3F2E90A3A80099AA02 /* read.md */; };
+		0D8EAA422E90A3EE0099AA02 /* _config.yml in Resources */ = {isa = PBXBuildFile; fileRef = 0D8EAA412E90A3D90099AA02 /* _config.yml */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		0D3BAF252E909BB5006793BF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,26 +32,16 @@
 		0D3BAF142E909BB3006793BF /* RPI Central.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RPI Central.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D3BAF242E909BB5006793BF /* RPI CentralTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "RPI CentralTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "RPI CentralUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D8EAA3C2E90A31D0099AA02 /* about.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = about.md; sourceTree = "<group>"; };
+		0D8EAA3D2E90A31D0099AA02 /* index.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = index.md; sourceTree = "<group>"; };
+		0D8EAA3F2E90A3A80099AA02 /* read.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = read.md; sourceTree = "<group>"; };
+		0D8EAA412E90A3D90099AA02 /* _config.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = _config.yml; sourceTree = "<group>"; };
+		0D8EAA432E90A4820099AA02 /* RPI Central proposal 2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "RPI Central proposal 2.pdf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0D8EAA3E2E90A31D0099AA02 /* Exceptions for "RPI Central" folder in "RPI Central" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				about.md,
-				index.md,
-				"RPI Central proposal 2.pdf",
-			);
-			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0D3BAF162E909BB3006793BF /* RPI Central */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0D8EAA3E2E90A31D0099AA02 /* Exceptions for "RPI Central" folder in "RPI Central" target */,
-			);
 			path = "RPI Central";
 			sourceTree = "<group>";
 		};
@@ -90,6 +85,11 @@
 		0D3BAF0B2E909BB3006793BF = {
 			isa = PBXGroup;
 			children = (
+				0D8EAA432E90A4820099AA02 /* RPI Central proposal 2.pdf */,
+				0D8EAA3F2E90A3A80099AA02 /* read.md */,
+				0D8EAA3D2E90A31D0099AA02 /* index.md */,
+				0D8EAA3C2E90A31D0099AA02 /* about.md */,
+				0D8EAA412E90A3D90099AA02 /* _config.yml */,
 				0D3BAF162E909BB3006793BF /* RPI Central */,
 				0D3BAF272E909BB5006793BF /* RPI CentralTests */,
 				0D3BAF312E909BB5006793BF /* RPI CentralUITests */,
@@ -227,6 +227,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D8EAA422E90A3EE0099AA02 /* _config.yml in Resources */,
+				0D8EAA402E90A3AE0099AA02 /* read.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
