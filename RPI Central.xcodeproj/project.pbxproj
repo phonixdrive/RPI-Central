@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0D8EAA402E90A3AE0099AA02 /* read.md in Resources */ = {isa = PBXBuildFile; fileRef = 0D8EAA3F2E90A3A80099AA02 /* read.md */; };
+		0D8EAA402E90A3AE0099AA02 /* readme.md in Resources */ = {isa = PBXBuildFile; fileRef = 0D8EAA3F2E90A3A80099AA02 /* readme.md */; };
 		0D8EAA422E90A3EE0099AA02 /* _config.yml in Resources */ = {isa = PBXBuildFile; fileRef = 0D8EAA412E90A3D90099AA02 /* _config.yml */; };
 /* End PBXBuildFile section */
 
@@ -34,7 +34,7 @@
 		0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "RPI CentralUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D8EAA3C2E90A31D0099AA02 /* about.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = about.md; sourceTree = "<group>"; };
 		0D8EAA3D2E90A31D0099AA02 /* index.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = index.md; sourceTree = "<group>"; };
-		0D8EAA3F2E90A3A80099AA02 /* read.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = read.md; sourceTree = "<group>"; };
+		0D8EAA3F2E90A3A80099AA02 /* readme.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = readme.md; sourceTree = "<group>"; };
 		0D8EAA412E90A3D90099AA02 /* _config.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = _config.yml; sourceTree = "<group>"; };
 		0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = rpiproposal.jpg; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -86,7 +86,7 @@
 			isa = PBXGroup;
 			children = (
 				0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */,
-				0D8EAA3F2E90A3A80099AA02 /* read.md */,
+				0D8EAA3F2E90A3A80099AA02 /* readme.md */,
 				0D8EAA3D2E90A31D0099AA02 /* index.md */,
 				0D8EAA3C2E90A31D0099AA02 /* about.md */,
 				0D8EAA412E90A3D90099AA02 /* _config.yml */,
@@ -228,7 +228,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0D8EAA422E90A3EE0099AA02 /* _config.yml in Resources */,
-				0D8EAA402E90A3AE0099AA02 /* read.md in Resources */,
+				0D8EAA402E90A3AE0099AA02 /* readme.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
