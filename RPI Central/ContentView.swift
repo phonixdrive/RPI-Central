@@ -1,7 +1,5 @@
-//
 //  ContentView.swift
 //  RPI Central
-//
 
 import SwiftUI
 
@@ -18,6 +16,11 @@ struct ContentView: View {
                     Label("Calendar", systemImage: "calendar")
                 }
 
+            CoursesView()
+                .tabItem {
+                    Label("Courses", systemImage: "books.vertical.fill")
+                }
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
@@ -29,4 +32,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(CalendarViewModel())
+        .environmentObject(CourseCatalogService())
 }
