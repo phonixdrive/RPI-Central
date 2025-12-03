@@ -4,38 +4,64 @@
 import Foundation
 import SwiftUI
 
+// Represents a course+section the user has added
+struct EnrolledCourse: Identifiable, Equatable {
+    let id: String          // e.g. "CSCI-2300-35222"
+    let course: Course
+    let section: CourseSection
+
+    static func == (lhs: EnrolledCourse, rhs: EnrolledCourse) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
 final class CalendarViewModel: ObservableObject {
     @Published var displayedMonthStart: Date
     @Published var selectedDate: Date
     @Published var events: [ClassEvent]
+    @Published var enrolledCourses: [EnrolledCourse] = []
 
     private let calendar = Calendar.current
 
-    // Adjust to the real semester dates
-    private let semesterStartDate: Date
-    private let semesterEndDate: Date
+    /// We treat the *current* week as a template week
+    private let weekStartDate: Date
+    private let weekEndDate: Date
+
+    // Your color palette: [light, dark]
+    // Order: red, orange, blue, green, yellow
+    private let lightPalette: [Color] = [
+        Color(red: 1.0,       green: 0.83529,  blue: 0.87451),  // #ffd5df
+        Color(red: 1.0,       green: 0.91373,  blue: 0.80784),  // #ffe9ce
+        Color(red: 0.81176,   green: 0.93725,  blue: 0.98824),  // #cfeffc
+        Color(red: 0.85490,   green: 0.96863,  blue: 0.85882),  // #daf7db
+        Color(red: 1.0,       green: 0.95686,  blue: 0.81569)   // #fff4d0
+    ]
+
+    private let darkPalette: [Color] = [
+        Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366 (red)
+        Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432 (orange)
+        Color(red: 0.27843,   green: 0.85882,  blue: 0.34510),  // #47db58 (blue-ish accent)
+        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58 (green)
+        Color(red: 1.0,       green: 0.79216,  blue: 0.26667)   // #ffca44 (yellow)
+    ]
 
     init() {
         let today = Date()
-        self.displayedMonthStart = today.startOfMonth(using: calendar)
-        self.selectedDate = today
-        self.events = CalendarViewModel.sampleEvents(for: today)
 
-        var compsStart = DateComponents()
-        compsStart.year = 2025
-        compsStart.month = 1
-        compsStart.day = 13    // first day of classes (tweak if needed)
+        // Current week bounds (Sunday start)
+        let interval = calendar.dateInterval(of: .weekOfYear, for: today)
+        let startOfWeek = interval?.start ?? today
+        let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? startOfWeek
 
-        var compsEnd = DateComponents()
-        compsEnd.year = 2025
-        compsEnd.month = 5
-        compsEnd.day = 9       // last day of classes (tweak if needed)
+        self.weekStartDate = startOfWeek
+        self.weekEndDate = endOfWeek
 
-        self.semesterStartDate = calendar.date(from: compsStart) ?? today
-        self.semesterEndDate = calendar.date(from: compsEnd) ?? today
+        self.selectedDate = startOfWeek
+        self.displayedMonthStart = startOfWeek.startOfMonth(using: calendar)
+        self.events = []
     }
 
-    // MARK: - Month navigation
+    // MARK: - Month navigation (for future month view)
 
     func goToPreviousMonth() {
         if let newDate = calendar.date(byAdding: .month, value: -1, to: displayedMonthStart) {
@@ -63,7 +89,7 @@ final class CalendarViewModel: ObservableObject {
         date: Date,
         startTime: Date,
         endTime: Date,
-        color: Color = .blue
+        color: Color = .gray
     ) {
         let start = merge(date: date, time: startTime)
         let end = merge(date: date, time: endTime)
@@ -73,7 +99,9 @@ final class CalendarViewModel: ObservableObject {
             location: location,
             startDate: start,
             endDate: end,
-            color: color
+            backgroundColor: color,
+            accentColor: color,
+            enrollmentID: nil
         )
         events.append(new)
     }
@@ -84,75 +112,193 @@ final class CalendarViewModel: ObservableObject {
         events.removeAll { idsToDelete.contains($0.id) }
     }
 
-    // MARK: - Add a course section for the whole semester
+    // MARK: - Enrollment helpers
 
-    func addCourseSection(_ section: CourseSection, course: Course) {
-        for meeting in section.meetings {
-            for day in meeting.days {
-                generateEventsForMeeting(
-                    course: course,
-                    section: section,
-                    meeting: meeting,
-                    weekday: day
-                )
-            }
-        }
+    private func enrollmentID(for course: Course, section: CourseSection) -> String {
+        let crnText = section.crn.map(String.init) ?? "NA"
+        return "\(course.subject)-\(course.number)-\(crnText)"
     }
 
-    private func generateEventsForMeeting(
-        course: Course,
-        section: CourseSection,
-        meeting: Meeting,
-        weekday: Weekday
-    ) {
-        guard let firstClassDate = firstDate(onOrAfter: semesterStartDate,
-                                             weekday: weekday.calendarWeekday)
-        else { return }
+    func isEnrolled(for course: Course, section: CourseSection) -> Bool {
+        let id = enrollmentID(for: course, section: section)
+        return enrolledCourses.contains { $0.id == id }
+    }
 
-        var date = firstClassDate
-        while date <= semesterEndDate {
+    func enrollment(for course: Course, section: CourseSection) -> EnrolledCourse? {
+        let id = enrollmentID(for: course, section: section)
+        return enrolledCourses.first { $0.id == id }
+    }
+
+    // MARK: - QuACS-style color assignment
+
+    /// Given enrollment at index i among n classes, return its light/dark colors.
+    /// This implements: take first n colors, reverse them.
+    private func colorsForEnrollmentIndex(_ i: Int, total n: Int) -> (Color, Color) {
+        guard n > 0 else { return (lightPalette[0], darkPalette[0]) }
+        let paletteIndex = (n - 1 - i) % lightPalette.count
+        return (lightPalette[paletteIndex], darkPalette[paletteIndex])
+    }
+
+    /// Recompute colors for all events when the enrollment list changes.
+    private func recolorAllEvents() {
+        var updated = events
+        for idx in updated.indices {
+            guard let id = updated[idx].enrollmentID else { continue }
+            guard let enrollIndex = enrolledCourses.firstIndex(where: { $0.id == id }) else { continue }
+
+            let (bg, accent) = colorsForEnrollmentIndex(enrollIndex, total: enrolledCourses.count)
+            updated[idx].backgroundColor = bg
+            updated[idx].accentColor = accent
+        }
+        events = updated
+    }
+
+    // MARK: - Time conflict detection
+
+    /// Returns true if this section clashes with any existing *class* event.
+    private func hasTimeConflict(for section: CourseSection) -> Bool {
+        for meeting in section.meetings {
             guard
                 let startComponents = timeComponents(from: meeting.start),
                 let endComponents = timeComponents(from: meeting.end)
-            else {
-                break
+            else { continue }
+
+            for day in meeting.days {
+                guard let date = firstDate(onOrAfter: weekStartDate,
+                                           weekday: day.calendarWeekday) else { continue }
+
+                var newStartComps = calendar.dateComponents([.year, .month, .day], from: date)
+                newStartComps.hour = startComponents.hour
+                newStartComps.minute = startComponents.minute
+
+                var newEndComps = calendar.dateComponents([.year, .month, .day], from: date)
+                newEndComps.hour = endComponents.hour
+                newEndComps.minute = endComponents.minute
+
+                guard
+                    let newStart = calendar.date(from: newStartComps),
+                    let newEnd = calendar.date(from: newEndComps)
+                else { continue }
+
+                // Only compare against class events (enrollmentID != nil)
+                for e in events where e.enrollmentID != nil &&
+                    calendar.isDate(e.startDate, inSameDayAs: newStart) {
+
+                    let eStart = e.startDate
+                    let eEnd = e.endDate
+
+                    // Overlap if they intersect at all
+                    if newStart < eEnd && eStart < newEnd {
+                        return true
+                    }
+                }
             }
+        }
+        return false
+    }
 
-            var startDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-            startDateComponents.hour = startComponents.hour
-            startDateComponents.minute = startComponents.minute
+    // MARK: - Add/remove a course section
 
-            var endDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-            endDateComponents.hour = endComponents.hour
-            endDateComponents.minute = endComponents.minute
+    func addCourseSection(_ section: CourseSection, course: Course) {
+        let id = enrollmentID(for: course, section: section)
 
-            guard
-                let startDate = calendar.date(from: startDateComponents),
-                let endDate = calendar.date(from: endDateComponents)
-            else { break }
+        // Already enrolled? bail to avoid duplicates
+        if enrolledCourses.contains(where: { $0.id == id }) {
+            return
+        }
 
-            let title = "\(course.subject) \(course.number) – \(course.title)"
-            let crnText = section.crn.map(String.init) ?? "Unknown CRN"
-            let location = meeting.location.isEmpty
-                ? "CRN \(crnText)"
-                : "\(meeting.location) · CRN \(crnText)"
+        // Prevent adding classes that conflict in time
+        if hasTimeConflict(for: section) {
+            // For now, just ignore; later we can surface an alert
+            return
+        }
 
-            let event = ClassEvent(
-                title: title,
-                location: location,
-                startDate: startDate,
-                endDate: endDate,
-                color: .blue
-            )
-            events.append(event)
+        let enrollment = EnrolledCourse(id: id, course: course, section: section)
+        enrolledCourses.append(enrollment)
 
-            // Next week
-            guard let next = calendar.date(byAdding: .day, value: 7, to: date) else { break }
-            date = next
+        // Generate events for this "template week" (weekStartDate...weekEndDate)
+        for meeting in section.meetings {
+            for day in meeting.days {
+                guard let classDate = firstDate(onOrAfter: weekStartDate,
+                                                weekday: day.calendarWeekday) else { continue }
+
+                generateSingleWeekEvent(
+                    course: course,
+                    section: section,
+                    meeting: meeting,
+                    date: classDate,
+                    enrollmentID: id
+                )
+            }
+        }
+
+        // Now recolor everything so colors shift like QuACS
+        recolorAllEvents()
+    }
+
+    func removeEnrollment(_ enrollment: EnrolledCourse) {
+        enrolledCourses.removeAll { $0.id == enrollment.id }
+        events.removeAll { $0.enrollmentID == enrollment.id }
+        recolorAllEvents()
+    }
+
+    func removeEnrollment(at offsets: IndexSet) {
+        for index in offsets {
+            let enrollment = enrolledCourses[index]
+            removeEnrollment(enrollment)
         }
     }
 
-    // MARK: - Helper functions
+    // MARK: - Event creation helpers
+
+    private func generateSingleWeekEvent(
+        course: Course,
+        section: CourseSection,
+        meeting: Meeting,
+        date: Date,
+        enrollmentID: String
+    ) {
+        guard
+            let startComponents = timeComponents(from: meeting.start),
+            let endComponents = timeComponents(from: meeting.end)
+        else { return }
+
+        var startDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        startDateComponents.hour = startComponents.hour
+        startDateComponents.minute = startComponents.minute
+
+        var endDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        endDateComponents.hour = endComponents.hour
+        endDateComponents.minute = endComponents.minute
+
+        guard
+            let startDate = calendar.date(from: startDateComponents),
+            let endDate = calendar.date(from: endDateComponents)
+        else { return }
+
+        let title = "\(course.subject) \(course.number) – \(course.title)"
+        let crnText = section.crn.map(String.init) ?? "Unknown CRN"
+        let location = meeting.location.isEmpty
+            ? "CRN \(crnText)"
+            : "\(meeting.location) · CRN \(crnText)"
+
+        // Temp color; will be normalized by recolorAllEvents()
+        let bg = lightPalette[0]
+        let accent = darkPalette[0]
+
+        let event = ClassEvent(
+            title: title,
+            location: location,
+            startDate: startDate,
+            endDate: endDate,
+            backgroundColor: bg,
+            accentColor: accent,
+            enrollmentID: enrollmentID
+        )
+        events.append(event)
+    }
+
+    // MARK: - Low-level helpers
 
     private func merge(date: Date, time: Date) -> Date {
         let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
@@ -168,7 +314,7 @@ final class CalendarViewModel: ObservableObject {
         return calendar.date(from: merged) ?? date
     }
 
-    private func firstDate(onOrAfter start: Date, weekday: Int) -> Date? {
+    fileprivate func firstDate(onOrAfter start: Date, weekday: Int) -> Date? {
         var date = start
         while calendar.component(.weekday, from: date) != weekday {
             guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
@@ -187,20 +333,6 @@ final class CalendarViewModel: ObservableObject {
         comps.hour = hour
         comps.minute = minute
         return comps
-    }
-
-    private static func sampleEvents(for today: Date) -> [ClassEvent] {
-        let calendar = Calendar.current
-        let start1 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today) ?? today
-        let end1   = calendar.date(bySettingHour: 10, minute: 15, second: 0, of: today) ?? today
-
-        let start2 = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: today) ?? today
-        let end2   = calendar.date(bySettingHour: 14, minute: 15, second: 0, of: today) ?? today
-
-        return [
-            ClassEvent(title: "FOCS", location: "DCC 308", startDate: start1, endDate: end1, color: .red),
-            ClassEvent(title: "Macro Theory", location: "Sage 2301", startDate: start2, endDate: end2, color: .green)
-        ]
     }
 }
 
