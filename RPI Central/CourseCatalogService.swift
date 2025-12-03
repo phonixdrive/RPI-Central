@@ -10,7 +10,7 @@ final class CourseCatalogService: ObservableObject {
     @Published var errorMessage: String?
 
     // File in your bundle: rpi_courses_202501.json
-    private let filename = "rpi_courses_202501"
+    private let filename = "rpi_courses_202509"
 
     init() {
         loadFromBundle()
