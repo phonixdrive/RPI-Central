@@ -14,10 +14,10 @@ struct CourseDetailView: View {
 
                 // Header
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(course.subject) \(course.number)")
+                    Text(course.title)
                         .font(.title.bold())
 
-                    Text(course.title)
+                    Text("\(course.subject) \(course.number)")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                 }
@@ -47,16 +47,25 @@ struct CourseDetailView: View {
     // MARK: - Section card
 
     private func sectionCard(_ section: CourseSection) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let isEnrolled = calendarViewModel.isEnrolled(for: course, section: section)
+        let crnText = section.crn.map(String.init) ?? "N/A"
+
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                let crnText = section.crn.map(String.init) ?? "N/A"
                 Text("CRN \(crnText) • Sec \(section.section)")
                     .font(.subheadline.bold())
                 Spacer()
-                Button("Add") {
-                    calendarViewModel.addCourseSection(section, course: course)
+                Button(isEnrolled ? "Remove" : "Add") {
+                    if isEnrolled {
+                        if let enrollment = calendarViewModel.enrollment(for: course, section: section) {
+                            calendarViewModel.removeEnrollment(enrollment)
+                        }
+                    } else {
+                        calendarViewModel.addCourseSection(section, course: course)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(isEnrolled ? .red : .accentColor)
                 .font(.caption)
             }
 
