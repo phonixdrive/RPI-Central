@@ -38,9 +38,12 @@ struct CoursesView: View {
                                 .environmentObject(calendarViewModel)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(course.subject) \(course.number)")
-                                    .font(.headline)
+                                // Course NAME first (bold)
                                 Text(course.title)
+                                    .font(.headline)
+
+                                // Code underneath (COMM 2570)
+                                Text("\(course.subject) \(course.number)")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -50,19 +53,10 @@ struct CoursesView: View {
             }
             .navigationTitle("Courses")
             .searchable(
-                text: $searchText,             // NOTE: Binding here uses $searchText
+                text: $searchText,
                 placement: .navigationBarDrawer,
                 prompt: "Search by code or name"
             )
         }
     }
-}
-
-#Preview {
-    let catalogService = CourseCatalogService()
-    let calendarVM = CalendarViewModel()
-
-    return CoursesView()
-        .environmentObject(catalogService)
-        .environmentObject(calendarVM)
 }
