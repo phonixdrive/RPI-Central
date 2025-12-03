@@ -1,8 +1,37 @@
-//  CalendarViewModel.swift
+//  CalenderViewModel.swift
 //  RPI Central
 
 import Foundation
 import SwiftUI
+
+// MARK: - Theme
+
+enum AppThemeColor: String, CaseIterable, Identifiable, Codable {
+    case blue
+    case red
+    case green
+    case purple
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .blue:   return "Blue"
+        case .red:    return "Red"
+        case .green:  return "Green"
+        case .purple: return "Purple"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .blue:   return .blue
+        case .red:    return .red
+        case .green:  return .green
+        case .purple: return .purple
+        }
+    }
+}
 
 // Represents a course+section the user has added
 struct EnrolledCourse: Identifiable, Equatable {
@@ -20,6 +49,11 @@ final class CalendarViewModel: ObservableObject {
     @Published var selectedDate: Date
     @Published var events: [ClassEvent]
     @Published var enrolledCourses: [EnrolledCourse] = []
+
+    // Settings
+    @Published var themeColor: AppThemeColor = .blue
+    @Published var notificationsEnabled: Bool = false
+    @Published var notificationLeadMinutes: Int = 10
 
     private let calendar = Calendar.current
 
@@ -77,10 +111,53 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Events per day
 
+    /// Return events for this date by treating `events` as a template week.
+    /// Any event whose weekday matches `date` is copied onto that date,
+    /// preserving start/end time, colors, etc.
     func events(on date: Date) -> [ClassEvent] {
-        events
-            .filter { calendar.isDate($0.startDate, inSameDayAs: date) }
-            .sorted { $0.startDate < $1.startDate }
+        let weekday = calendar.component(.weekday, from: date)
+
+        var result: [ClassEvent] = []
+
+        for base in events {
+            let baseWeekday = calendar.component(.weekday, from: base.startDate)
+            guard baseWeekday == weekday else { continue }
+
+            // Take just the time-of-day from the base event
+            let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
+            let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
+
+            // Apply that time to the requested date
+            var startDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+            startDateComponents.hour = startTime.hour
+            startDateComponents.minute = startTime.minute
+            startDateComponents.second = startTime.second
+
+            var endDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+            endDateComponents.hour = endTime.hour
+            endDateComponents.minute = endTime.minute
+            endDateComponents.second = endTime.second
+
+            guard
+                let newStart = calendar.date(from: startDateComponents),
+                let newEnd   = calendar.date(from: endDateComponents)
+            else { continue }
+
+            // Copy the event onto this date
+            let copy = ClassEvent(
+                title: base.title,
+                location: base.location,
+                startDate: newStart,
+                endDate: newEnd,
+                backgroundColor: base.backgroundColor,
+                accentColor: base.accentColor,
+                enrollmentID: base.enrollmentID
+            )
+
+            result.append(copy)
+        }
+
+        return result.sorted { $0.startDate < $1.startDate }
     }
 
     func addEvent(
@@ -110,6 +187,7 @@ final class CalendarViewModel: ObservableObject {
         let todaysEvents = events(on: date)
         let idsToDelete = offsets.map { todaysEvents[$0].id }
         events.removeAll { idsToDelete.contains($0.id) }
+        rescheduleNotificationsIfNeeded()
     }
 
     // MARK: - Enrollment helpers
@@ -156,7 +234,7 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Time conflict detection
 
     /// Returns true if this section clashes with any existing *class* event.
-    private func hasTimeConflict(for section: CourseSection) -> Bool {
+    func hasTimeConflict(for section: CourseSection) -> Bool {
         for meeting in section.meetings {
             guard
                 let startComponents = timeComponents(from: meeting.start),
@@ -209,7 +287,6 @@ final class CalendarViewModel: ObservableObject {
 
         // Prevent adding classes that conflict in time
         if hasTimeConflict(for: section) {
-            // For now, just ignore; later we can surface an alert
             return
         }
 
@@ -234,18 +311,41 @@ final class CalendarViewModel: ObservableObject {
 
         // Now recolor everything so colors shift like QuACS
         recolorAllEvents()
+        rescheduleNotificationsIfNeeded()
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
         enrolledCourses.removeAll { $0.id == enrollment.id }
         events.removeAll { $0.enrollmentID == enrollment.id }
         recolorAllEvents()
+        rescheduleNotificationsIfNeeded()
     }
 
     func removeEnrollment(at offsets: IndexSet) {
         for index in offsets {
             let enrollment = enrolledCourses[index]
             removeEnrollment(enrollment)
+        }
+    }
+
+    // MARK: - Notifications
+
+    func rescheduleNotificationsIfNeeded() {
+        guard notificationsEnabled else {
+            NotificationManager.clearScheduledNotifications()
+            return
+        }
+        rescheduleNotifications()
+    }
+
+    func rescheduleNotifications() {
+        NotificationManager.requestAuthorization()
+        NotificationManager.clearScheduledNotifications()
+        for event in events where event.enrollmentID != nil {
+            NotificationManager.scheduleNotification(
+                for: event,
+                minutesBefore: notificationLeadMinutes
+            )
         }
     }
 
@@ -276,7 +376,8 @@ final class CalendarViewModel: ObservableObject {
             let endDate = calendar.date(from: endDateComponents)
         else { return }
 
-        let title = "\(course.subject) \(course.number) – \(course.title)"
+        // Use actual course name for the schedule boxes
+        let title = course.title
         let crnText = section.crn.map(String.init) ?? "Unknown CRN"
         let location = meeting.location.isEmpty
             ? "CRN \(crnText)"

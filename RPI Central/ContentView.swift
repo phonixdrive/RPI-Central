@@ -4,33 +4,36 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var calendarViewModel: CalendarViewModel
+
     var body: some View {
         TabView {
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
+            NavigationStack {
+                HomeView()
+            }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
 
-            CalendarView()
-                .tabItem {
-                    Label("Calendar", systemImage: "calendar")
-                }
+            NavigationStack {
+                CalendarView()
+            }
+            .tabItem {
+                Label("Calendar", systemImage: "calendar")
+            }
 
-            CoursesView()
-                .tabItem {
-                    Label("Courses", systemImage: "books.vertical.fill")
-                }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gearshape.fill")
+            }
         }
+        .tint(calendarViewModel.themeColor.color)
     }
 }
 
 #Preview {
     ContentView()
         .environmentObject(CalendarViewModel())
-        .environmentObject(CourseCatalogService())
 }
