@@ -6,46 +6,59 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
 
+    @State private var selectedEnrollment: EnrolledCourse?
+    @State private var showRemoveDialog = false
+
     var body: some View {
-        NavigationStack {
-            List {
+        List {
+            Section("Current Courses") {
                 if calendarViewModel.enrolledCourses.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("No courses added yet")
-                            .font(.headline)
-                        Text("Go to the Courses tab and tap Add on the sections you’re taking.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 8)
+                    Text("No courses yet. Use \"Browse Courses\" to add.")
+                        .foregroundStyle(.secondary)
                 } else {
-                    Section("My Courses") {
-                        ForEach(calendarViewModel.enrolledCourses) { enrollment in
-                            let course = enrollment.course
-                            let section = enrollment.section
-                            let crnText = section.crn.map(String.init) ?? "N/A"
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(course.title)
-                                    .font(.headline)
-
-                                Text("\(course.subject) \(course.number) • CRN \(crnText)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                if let m = section.meetings.first {
-                                    Text("\(m.days.map { $0.shortName }.joined()) \(m.start) – \(m.end)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 4)
+                    ForEach(calendarViewModel.enrolledCourses) { enrollment in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(enrollment.course.title)
+                                .font(.headline)
+                            Text("\(enrollment.course.subject) \(enrollment.course.number)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                        .onDelete(perform: calendarViewModel.removeEnrollment)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedEnrollment = enrollment
+                            showRemoveDialog = true
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                calendarViewModel.removeEnrollment(enrollment)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
-            .navigationTitle("Home")
+
+            Section {
+                NavigationLink("Browse Courses") {
+                    CoursesView()
+                }
+            }
+        }
+        .navigationTitle("Home")
+        .confirmationDialog(
+            "Course options",
+            isPresented: $showRemoveDialog,
+            presenting: selectedEnrollment
+        ) { enrollment in
+            Button("Remove \(enrollment.course.subject) \(enrollment.course.number)",
+                   role: .destructive) {
+                calendarViewModel.removeEnrollment(enrollment)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: { enrollment in
+            Text(enrollment.course.title)
         }
     }
 }
