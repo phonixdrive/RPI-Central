@@ -435,48 +435,235 @@ struct TimelineCalendarView: View {
         return df.string(from: date)
     }
 
-    private func events(on day: Date, hour: Int) -> [ClassEvent] {
-        let all = viewModel.events(on: day)
-        return all.filter { event in
-            let eventHour = calendar.component(.hour, from: event.startDate)
-            return eventHour == hour
-        }
-    }
+    // MARK: - Event chip (box centered, text top-left, multi-line)
 
     private func eventChip(_ event: ClassEvent) -> some View {
-        HStack(spacing: 0) {
-            // Dark strip on the left
-            Rectangle()
-                .fill(event.accentColor)
-                .frame(width: 4)
-                .cornerRadius(2, corners: [.topLeft, .bottomLeft])
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                // Dark strip on the left
+                Rectangle()
+                    .fill(event.accentColor)
+                    .frame(width: 4)
+                    .cornerRadius(2, corners: [.topLeft, .bottomLeft])
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title)
-                    .font(.caption2.bold())
-                    .foregroundColor(.black)              // inside box: black text
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.title)
+                        .font(.caption2.bold())
+                        .foregroundColor(.black)
+                        // no lineLimit -> wrap instead of truncating
 
-                Text("\(timeString(event.startDate)) – \(timeString(event.endDate))")
-                    .font(.caption2)
-                    .foregroundColor(.black)              // inside box: black text
-                    .lineLimit(1)
-
-                if !event.location.isEmpty {
-                    Text(event.location)
+                    Text("\(timeString(event.startDate)) – \(timeString(event.endDate))")
                         .font(.caption2)
-                        .foregroundColor(.black.opacity(0.8)) // inside box: black-ish
-                        .lineLimit(1)
+                        .foregroundColor(.black)
+
+                    if !event.location.isEmpty {
+                        Text(event.location)
+                            .font(.caption2)
+                            .foregroundColor(.black.opacity(0.8))
+                    }
                 }
+                .padding(4)
             }
-            .padding(4)
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(event.backgroundColor)
         .cornerRadius(4)
     }
 }
 
-// Corner-radius helper for the strip
+// MARK: - Month + schedule view
+
+struct MonthWithScheduleView: View {
+    @EnvironmentObject var viewModel: CalendarViewModel
+
+    private let calendar = Calendar.current
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MonthGridView()
+                .environmentObject(viewModel)
+
+            Divider()
+                .padding(.top, 4)
+
+            // Schedule for the currently selected day (from viewModel.selectedDate)
+            let selected = viewModel.selectedDate
+            let events = viewModel.events(on: selected)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(selected.formatted("EEEE, MMM d"))
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+
+                if events.isEmpty {
+                    Text("No classes for this day.")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                } else {
+                    List {
+                        ForEach(events.sorted(by: { $0.startDate < $1.startDate })) { event in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.title)
+                                    .font(.headline)
+                                Text(timeRangeString(for: event))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                if !event.location.isEmpty {
+                                    Text(event.location)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func timeRangeString(for event: ClassEvent) -> String {
+        let df = DateFormatter()
+        df.timeStyle = .short
+        return "\(df.string(from: event.startDate)) – \(df.string(from: event.endDate))"
+    }
+}
+
+// MARK: - Month grid (selects viewModel.selectedDate)
+
+struct MonthGridView: View {
+    @EnvironmentObject var viewModel: CalendarViewModel
+
+    private let calendar = Calendar.current
+
+    var body: some View {
+        let selectedDate = viewModel.selectedDate
+        let monthInterval = calendar.dateInterval(of: .month, for: selectedDate) ?? DateInterval()
+        let start = monthInterval.start
+        let range: Range<Int> = calendar.range(of: .day, in: .month, for: selectedDate) ?? (1..<32)
+
+        let firstWeekday = calendar.component(.weekday, from: start) // 1 = Sunday
+        let leadingBlanks = (firstWeekday + 6) % 7  // make Monday=0
+
+        let totalCells = leadingBlanks + range.count
+        let rows = Int(ceil(Double(totalCells) / 7.0))
+
+        VStack(spacing: 4) {
+            HStack {
+                ForEach(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], id: \.self) { label in
+                    Text(label)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+
+            ForEach(0..<rows, id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(0..<7, id: \.self) { col in
+                        let index = row * 7 + col
+                        let dayNumber = index - leadingBlanks + 1
+
+                        if dayNumber < 1 || dayNumber > range.count {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 36)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: start) ?? start
+                            let hasEvents = !viewModel.events(on: date).isEmpty
+                            let isSelected = calendar.isDate(date, inSameDayAs: viewModel.selectedDate)
+
+                            VStack(spacing: 2) {
+                                Text("\(dayNumber)")
+                                    .font(.caption)
+                                    .foregroundColor(isSelected ? .black : .white)
+                                    .frame(maxWidth: .infinity)
+
+                                if hasEvents {
+                                    Circle()
+                                        .fill(isSelected ? Color.black : Color.green)
+                                        .frame(width: 4, height: 4)
+                                } else {
+                                    Circle()
+                                        .fill(Color.clear)
+                                        .frame(width: 4, height: 4)
+                                }
+                            }
+                            .padding(4)
+                            .background(
+                                isSelected ? Color.white : Color.clear
+                            )
+                            .cornerRadius(6)
+                            .frame(height: 36)
+                            .frame(maxWidth: .infinity)
+                            .onTapGesture {
+                                viewModel.selectedDate = date
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+// MARK: - Detail sheet when you tap a class block
+
+struct ClassEventDetailView: View {
+    let event: ClassEvent
+
+    private let dfDate: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .none
+        return df
+    }()
+
+    private let dfTime: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .none
+        df.timeStyle = .short
+        return df
+    }()
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(event.title)
+                    .font(.title3.bold())
+
+                Text(dfDate.string(from: event.startDate))
+                    .font(.subheadline)
+
+                Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
+                    .font(.subheadline)
+
+                if !event.location.isEmpty {
+                    Text(event.location)
+                        .font(.subheadline)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Class Details")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+// MARK: - Corner-radius helper
+
 fileprivate extension View {
     func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
         clipShape(RoundedCorner(radius: radius, corners: corners))
