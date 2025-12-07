@@ -198,3 +198,190 @@ async def get_class_information(class_url):
     return course_data, registration_dates
 
 
+def parse_semester_page(text):
+    soup = BeautifulSoup(text).findAll("td", {"class": "ntdefault"})
+
+    for s in soup:
+        links = s.findAll("a")
+        for link_data in links:
+            link = link_data["href"]
+            # These links are confused for classes
+            if "p_disp_catalog_syllabus" in link:
+                continue
+            if link == "javascript:history.go(-1)":
+                return
+            yield link_data["href"]
+
+
+async def get_classes_with_code(term, code):
+    global session
+    # Post request data was observed from: https://sis.rpi.edu/rss/bwckctlg.p_display_courses?term_in=202205&sel_crse_strt=0&sel_crse_end=9999&sel_subj=&sel_levl=&sel_schd=&sel_coll=&sel_divs=&sel_dept=&sel_attr=
+    async with session.post(
+        "https://sis.rpi.edu/rss/bwckctlg.p_display_courses",
+        data=f"term_in={term}&call_proc_in=&sel_subj=dummy&sel_levl=dummy&sel_schd=dummy&sel_coll=dummy&sel_divs=dummy&sel_dept=dummy&sel_attr=dummy&sel_subj={code}&sel_crse_strt=&sel_crse_end=&sel_title=&sel_levl=%25&sel_schd=%25&sel_coll=%25&sel_divs=%25&sel_dept=%25&sel_from_cred=&sel_to_cred=&sel_attr=%25",
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Sec-GPC": "1",
+            "Pragma": "no-cache",
+            "Cache-Control": "no-cache",
+        },
+    ) as request:
+        return await request.text()
+
+
+async def scrape_subject(term, name, code):
+    courses_data = {"name": name, "code": code}
+    subj_data = list(
+        filter(
+            lambda x: x != None,
+            await asyncio.gather(
+                *[
+                    get_class_information(f"https://sis.rpi.edu{clazz}")
+                    for clazz in parse_semester_page(
+                        await get_classes_with_code(term, code)
+                    )
+                ]
+            ),
+        )
+    )
+    if not subj_data:
+        courses_data["courses"], registration_dates = subj_data, ()
+    else:
+        courses_data["courses"], registration_dates = zip(*subj_data)
+        registration_dates = tuple(filter(bool, registration_dates))
+    return courses_data, registration_dates
+
+
+async def get_subjects_for_term(term):
+    global session
+    url = f"https://sis.rpi.edu/rss/bwckctlg.p_display_courses?term_in={term}&sel_crse_strt=&sel_crse_end=&sel_subj=&sel_levl=&sel_schd=&sel_coll=&sel_divs=&sel_dept=&sel_attr="
+    async with session.get(url) as request:
+        soup = BeautifulSoup(await request.text())
+        return [
+            (entry.text, entry["value"])
+            for entry in soup.find("select", {"id": "subj_id"}).findAll("option")
+        ]
+
+
+async def scrape_term(term):
+    print(f"Scraping {term}")
+
+    courses, registration_dates = zip(
+        *await asyncio.gather(
+            *[scrape_subject(term, *subj) for subj in await get_subjects_for_term(term)]
+        )
+    )
+
+    # Remove empty entries (these happen when a subject has no courses in a semester,
+    # e.g. ITWS over arch summer)
+    registration_dates = list(filter(bool, registration_dates))
+
+    if not registration_dates:
+        # If the semester is empty then there are no registration dates, so use
+        # unix timestamp 0 as a placeholder
+        beginning_of_time = datetime.fromtimestamp(0)
+        registration_dates = (beginning_of_time, beginning_of_time)
+    else:
+        # Just get the first pair of registration dates (begin/end)
+        registration_dates = registration_dates[0][0]
+
+    registration_dates_json = {
+        "registration_opens": registration_dates[0].strftime("%Y-%m-%d"),
+        "registration_closes": registration_dates[1].strftime("%Y-%m-%d"),
+    }
+
+    # Filter any defunct / empty departments from the list
+    courses = list(filter(lambda dept: len(dept["courses"]) > 0, courses))
+    # If semester is too far in the future, don't do anything.
+    if len(courses) == 0:
+        print("Semester is empty - skipping it!")
+        return
+
+    # Ensure data/{term} exists
+    os.makedirs(f"data/{term}", exist_ok=True)
+
+    with open(f"all_schools.json", "r") as all_schools_f:
+        all_schools = json.load(all_schools_f)
+
+    # Ensure schools.json is populated properly
+    matched_subjects = set()
+    schools = []
+    for possible_school in all_schools:
+        # ignore the "Uncategorized" category to avoid duplicate matching if the catalog is later changed
+        if possible_school["name"] == "Uncategorized":
+            continue
+        res_school = {"name": possible_school["name"], "depts": []}
+        for target_dept in possible_school["depts"]:
+            matching_depts = list(
+                filter(lambda d: d["code"] == target_dept["code"], courses)
+            )
+            if matching_depts:
+                res_school["depts"].append(target_dept)
+        if res_school["depts"]:
+            matched_subjects.update(d["code"] for d in res_school["depts"])
+            schools.append(res_school)
+    # Determine if any department is missing from schools.json list and
+    # put missing ones into an "Uncategorized" school. This has happened a few times in the past,
+    # most notably when STSH and STSS merged to become STSO.
+    all_subjects = set(d["code"] for d in courses)
+    unmatched_subjects = all_subjects - matched_subjects
+    if unmatched_subjects:
+        schools.append(
+            {
+                "name": "Uncategorized",
+                "depts": [
+                    {
+                        "code": code,
+                        "name": list(
+                            filter(lambda dept: dept["code"] == code, courses)
+                        )[0]["name"],
+                    }
+                    for code in unmatched_subjects
+                ],
+            }
+        )
+
+    # Sort the departments in each school
+    for school in schools:
+        school["depts"] = sorted(school["depts"], key=itemgetter("code"))
+
+    school_columns = util.optimize_column_ordering(schools)
+    # Write out all the results of the scraper
+    conflict_logic.gen(term, courses)
+    # Replace all the dateStart/dateEnd with the MM/DD format used by the quacs frontend
+    # Additionally, split out the prereq field into a separate json
+    prerequisites = {}
+    date_to_quacs = lambda date: (
+        f"{str(date.month).zfill(2)}/{str(date.day).zfill(2)}" if date != None else ""
+    )
+    for dept in courses:
+        for course in dept["courses"]:
+            for section in course["sections"]:
+                try:
+                    prerequisites[section["crn"]] = section["prereqs"]
+                    del section["prereqs"]
+                except:
+                    prerequisites[section["crn"]] = {}
+                for timeslot in section["timeslots"]:
+                    timeslot["dateStart"] = date_to_quacs(timeslot["dateStart"])
+                    timeslot["dateEnd"] = date_to_quacs(timeslot["dateEnd"])
+
+    with open(f"data/{term}/schools.json", "w") as schools_f:
+        json.dump(school_columns, schools_f, sort_keys=False, indent=2)
+    with open(f"data/{term}/courses.json", "w") as outfile:
+        json.dump(courses, outfile, sort_keys=True, indent=2)
+    with open(f"data/{term}/prerequisites.json", "w") as outfile:
+        json.dump(prerequisites, outfile, sort_keys=True, indent=2)
+    with open(f"data/{term}/registration_dates.json", "w") as outfile:
+        json.dump(registration_dates_json, outfile, sort_keys=True, indent=2)
+    print("Done")
+
+
