@@ -385,3 +385,89 @@ async def scrape_term(term):
     print("Done")
 
 
+async def scrape_term_catalog(term):
+    if not os.path.isdir(f"data/{term}"):
+        print(f"Term does not exist in data yet, skipping {term} catalog scraping...")
+        return
+    print(f"Scraping {term} catalog...")
+    global session
+    url = f"https://sis.rpi.edu/rss/bwckctlg.p_display_courses?term_in={term}&sel_crse_strt=&sel_crse_end=&sel_subj=&sel_levl=&sel_schd=&sel_coll=&sel_divs=&sel_dept=&sel_attr="
+    async with session.get(url) as request:
+        soup = BeautifulSoup(await request.text())
+        catalog = {}
+        for subj in map(lambda x: x["value"], soup.find("select").findAll("option")):
+            catalog.update(await scrape_subject_catalog(term, subj))
+        with open(f"data/{term}/catalog_sis.json", "w") as outfile:
+            json.dump(catalog, outfile, sort_keys=False, indent=2)
+
+
+async def scrape_subject_catalog(term, search_subj):
+    global session
+    url = f"https://sis.rpi.edu/rss/bwckctlg.p_display_courses?term_in={term}&one_subj={search_subj}&sel_crse_strt=0&sel_crse_end=9999&sel_subj=&sel_levl=&sel_schd=&sel_coll=&sel_divs=&sel_dept=&sel_attr="
+    async with session.get(url) as request:
+        soup = BeautifulSoup(await request.text())
+        catalog = {}
+        links = soup.find(
+            "table",
+            {"summary": "This table lists all course detail for the selected term."},
+        ).findAll("a")
+        links = filter(lambda a: "p_disp_course_detail" in a["href"], links)
+        for a in links:
+            desc = (
+                a.findNext("td", {"class": "ntdefault"})
+                .contents[0]
+                .strip()
+                .split("\n")[0]
+                .strip()
+            )
+            link = a.contents[0].split()
+            [subj, crse] = link[:2]
+            catalog[f"{subj}-{crse}"] = {
+                "subj": subj,
+                "crse": crse,
+                "name": util.normalize_class_name(" ".join(link[3:]).strip()),
+                "description": desc,
+                "source": "SIS",
+            }
+        return catalog
+
+
+async def main():
+    if sys.argv[-1] == "help" or sys.argv[-1] == "--help":
+        print(f"USAGE: python3 {sys.argv[0]} [ALL_YEARS]")
+        sys.exit(1)
+
+    global session
+    async with aiohttp.ClientSession(
+        connector=aiohttp.TCPConnector(limit=5)
+    ) as session:
+        semesters = util.get_semesters_to_scrape()
+
+        if sys.argv[-1] == "ALL_YEARS":
+            print("Parsing all years")
+            for term in os.listdir("data/"):
+                if term not in semesters:
+                    semesters.append(term)
+        elif sys.argv[-1] == "OLD_YEARS":
+            print("Parsing pre-2008 years only")
+            # weird special case:
+            # 199805 = first half summer, 199807 = second half
+            # all other summers just put both in XXXX05
+            # also, 199801 is not in SIS
+            semesters = ["199805", "199807", "199809"]
+            for year in range(1999, 2008):
+                for term in ["01", "05", "09"]:
+                    semesters.append(str(year) + str(term))
+        elif len(sys.argv[-1]) == 6:
+            print(f"Parsing {sys.argv[-1]} only")
+            semesters = [sys.argv[-1]]
+        else:
+            print("Parsing relevant terms only")
+
+        for semester in semesters:
+            await scrape_term(semester)
+            await scrape_term_catalog(semester)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
