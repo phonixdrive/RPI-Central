@@ -1,28 +1,25 @@
-//  CourseCatalogService.swift
-//  RPI Central
+// CourseCatalogService.swift
 
 import Foundation
 
 final class CourseCatalogService: ObservableObject {
-    @Published var catalog: CourseCatalog?
-    @Published var courses: [Course] = []
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+    static let shared = CourseCatalogService()
 
-    // File in your bundle: rpi_courses_202501.json
-    private let filename = "rpi_courses_202509"
-
-    init() {
-        loadFromBundle()
+    @Published private(set) var courses: [Course] = []
+    @Published var semester: Semester = .spring2025 {
+        didSet { loadCourses(for: semester) }
     }
 
-    func loadFromBundle() {
-        isLoading = true
-        errorMessage = nil
+    private init() {
+        loadCourses(for: semester)
+    }
+
+    private func loadCourses(for semester: Semester) {
+        let filename = semester.jsonFileName
 
         guard let url = Bundle.main.url(forResource: filename, withExtension: "json") else {
-            isLoading = false
-            errorMessage = "Missing \(filename).json in app bundle."
+            print("❌ Could not find \(filename).json in bundle")
+            courses = []
             return
         }
 
@@ -30,23 +27,17 @@ final class CourseCatalogService: ObservableObject {
             let data = try Data(contentsOf: url)
             let decoder = JSONDecoder()
 
-            // This matches the { "term": "...", "courses": [...] } structure
-            let catalog = try decoder.decode(CourseCatalog.self, from: data)
-
-            let sorted = catalog.courses.sorted {
-                if $0.subject == $1.subject {
-                    return $0.number < $1.number
-                }
-                return $0.subject < $1.subject
+            struct CourseCatalog: Decodable {
+                let courses: [Course]
             }
 
-            self.catalog = catalog
-            self.courses = sorted
-            self.isLoading = false
+            let catalog = try decoder.decode(CourseCatalog.self, from: data)
+            DispatchQueue.main.async {
+                self.courses = catalog.courses
+            }
         } catch {
-            print("Decoding error:", error)
-            isLoading = false
-            errorMessage = "Failed to decode course catalog: \(error.localizedDescription)"
+            print("❌ Failed to decode course catalog:", error)
+            courses = []
         }
     }
 }

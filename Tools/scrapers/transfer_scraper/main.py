@@ -215,3 +215,104 @@ async def get_school_data(s, id) -> None:
                 data[course_id].append(school_data)
 
 
+# Takes in the school ids and
+async def get_data(data, school_ids: List[str]) -> None:
+    async with aiohttp.ClientSession() as s:
+        # await asyncio.gather(*(get_school_data(s, id) for id in school_ids))
+        # If we start running into rate limit problems, replace the asyncio.gather above with this loop
+        for id in tqdm(school_ids):
+            await get_school_data(s, id)
+
+
+data = {}
+print("Getting list of schools")
+school_ids = asyncio.run(get_school_ids())
+print(f"Found {len(school_ids)} schools")
+print("Getting transfer data")
+asyncio.run(get_data(data, school_ids))
+
+for k, v in data.items():
+    data[k] = sorted(
+        v, key=lambda school_data: school_data["location"] + school_data["school_name"]
+    )
+
+
+with open("transfer.json", "w") as outfile:
+    json.dump(data, outfile, sort_keys=True, indent=2)
+
+print("Finished generating transfer.json")
+
+data = {}
+with open("transfer.json") as f:
+    data = json.load(f)
+
+
+if sys.argv[-1] == "csv":
+    print("Generating csv files")
+
+    if not os.path.exists("transfer_guides"):
+        os.makedirs("transfer_guides")
+
+    for rpi_course in tqdm(data):
+        csv_output = []
+        csv_output.append(
+            [
+                "School Location",
+                "School Name",
+                "School id(s)",
+                "School Course(s)",
+                "RPI Equiv id(s)",
+                "RPI Equiv Courses(s)",
+                "RPI Equiv Credits(s)",
+            ]
+        )
+        for transfer_course in data[rpi_course]:
+            csv_output.append(
+                [
+                    transfer_course["location"],
+                    transfer_course["school_name"],
+                    f"\n{transfer_course['transfer_operator']} ".join(
+                        [
+                            course["id"]
+                            for course in transfer_course["transfer"]
+                            if "name" in course
+                        ]
+                    ),
+                    f"\n{transfer_course['transfer_operator']} ".join(
+                        [
+                            course["name"]
+                            for course in transfer_course["transfer"]
+                            if "name" in course
+                        ]
+                    ),
+                    f"\n{transfer_course['rpi_operator']} ".join(
+                        [
+                            course["id"]
+                            for course in transfer_course["rpi"]
+                            if "name" in course
+                        ]
+                    ),
+                    f"\n{transfer_course['rpi_operator']} ".join(
+                        [
+                            course["name"]
+                            for course in transfer_course["rpi"]
+                            if "name" in course
+                        ]
+                    ),
+                    f"\n{transfer_course['rpi_operator']} ".join(
+                        [
+                            str(course["credits"])
+                            for course in transfer_course["rpi"]
+                            if "name" in course and "credits" in course
+                        ]
+                    ),
+                ]
+            )
+
+        with open(
+            f"transfer_guides/{rpi_course} Transfer Guide.csv", "w", newline=""
+        ) as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_output)
+
+    print("Finished generating csv files")

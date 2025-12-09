@@ -1,3 +1,6 @@
+//  CalendarView.swift
+//  RPI Central
+
 import SwiftUI
 
 // MARK: - Display modes
@@ -55,6 +58,21 @@ struct CalendarView: View {
                         }
                     }
             )
+            .task {
+                // AI academic events stub
+                if !viewModel.academicEventsLoaded {
+                    AcademicCalendarService.shared.fetchEventsForCurrentYear { result in
+                        switch result {
+                        case .success(let events):
+                            DispatchQueue.main.async {
+                                viewModel.addAcademicEvents(events)
+                            }
+                        case .failure(let error):
+                            print("❌ Failed to load academic events:", error)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -118,7 +136,6 @@ struct CalendarView: View {
 
         return Menu {
             ForEach(Array(years), id: \.self) { year in
-                // Prefix "Year" so iOS never formats it as 2,025 etc.
                 Section("Year \(year)") {
                     ForEach(1...12, id: \.self) { month in
                         Button {
@@ -256,7 +273,6 @@ struct TimelineCalendarView: View {
     }
 
     var body: some View {
-        // number of hour *intervals* (7–8, 8–9, ... 21–22)
         let intervalCount = dayEndHour - dayStartHour
 
         VStack(spacing: 0) {
@@ -303,7 +319,6 @@ struct TimelineCalendarView: View {
                             }
                             .stroke(Color.white.opacity(0.7), lineWidth: 1.1)
 
-                            // time label (no label past the last interval)
                             if idx < intervalCount {
                                 let hour = dayStartHour + idx
                                 Text(hourLabel(hour))
@@ -450,7 +465,6 @@ struct TimelineCalendarView: View {
                     Text(event.title)
                         .font(.caption2.bold())
                         .foregroundColor(.black)
-                        // no lineLimit -> wrap instead of truncating
 
                     Text("\(timeString(event.startDate)) – \(timeString(event.endDate))")
                         .font(.caption2)
@@ -488,7 +502,6 @@ struct MonthWithScheduleView: View {
             Divider()
                 .padding(.top, 4)
 
-            // Schedule for the currently selected day (from viewModel.selectedDate)
             let selected = viewModel.selectedDate
             let events = viewModel.events(on: selected)
 
