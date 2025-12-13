@@ -1,43 +1,15 @@
-//  CalenderViewModel.swift
+//  CalendarViewModel.swift
 //  RPI Central
 
 import Foundation
 import SwiftUI
 
-// MARK: - Theme
-
-enum AppThemeColor: String, CaseIterable, Identifiable, Codable {
-    case blue
-    case red
-    case green
-    case purple
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .blue:   return "Blue"
-        case .red:    return "Red"
-        case .green:  return "Green"
-        case .purple: return "Purple"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .blue:   return .blue
-        case .red:    return .red
-        case .green:  return .green
-        case .purple: return .purple
-        }
-    }
-}
-
 // Represents a course+section the user has added
-struct EnrolledCourse: Identifiable, Equatable {
+struct EnrolledCourse: Identifiable, Equatable, Codable {
     let id: String          // e.g. "CSCI-2300-35222"
     let course: Course
     let section: CourseSection
+    let semesterCode: String
 
     static func == (lhs: EnrolledCourse, rhs: EnrolledCourse) -> Bool {
         lhs.id == rhs.id
@@ -49,17 +21,21 @@ final class CalendarViewModel: ObservableObject {
     @Published var selectedDate: Date
     @Published var events: [ClassEvent]
     @Published var enrolledCourses: [EnrolledCourse] = []
+    @Published var currentSemester: Semester = .spring2025
 
-    // Settings
-    @Published var themeColor: AppThemeColor = .blue
-    @Published var notificationsEnabled: Bool = false
-    @Published var notificationLeadMinutes: Int = 10
+    // THEME (for .tint and Settings)
+    @Published var themeColor: Color = .blue
+
+    // whether we've already pulled academic events
+    @Published private(set) var academicEventsLoaded: Bool = false
 
     private let calendar = Calendar.current
 
-    /// We treat the *current* week as a template week
+    /// We treat the *current* week as a template week for class meetings
     private let weekStartDate: Date
     private let weekEndDate: Date
+
+    private let enrolledStorageKey = "enrolled_courses_v1"
 
     // Your color palette: [light, dark]
     // Order: red, orange, blue, green, yellow
@@ -74,8 +50,8 @@ final class CalendarViewModel: ObservableObject {
     private let darkPalette: [Color] = [
         Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366 (red)
         Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432 (orange)
-        Color(red: 0.27843,   green: 0.85882,  blue: 0.34510),  // #47db58 (blue-ish accent)
-        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58 (green)
+        Color(red: 0.27843,   green: 0.85882,  blue: 0.34510),  // #47db58
+        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58
         Color(red: 1.0,       green: 0.79216,  blue: 0.26667)   // #ffca44 (yellow)
     ]
 
@@ -93,6 +69,10 @@ final class CalendarViewModel: ObservableObject {
         self.selectedDate = startOfWeek
         self.displayedMonthStart = startOfWeek.startOfMonth(using: calendar)
         self.events = []
+        self.enrolledCourses = []
+
+        loadEnrollment()
+        rebuildEventsFromEnrollment()
     }
 
     // MARK: - Month navigation (for future month view)
@@ -111,50 +91,55 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Events per day
 
-    /// Return events for this date by treating `events` as a template week.
-    /// Any event whose weekday matches `date` is copied onto that date,
-    /// preserving start/end time, colors, etc.
+    /// Return events for this date.
+    /// - Class events (enrollmentID != nil) are treated as *template weekly* events
+    ///   and are mapped onto whatever week you're viewing.
+    /// - Non-class events (enrollmentID == nil) are fixed-date events.
     func events(on date: Date) -> [ClassEvent] {
+        var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
 
-        var result: [ClassEvent] = []
-
         for base in events {
-            let baseWeekday = calendar.component(.weekday, from: base.startDate)
-            guard baseWeekday == weekday else { continue }
+            if let _ = base.enrollmentID {
+                // Weekly template (class)
+                let baseWeekday = calendar.component(.weekday, from: base.startDate)
+                guard baseWeekday == weekday else { continue }
 
-            // Take just the time-of-day from the base event
-            let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
-            let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
+                let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
+                let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
 
-            // Apply that time to the requested date
-            var startDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-            startDateComponents.hour = startTime.hour
-            startDateComponents.minute = startTime.minute
-            startDateComponents.second = startTime.second
+                var startComps = calendar.dateComponents([.year, .month, .day], from: date)
+                startComps.hour = startTime.hour
+                startComps.minute = startTime.minute
+                startComps.second = startTime.second
 
-            var endDateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-            endDateComponents.hour = endTime.hour
-            endDateComponents.minute = endTime.minute
-            endDateComponents.second = endTime.second
+                var endComps = calendar.dateComponents([.year, .month, .day], from: date)
+                endComps.hour = endTime.hour
+                endComps.minute = endTime.minute
+                endComps.second = endTime.second
 
-            guard
-                let newStart = calendar.date(from: startDateComponents),
-                let newEnd   = calendar.date(from: endDateComponents)
-            else { continue }
+                guard
+                    let newStart = calendar.date(from: startComps),
+                    let newEnd   = calendar.date(from: endComps)
+                else { continue }
 
-            // Copy the event onto this date
-            let copy = ClassEvent(
-                title: base.title,
-                location: base.location,
-                startDate: newStart,
-                endDate: newEnd,
-                backgroundColor: base.backgroundColor,
-                accentColor: base.accentColor,
-                enrollmentID: base.enrollmentID
-            )
+                let copy = ClassEvent(
+                    title: base.title,
+                    location: base.location,
+                    startDate: newStart,
+                    endDate: newEnd,
+                    backgroundColor: base.backgroundColor,
+                    accentColor: base.accentColor,
+                    enrollmentID: base.enrollmentID
+                )
 
-            result.append(copy)
+                result.append(copy)
+            } else {
+                // Fixed-date event (academic calendar, manual event, etc.)
+                if calendar.isDate(base.startDate, inSameDayAs: date) {
+                    result.append(base)
+                }
+            }
         }
 
         return result.sorted { $0.startDate < $1.startDate }
@@ -187,7 +172,13 @@ final class CalendarViewModel: ObservableObject {
         let todaysEvents = events(on: date)
         let idsToDelete = offsets.map { todaysEvents[$0].id }
         events.removeAll { idsToDelete.contains($0.id) }
-        rescheduleNotificationsIfNeeded()
+    }
+
+    // MARK: - Semester switching
+
+    func changeSemester(to newSemester: Semester) {
+        currentSemester = newSemester
+        rebuildEventsFromEnrollment()
     }
 
     // MARK: - Enrollment helpers
@@ -234,7 +225,7 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Time conflict detection
 
     /// Returns true if this section clashes with any existing *class* event.
-    func hasTimeConflict(for section: CourseSection) -> Bool {
+    private func hasTimeConflict(for section: CourseSection) -> Bool {
         for meeting in section.meetings {
             guard
                 let startComponents = timeComponents(from: meeting.start),
@@ -275,6 +266,11 @@ final class CalendarViewModel: ObservableObject {
         return false
     }
 
+    /// Public helper so the UI can show "Time conflict"
+    func hasConflict(for course: Course, section: CourseSection) -> Bool {
+        hasTimeConflict(for: section)
+    }
+
     // MARK: - Add/remove a course section
 
     func addCourseSection(_ section: CourseSection, course: Course) {
@@ -290,7 +286,12 @@ final class CalendarViewModel: ObservableObject {
             return
         }
 
-        let enrollment = EnrolledCourse(id: id, course: course, section: section)
+        let enrollment = EnrolledCourse(
+            id: id,
+            course: course,
+            section: section,
+            semesterCode: currentSemester.rawValue
+        )
         enrolledCourses.append(enrollment)
 
         // Generate events for this "template week" (weekStartDate...weekEndDate)
@@ -311,47 +312,45 @@ final class CalendarViewModel: ObservableObject {
 
         // Now recolor everything so colors shift like QuACS
         recolorAllEvents()
-        rescheduleNotificationsIfNeeded()
+        saveEnrollment()
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
         enrolledCourses.removeAll { $0.id == enrollment.id }
         events.removeAll { $0.enrollmentID == enrollment.id }
         recolorAllEvents()
-        rescheduleNotificationsIfNeeded()
+        saveEnrollment()
     }
 
     func removeEnrollment(at offsets: IndexSet) {
         for index in offsets {
+            guard index < enrolledCourses.count else { continue }
             let enrollment = enrolledCourses[index]
             removeEnrollment(enrollment)
         }
     }
 
-    // MARK: - Notifications
+    // MARK: - Academic events
 
-    func rescheduleNotificationsIfNeeded() {
-        guard notificationsEnabled else {
-            NotificationManager.clearScheduledNotifications()
-            return
-        }
-        rescheduleNotifications()
-    }
-
-    func rescheduleNotifications() {
-        NotificationManager.requestAuthorization()
-        NotificationManager.clearScheduledNotifications()
-        for event in events where event.enrollmentID != nil {
-            NotificationManager.scheduleNotification(
-                for: event,
-                minutesBefore: notificationLeadMinutes
+    func addAcademicEvents(_ academicEvents: [AcademicEvent]) {
+        for ev in academicEvents {
+            let event = ClassEvent(
+                title: ev.title,
+                location: ev.location ?? "",
+                startDate: ev.startDate,
+                endDate: ev.endDate,
+                backgroundColor: Color.gray.opacity(0.3),
+                accentColor: .gray,
+                enrollmentID: nil
             )
+            events.append(event)
         }
+        academicEventsLoaded = true
     }
 
     // MARK: - Event creation helpers
 
-    private func generateSingleWeekEvent(
+    fileprivate func generateSingleWeekEvent(
         course: Course,
         section: CourseSection,
         meeting: Meeting,
@@ -376,8 +375,7 @@ final class CalendarViewModel: ObservableObject {
             let endDate = calendar.date(from: endDateComponents)
         else { return }
 
-        // Use actual course name for the schedule boxes
-        let title = course.title
+        let title = "\(course.subject) \(course.number) – \(course.title)"
         let crnText = section.crn.map(String.init) ?? "Unknown CRN"
         let location = meeting.location.isEmpty
             ? "CRN \(crnText)"
@@ -397,6 +395,53 @@ final class CalendarViewModel: ObservableObject {
             enrollmentID: enrollmentID
         )
         events.append(event)
+    }
+
+    // MARK: - Persistence
+
+    private func saveEnrollment() {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(enrolledCourses) {
+            UserDefaults.standard.set(data, forKey: enrolledStorageKey)
+        }
+    }
+
+    private func loadEnrollment() {
+        guard let data = UserDefaults.standard.data(forKey: enrolledStorageKey) else { return }
+        let decoder = JSONDecoder()
+        if let loaded = try? decoder.decode([EnrolledCourse].self, from: data) {
+            self.enrolledCourses = loaded
+        }
+    }
+
+    /// Rebuild class events from the current `enrolledCourses` list, for the template week,
+    /// only for the active semester.
+    private func rebuildEventsFromEnrollment() {
+        // If you later add academic events, you might want to preserve them here.
+        events.removeAll()
+
+        for enrollment in enrolledCourses where enrollment.semesterCode == currentSemester.rawValue {
+            let course = enrollment.course
+            let section = enrollment.section
+            let id = enrollment.id
+
+            for meeting in section.meetings {
+                for day in meeting.days {
+                    guard let classDate = firstDate(onOrAfter: weekStartDate,
+                                                    weekday: day.calendarWeekday) else { continue }
+
+                    generateSingleWeekEvent(
+                        course: course,
+                        section: section,
+                        meeting: meeting,
+                        date: classDate,
+                        enrollmentID: id
+                    )
+                }
+            }
+        }
+
+        recolorAllEvents()
     }
 
     // MARK: - Low-level helpers
@@ -449,5 +494,23 @@ extension Date {
         let df = DateFormatter()
         df.dateFormat = format
         return df.string(from: self)
+    }
+}
+
+// MARK: - Day string -> weekday
+
+extension String {
+    /// Maps "M","T","W","R","F","S" to Calendar weekday ints
+    /// Calendar: 1 = Sunday, 2 = Monday, ...
+    var calendarWeekday: Int {
+        switch self.uppercased() {
+        case "M": return 2
+        case "T": return 3
+        case "W": return 4
+        case "R": return 5
+        case "F": return 6
+        case "S": return 7
+        default:  return 1
+        }
     }
 }

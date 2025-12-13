@@ -55,6 +55,11 @@
 			path = "RPI CentralUITests";
 			sourceTree = "<group>";
 		};
+		0D8E61392EED113000B6269D /* Tools */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tools;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +90,7 @@
 		0D3BAF0B2E909BB3006793BF = {
 			isa = PBXGroup;
 			children = (
+				0D8E61392EED113000B6269D /* Tools */,
 				0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */,
 				0D8EAA3F2E90A3A80099AA02 /* readme.md */,
 				0D8EAA3D2E90A31D0099AA02 /* index.md */,
@@ -124,6 +130,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0D3BAF162E909BB3006793BF /* RPI Central */,
+				0D8E61392EED113000B6269D /* Tools */,
 			);
 			name = "RPI Central";
 			packageProductDependencies = (

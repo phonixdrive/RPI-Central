@@ -1,62 +1,64 @@
-//  CoursesView.swift
-//  RPI Central
+// CoursesView.swift
+// RPI Central
 
 import SwiftUI
 
 struct CoursesView: View {
-    @EnvironmentObject var catalogService: CourseCatalogService
     @EnvironmentObject var calendarViewModel: CalendarViewModel
-
+    @StateObject private var catalog = CourseCatalogService.shared
     @State private var searchText: String = ""
 
     private var filteredCourses: [Course] {
-        let all = catalogService.courses
-        let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !term.isEmpty else { return all }
-        return all.filter { course in
-            let code1 = "\(course.subject) \(course.number)".lowercased()
-            let code2 = "\(course.subject)-\(course.number)".lowercased()
-            return course.title.lowercased().contains(term)
-                || code1.contains(term)
-                || code2.contains(term)
+        let all = catalog.courses
+        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return all.sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
         }
+
+        let query = searchText.lowercased()
+        return all.filter { course in
+            course.subject.lowercased().contains(query) ||
+            course.number.lowercased().contains(query) ||
+            course.title.lowercased().contains(query)
+        }
+        .sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
     }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if catalogService.isLoading {
-                    ProgressView("Loading courses…")
-                } else if let error = catalogService.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .padding()
-                } else {
-                    List(filteredCourses) { course in
+            VStack(spacing: 0) {
+                // Semester picker
+                Picker("Semester", selection: $catalog.semester) {
+                    ForEach(Semester.allCases) { sem in
+                        Text(sem.displayName).tag(sem)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .onChange(of: catalog.semester) { _, newValue in
+                    calendarViewModel.changeSemester(to: newValue)
+                }
+
+                List {
+                    ForEach(filteredCourses) { course in
                         NavigationLink {
                             CourseDetailView(course: course)
                                 .environmentObject(calendarViewModel)
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                // Course NAME first (bold)
-                                Text(course.title)
-                                    .font(.headline)
-
-                                // Code underneath (COMM 2570)
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("\(course.subject) \(course.number)")
+                                    .font(.headline)
+                                Text(course.title)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
                 }
+                .listStyle(.plain)
             }
             .navigationTitle("Courses")
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer,
-                prompt: "Search by code or name"
-            )
         }
+        .searchable(text: $searchText, prompt: "Search by subject, number, or title")
     }
 }

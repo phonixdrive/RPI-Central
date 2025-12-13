@@ -8,28 +8,28 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            NavigationStack {
-                HomeView()
-            }
-            .tabItem {
-                Label("Home", systemImage: "house.fill")
-            }
+            HomeView()
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
 
-            NavigationStack {
-                CalendarView()
-            }
-            .tabItem {
-                Label("Calendar", systemImage: "calendar")
-            }
+            CalendarView()
+                .tabItem {
+                    Label("Calendar", systemImage: "calendar")
+                }
 
-            NavigationStack {
-                SettingsView()
-            }
-            .tabItem {
-                Label("Settings", systemImage: "gearshape.fill")
-            }
+            CoursesView()
+                .tabItem {
+                    Label("Courses", systemImage: "book")
+                }
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
         }
-        .tint(calendarViewModel.themeColor.color)
+        // IMPORTANT: use the Color itself, NOT a Binding
+        .tint(calendarViewModel.themeColor)
     }
 }
 
