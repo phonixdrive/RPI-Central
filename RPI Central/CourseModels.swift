@@ -1,5 +1,7 @@
+//
 //  CourseModels.swift
 //  RPI Central
+//
 
 import Foundation
 
@@ -28,15 +30,7 @@ enum Weekday: String, Codable, CaseIterable {
     }
 
     var shortName: String {
-        switch self {
-        case .mon: return "M"
-        case .tue: return "T"
-        case .wed: return "W"
-        case .thu: return "R"
-        case .fri: return "F"
-        case .sat: return "S"
-        case .sun: return "U"
-        }
+        rawValue
     }
 }
 
@@ -60,11 +54,15 @@ struct CourseSection: Codable, Identifiable {
     let instructor: String
     let meetings: [Meeting]
 
+    // NEW: prereqs pulled from prerequisites.json (human readable)
+    let prerequisitesText: String
+
     enum CodingKeys: String, CodingKey {
         case crn
         case section
         case instructor
         case meetings
+        case prerequisitesText
     }
 
     // Custom decode so section can be String or Int, etc.
@@ -83,14 +81,22 @@ struct CourseSection: Codable, Identifiable {
 
         instructor = (try? container.decode(String.self, forKey: .instructor)) ?? ""
         meetings = (try? container.decode([Meeting].self, forKey: .meetings)) ?? []
+        prerequisitesText = (try? container.decode(String.self, forKey: .prerequisitesText)) ?? ""
     }
 
-    // Manual memberwise init so we can use this in previews/tests
-    init(crn: Int?, section: String, instructor: String, meetings: [Meeting]) {
+    // Manual memberwise init so we can use this in builders/tests
+    init(
+        crn: Int?,
+        section: String,
+        instructor: String,
+        meetings: [Meeting],
+        prerequisitesText: String = ""
+    ) {
         self.crn = crn
         self.section = section
         self.instructor = instructor
         self.meetings = meetings
+        self.prerequisitesText = prerequisitesText
     }
 }
 
@@ -131,11 +137,12 @@ struct Course: Codable, Identifiable {
         description = (try? container.decode(String.self, forKey: .description)) ?? ""
         sections = (try? container.decode([CourseSection].self, forKey: .sections)) ?? []
     }
-}
 
-// MARK: - Catalog root
-
-struct CourseCatalog: Codable {
-    let term: String         // "202501"
-    let courses: [Course]
+    init(subject: String, number: String, title: String, description: String, sections: [CourseSection]) {
+        self.subject = subject
+        self.number = number
+        self.title = title
+        self.description = description
+        self.sections = sections
+    }
 }
