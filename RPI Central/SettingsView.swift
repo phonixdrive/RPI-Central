@@ -1,5 +1,7 @@
+//
 //  SettingsView.swift
 //  RPI Central
+//
 
 import SwiftUI
 
@@ -8,7 +10,6 @@ struct SettingsView: View {
 
     @State private var notificationsEnabled: Bool = true
     @State private var minutesBeforeClass: Double = 10
-
     @State private var selectedTheme: AppThemeColor = .blue
 
     var body: some View {
@@ -27,6 +28,14 @@ struct SettingsView: View {
                             .tag(theme)
                         }
                     }
+                }
+
+                // PREREQS
+                Section(header: Text("Courses")) {
+                    Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
+                    Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 // NOTIFICATIONS (UI only – wiring to real notifications can come later)
@@ -56,11 +65,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
         }
         .onAppear {
-            // Map current themeColor to our enum
             selectedTheme = AppThemeColor.from(color: calendarViewModel.themeColor)
         }
         .onChange(of: selectedTheme) { newTheme in
-            // Update the global tint color
             calendarViewModel.themeColor = newTheme.color
         }
     }
@@ -69,11 +76,7 @@ struct SettingsView: View {
 // MARK: - AppThemeColor helper enum
 
 enum AppThemeColor: String, CaseIterable, Identifiable {
-    case blue
-    case red
-    case green
-    case purple
-    case orange
+    case blue, red, green, purple, orange
 
     var id: String { rawValue }
 
@@ -98,7 +101,6 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
     }
 
     static func from(color: Color) -> AppThemeColor {
-        // super simple mapping; if we can't match exactly, default to .blue
         if color == Color.red { return .red }
         if color == Color.green { return .green }
         if color == Color.purple { return .purple }
