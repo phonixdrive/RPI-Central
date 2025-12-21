@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Humanities, Arts, and Social Sciences",
+    "depts": [
+      {
+        "code": "STSO",
+        "name": "Science and Technology Studies (Humanities Courses)"
+      }
+    ]
+  },
+  {
+    "name": "Architecture",
+    "depts": [
+      {
+        "code": "ARCH",
+        "name": "Architecture"
+      }
+    ]
+  },
+  {
+    "name": "Information Technology and Web Science",
+    "depts": [
+      {
+        "code": "ITWS",
+        "name": "Information Technology and Web Science"
+      }
+    ]
+  },
+  {
+    "name": "Science",
+    "depts": [
+      {
+        "code": "CSCI",
+        "name": "Computer Science"
+      }
+    ]
+  }
+]
