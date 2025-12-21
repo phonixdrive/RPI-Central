@@ -214,3 +214,165 @@ def parse_date_cell(date_cell: str, current_month_num: Optional[int], fall_year:
     raise ValueError(f"Could not parse date cell: {date_cell!r}")
 
 
+def scrape(yy: int, debug: bool = False) -> Dict:
+    fall_year, spring_year = academic_year_to_years(yy)
+
+    resp = requests.get(SOURCE_URL, params={"academic_year": f"{yy:02d}"}, timeout=30)
+    resp.raise_for_status()
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Find the academic calendar tables. The page is Drupal and often has multiple tables.
+    # We pick tables that have headers containing Date/Day/Event.
+    tables = []
+    for tbl in soup.find_all("table"):
+        th_text = " ".join(normalize_ws(th.get_text(" ", strip=True)) for th in tbl.find_all("th"))
+        if "Date" in th_text and "Day" in th_text and "Event" in th_text:
+            tables.append(tbl)
+
+    if not tables:
+        # Debug dump if needed
+        if debug:
+            print("DEBUG: No matching tables found. HTML title:", soup.title.get_text(strip=True) if soup.title else "N/A")
+        return {
+            "source": SOURCE_URL,
+            "academicYear": str(fall_year),
+            "generatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "+00:00",
+            "terms": {"fall": {"classesBegin": None, "classesEnd": None}, "spring": {"classesBegin": None, "classesEnd": None}},
+            "events": [],
+        }
+
+    events: List[Event] = []
+    current_month_num: Optional[int] = None
+
+    for tbl in tables:
+        # each row should be Date | Day | Event (but ranges often have blank Day)
+        for tr in tbl.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) < 2:
+                continue
+
+            # Some tables may have 3 columns; if only 2, it might be a malformed row; skip.
+            if len(tds) < 3:
+                continue
+
+            date_txt = normalize_ws(tds[0].get_text(" ", strip=True))
+            day_txt = normalize_ws(tds[1].get_text(" ", strip=True)) or None
+            event_txt = normalize_ws(tds[2].get_text(" ", strip=True))
+
+            # Skip empties / header-ish rows
+            if not date_txt or not event_txt:
+                continue
+
+            # Parse date(s)
+            try:
+                start_d, end_d, current_month_num = parse_date_cell(date_txt, current_month_num, fall_year, spring_year)
+            except Exception as e:
+                if debug:
+                    print(f"DEBUG: Skipping row due to date parse error: {e} | date={date_txt!r} event={event_txt!r}")
+                continue
+
+            # Normalize DOW
+            if day_txt:
+                # Day sometimes contains things like "Fri" or is blank for ranges
+                # Keep as 3-letter if it looks like that; else null
+                if not re.fullmatch(r"[A-Za-z]{3}", day_txt):
+                    day_txt = None
+                else:
+                    day_txt = day_txt.title()
+
+            ev = Event(
+                title=event_txt,
+                startDate=to_iso(start_d),
+                endDate=to_iso(end_d),
+                dow=day_txt,
+                tags=infer_tags(event_txt),
+            )
+            events.append(ev)
+
+    # Term inference from event titles
+    def find_first_date_containing(substr: str) -> Optional[str]:
+        s = substr.lower()
+        for ev in events:
+            if s in ev.title.lower():
+                return ev.startDate
+        return None
+
+    def find_last_date_containing(substr: str) -> Optional[str]:
+        s = substr.lower()
+        for ev in reversed(events):
+            if s in ev.title.lower():
+                return ev.startDate
+        return None
+
+    # Fall classes begin often includes "Fall 20XX Classes Begin"
+    fall_begin = find_first_date_containing("fall") if find_first_date_containing("classes begin") else None
+    # Better: specifically match "Fall" and "Classes Begin"
+    for ev in events:
+        t = ev.title.lower()
+        if "fall" in t and "classes begin" in t:
+            fall_begin = ev.startDate
+            break
+
+    fall_end = None
+    for ev in events:
+        t = ev.title.lower()
+        if "last day of fall" in t and "classes" in t:
+            fall_end = ev.startDate
+            break
+
+    spring_begin = None
+    for ev in events:
+        t = ev.title.lower()
+        if "spring" in t and "classes begin" in t:
+            spring_begin = ev.startDate
+            break
+
+    spring_end = None
+    for ev in events:
+        t = ev.title.lower()
+        if "last day of spring" in t and "classes" in t:
+            spring_end = ev.startDate
+            break
+
+    out = {
+        "source": SOURCE_URL,
+        "academicYear": str(fall_year),
+        "generatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "+00:00",
+        "terms": {
+            "fall": {"classesBegin": fall_begin, "classesEnd": fall_end},
+            "spring": {"classesBegin": spring_begin, "classesEnd": spring_end},
+        },
+        "events": [ev.to_json() for ev in events],
+    }
+
+    return out
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--academic-year", type=int, required=True, help="Two-digit academic year, e.g. 25 for 2025-2026")
+    ap.add_argument("--out", type=str, default=None, help="Output JSON path. Default: <repo_root>/Data/Academic_calendar_<yy>.json")
+    ap.add_argument("--debug", action="store_true", help="Print debug info")
+    args = ap.parse_args()
+
+    repo_root = repo_root_from_this_file()
+    default_out = repo_root / "Data" / f"Academic_calendar_{args.academic_year:02d}.json"
+    out_path = Path(args.out).expanduser().resolve() if args.out else default_out
+
+    data = scrape(args.academic_year, debug=args.debug)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    if args.debug:
+        print(f"DEBUG: wrote {out_path}")
+        # sanity check: show a few known spring items if present
+        for key in ["Spring Break-no classes", "GM Week", "Final Exams", "Reading/Study days"]:
+            hits = [e for e in data["events"] if key.lower() in e["title"].lower()]
+            for h in hits[:2]:
+                print("DEBUG:", h["title"], h["startDate"], "->", h["endDate"])
+
+
+if __name__ == "__main__":
+    main()
