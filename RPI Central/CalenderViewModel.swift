@@ -1,5 +1,7 @@
+//
 //  CalendarViewModel.swift
 //  RPI Central
+//
 
 import Foundation
 import SwiftUI
@@ -29,6 +31,13 @@ final class CalendarViewModel: ObservableObject {
     // whether we've already pulled academic events
     @Published private(set) var academicEventsLoaded: Bool = false
 
+    // Prereq enforcement (Settings toggle)
+    @Published var enforcePrerequisites: Bool = false {
+        didSet {
+            UserDefaults.standard.set(enforcePrerequisites, forKey: enforcePrereqsKey)
+        }
+    }
+
     private let calendar = Calendar.current
 
     /// We treat the *current* week as a template week for class meetings
@@ -36,22 +45,24 @@ final class CalendarViewModel: ObservableObject {
     private let weekEndDate: Date
 
     private let enrolledStorageKey = "enrolled_courses_v1"
+    private let enforcePrereqsKey  = "enforce_prereqs_v1"
 
     // Your color palette: [light, dark]
     // Order: red, orange, blue, green, yellow
     private let lightPalette: [Color] = [
-        Color(red: 1.0,       green: 0.83529,  blue: 0.87451),  // #ffd5df
-        Color(red: 1.0,       green: 0.91373,  blue: 0.80784),  // #ffe9ce
-        Color(red: 0.81176,   green: 0.93725,  blue: 0.98824),  // #cfeffc
-        Color(red: 0.85490,   green: 0.96863,  blue: 0.85882),  // #daf7db
-        Color(red: 1.0,       green: 0.95686,  blue: 0.81569)   // #fff4d0
+        Color(red: 1.0,       green: 0.83529,  blue: 0.87451),  // #ffd5df (pink/red)
+        Color(red: 1.0,       green: 0.91373,  blue: 0.80784),  // #ffe9ce (orange)
+        Color(red: 0.81176,   green: 0.93725,  blue: 0.98824),  // #cfeffc (blue)
+        Color(red: 0.85490,   green: 0.96863,  blue: 0.85882),  // #daf7db (green)
+        Color(red: 1.0,       green: 0.95686,  blue: 0.81569)   // #fff4d0 (yellow)
     ]
 
+    // FIX: you previously had green twice (so “blue” effectively disappeared).
     private let darkPalette: [Color] = [
         Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366 (red)
         Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432 (orange)
-        Color(red: 0.27843,   green: 0.85882,  blue: 0.34510),  // #47db58
-        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58
+        Color(red: 0.231,     green: 0.510,    blue: 0.965),    // blue-ish (fix)
+        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58 (green)
         Color(red: 1.0,       green: 0.79216,  blue: 0.26667)   // #ffca44 (yellow)
     ]
 
@@ -70,6 +81,8 @@ final class CalendarViewModel: ObservableObject {
         self.displayedMonthStart = startOfWeek.startOfMonth(using: calendar)
         self.events = []
         self.enrolledCourses = []
+
+        self.enforcePrerequisites = UserDefaults.standard.bool(forKey: enforcePrereqsKey)
 
         loadEnrollment()
         rebuildEventsFromEnrollment()
@@ -271,6 +284,35 @@ final class CalendarViewModel: ObservableObject {
         hasTimeConflict(for: section)
     }
 
+    // MARK: - Prereqs
+
+    /// Canonical course key used for prereq lookups
+    private func courseKey(_ course: Course) -> String {
+        "\(course.subject)-\(course.number)"
+    }
+
+    /// Returns prereq course IDs like ["MATH-1010","PHYS-1100"] if available
+    func prerequisiteCourseIDs(for course: Course) -> [String] {
+        PrereqStore.shared.prereqIDs(for: courseKey(course))
+    }
+
+    /// Which prereqs are missing based on *all* enrolled courses (all semesters)
+    func missingPrerequisites(for course: Course) -> [String] {
+        let prereqs = prerequisiteCourseIDs(for: course)
+        if prereqs.isEmpty { return [] }
+
+        let completed: Set<String> = Set(enrolledCourses.map { "\($0.course.subject)-\($0.course.number)" })
+        return prereqs.filter { !completed.contains($0) }
+    }
+
+    func prerequisitesDisplayString(for course: Course) -> String? {
+        let prereqs = prerequisiteCourseIDs(for: course)
+        guard !prereqs.isEmpty else { return nil }
+        return prereqs
+            .map { $0.replacingOccurrences(of: "-", with: " ") }
+            .joined(separator: ", ")
+    }
+
     // MARK: - Add/remove a course section
 
     func addCourseSection(_ section: CourseSection, course: Course) {
@@ -375,11 +417,14 @@ final class CalendarViewModel: ObservableObject {
             let endDate = calendar.date(from: endDateComponents)
         else { return }
 
-        let title = "\(course.subject) \(course.number) – \(course.title)"
+        // (2) swap: show SIS name as the main title
+        let title = course.title
+
+        // Put code + location into the smaller text
+        let code = "\(course.subject) \(course.number)"
         let crnText = section.crn.map(String.init) ?? "Unknown CRN"
-        let location = meeting.location.isEmpty
-            ? "CRN \(crnText)"
-            : "\(meeting.location) · CRN \(crnText)"
+        let locCore = meeting.location.isEmpty ? code : "\(code) · \(meeting.location)"
+        let location = "\(locCore) · CRN \(crnText)"
 
         // Temp color; will be normalized by recolorAllEvents()
         let bg = lightPalette[0]
@@ -417,7 +462,6 @@ final class CalendarViewModel: ObservableObject {
     /// Rebuild class events from the current `enrolledCourses` list, for the template week,
     /// only for the active semester.
     private func rebuildEventsFromEnrollment() {
-        // If you later add academic events, you might want to preserve them here.
         events.removeAll()
 
         for enrollment in enrolledCourses where enrollment.semesterCode == currentSemester.rawValue {
@@ -494,23 +538,5 @@ extension Date {
         let df = DateFormatter()
         df.dateFormat = format
         return df.string(from: self)
-    }
-}
-
-// MARK: - Day string -> weekday
-
-extension String {
-    /// Maps "M","T","W","R","F","S" to Calendar weekday ints
-    /// Calendar: 1 = Sunday, 2 = Monday, ...
-    var calendarWeekday: Int {
-        switch self.uppercased() {
-        case "M": return 2
-        case "T": return 3
-        case "W": return 4
-        case "R": return 5
-        case "F": return 6
-        case "S": return 7
-        default:  return 1
-        }
     }
 }
