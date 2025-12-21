@@ -4,8 +4,6 @@
 //
 //  Created by Neil Shrestha on 12/3/25.
 //
-//  NotificationManager.swift
-//  RPI Central
 
 import Foundation
 import UserNotifications
@@ -25,6 +23,9 @@ enum NotificationManager {
     }
 
     static func scheduleNotification(for event: ClassEvent, minutesBefore: Int) {
+        // Don’t schedule for academic all-day events / holidays / breaks.
+        guard !event.isAllDay else { return }
+
         let center = UNUserNotificationCenter.current()
 
         let triggerDate = event.startDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))

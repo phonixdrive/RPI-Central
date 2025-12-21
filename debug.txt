@@ -1,0 +1,294 @@
+{
+"@context": "https://schema.org/",
+"@type": "CollegeOrUniversity",
+"name": "Rensselaer Polytechnic Institute",
+"department": {
+"@type": "Organization",
+"name": "Office of the Registrar"
+},
+"address": {
+"@type": "PostalAddress",
+"addressCountry": "US",
+"addressLocality": "Troy",
+"addressRegion": "New York",
+"postalCode": "12180",
+"streetAddress": "110 Eighth Street"
+},
+"telephone": "(518) 276-6000",
+"faxNumber": "(518) 276-6505",
+"email": "admissions@rpi.edu",
+"url": "https://registrar.rpi.edu/",
+"logo": "https://registrar.rpi.edu/themes/custom/paperclip/img/RPI_Logo_Default.svg",
+"photo": "https://rpi.widen.net/content/enazlhobuz/jpeg/panoramic-campus-footer.jpeg",
+"image": "https://rpi.widen.net/content/enazlhobuz/jpeg/panoramic-campus-footer.jpeg",
+"hasMap": "https://rpi.app.box.com/v/RPICampusMap",
+"diversityPolicy": "https://www.rpi.edu/about/diversity-equity-and-inclusion",
+"foundingDate": "1824",
+"hasCredential": {
+"@type": "EducationalOccupationalCredential",
+"credentialCategory": "Accreditation",
+"recognizedBy": [
+{
+"@type": "Organization",
+"name": "The Middle States Commission on Higher Education (MSCHE)"
+},
+{
+"@type": "Organization",
+"name": "ABET"
+},
+{
+"@type": "Organization",
+"name": "The Association to Advance Collegiate Schools of Business (AACSB)"
+},
+{
+"@type": "Organization",
+"name": "The National Architectural Accrediting Board (NAAB)"
+},
+{
+"@type": "Organization",
+"name": "The National Council for State Authorization Reciprocity Agreements (NC-SARA) "
+},
+{
+"@type": "Organization",
+"name": "American Chemical Society"
+}
+]
+}
+}
+| Office of the Registrar
+{"path":{"baseUrl":"\/","pathPrefix":"","currentPath":"academic-calendar","currentPathIsAdmin":false,"isFront":false,"currentLanguage":"en","currentQuery":{"academic_year":"25"}},"pluralDelimiter":"\u0003","suppressDeprecationErrors":true,"gtag":{"tagId":"G-G4RQBELJXD","consentMode":false,"otherIds":[],"events":[],"additionalConfigInfo":[]},"ajaxPageState":{"libraries":"eJxlj0EOgzAMBD-UkCchO5iQysGWHWj5fVEPLaKXkXb3MFoU6d4NdEQwq5LQCKZsW8OA920Wa_9tYUHg6P3gupaQxShNtinw0AGZjFxl9bpTKCKFaexQUjlxzwM84BUUlCxz1fRVXbpZ1u6XfLP_BtMal_MLWXQCy0vwwzu1hOAU9kpPTx8OTaaN6Q3L82hB","theme":"paperclip","theme_token":null},"ajaxTrustedUrl":{"\/academic-calendar":true},"user":{"uid":0,"permissionsHash":"6efc3b7374b3a73d170f64a771d874ca137842045552c3a08e895b413c94f98f"}}
+Skip to main content
+Submit a Request
+Academic Calendar
+Academic Catalog
+Search site
+Office of the Registrar
+Main navigation
+About
+Services
+Registration and Academics
+Classes, Grades, and Evaluations
+Transcripts and Records
+Registrar Forms
+Contact Us
+Home
+Academic Year
+Academic Year
+20242025
+August 2025
+Date
+Day
+Event
+Aug 1
+Fri
+Last day for undergraduate students to add or remove Pass/No credit designations for Summer Session III
+Aug 1
+Fri
+Last day for undergraduate and graduate students to drop a course with a W grade for Summer Session III 2025
+Aug 11
+Mon
+Fall 2025 SIS registration for all Undergraduate students reopens
+Aug 15
+Fri
+Last day of Summer Session I and III classes-Exams should be given in class during the final meeting day
+Aug 15
+Fri
+Bill due date for Fall 2025
+Aug 22
+Fri
+August 2025 Degree Conferral Date. Final clearance will occur during the first two weeks of September 2025. Diplomas/E-Diplomas to be sent out in late September 2025
+Aug 25
+Mon
+Application for graduation for December 2025 available in SIS
+Aug 28
+Thu
+Fall 2025 Classes Begin-Follow a Monday Class Schedule today
+September 2025
+Date
+Day
+Event
+Sep 1
+Mon
+Labor Day-no classes. Staff Holiday
+Sep 5
+Fri
+Follow a Monday Class Schedule today
+Sep 12
+Fri
+Last day for undergraduate and graduate students to add courses, change sections, or to put courses on audit for Fall 2025
+Sep 12
+Fri
+Last day for undergraduate and graduate students to drop a course in Fall 2025 without being issued a W grade
+Sep 12
+Fri
+Nomination of Master's Thesis committee forms due to the Office of Graduate Education for December 2025 degree applicants
+Sep 12
+Fri
+Final deadline for completion of NE/I grade expectations related to Spring 2025 courses
+Sep 25 - Sep 26
+NSBE/SHPE 47th Annual Career Fair
+October 2025
+Date
+Day
+Event
+Oct 10
+Fri
+Last day to file an online Degree Application via SIS for December 2025 graduation
+Oct 11
+Sat
+Late Degree Application (paper) for December 2025 graduation, if you did not apply in SIS, will begin being accepted
+Oct 13
+Mon
+Columbus Day/Indigenous Peoples Day-no classes
+Oct 20 - Oct 31
+Consultation weeks. Advisement for Spring 2026 registration. Students should consult with their HUB or faculty advisors
+Oct 24
+Fri
+Doctoral dissertations for December 2025 degree applicants, are due to their advisors
+Oct 24
+Fri
+Last day to file a late Degree Application (paper) for December 2025 graduation
+Oct 31
+Fri
+Deadline for Master's thesis and Engineering projects, for December 2025 degree applicants, to be turned in to advisors
+November 2025
+Date
+Day
+Event
+Nov 3 - Nov 21
+Pre-registration for the Spring 2026 term opens for currently enrolled students
+Nov 7
+Fri
+Last day for undergraduate and graduate students to drop a course with a W grade for Fall 2025
+Nov 10
+Mon
+Master's thesis due to the Office of Graduate Education for December 2025 degree applicants. Last day for Doctoral candidates who applied for December 2025 graduation, to defend their thesis.
+Nov 14
+Fri
+Last day for undergraduate students to add or remove Pass/No credit designations for Fall 2025
+Nov 24
+Mon
+Deadline for Doctoral dissertations to be submitted to the Office of Graduate Education for December 2025 degree applicants.
+Nov 24 - Nov 28
+Thanksgiving Break-no classes.
+December 2025
+Date
+Day
+Event
+Dec 12
+Fri
+Last day of Fall 2025 classes
+Dec 13 - Dec 15
+Reading/Study days. Instructors can schedule no exams nor require any student work expectations on these days.
+Dec 16 - Dec 22
+Final Exams
+Dec 23 - Jan 9
+Winter Break-no classes
+Dec 31
+Wed
+December 2025 Degree Conferral Date. Final clearance will occur during the first two weeks of January 2026. Diplomas/E-Diplomas to be sent out in late January 2026
+January 2026
+Date
+Day
+Event
+Jan 9
+Fri
+Bill due date for Spring 2026
+Jan 12
+Mon
+Spring 2026 Classes Begin
+Jan 19
+Mon
+Dr. Martin Luther King, Jr Day-no classes. Staff Holiday
+February 2026
+Date
+Day
+Event
+Feb 16
+Mon
+President's Day-no classes. Staff Holiday
+Feb 17
+Tue
+Follow a Monday Class Schedule today
+March 2026
+Date
+Day
+Event
+Mar 2 - Mar 6
+Spring Break-no classes
+Mar 23 - Mar 27
+GM Week
+Mar 25
+Wed
+GM Activities-no classes today
+April 2026
+Date
+Day
+Event
+Apr 29
+Wed
+Last day of Spring 2026 Classes
+Apr 30 - May 3
+Reading/Study days. Instructors can schedule no exams nor require any student work expectations on these days.
+May 2026
+Date
+Day
+Event
+May 4 - May 8
+Final Exams
+May 15
+Fri
+Ph.D. Hooding Ceremony
+May 16
+Sat
+Commencement Ceremony 2026
+May 18
+Mon
+Summer Session I and II Classes Begin
+May 25
+Mon
+Memorial Day-no classes. Staff Holiday
+May 27
+Wed
+Follow a Monday Class Schedule today
+June 2026
+Date
+Day
+Event
+Jun 17
+Wed
+Follow a Friday Class Schedule today
+Jun 19
+Fri
+Juneteenth-no classes. Staff Holiday
+Jun 26
+Fri
+Last Day of Summer Session II Classes-Exams should be given in class during the final meeting day
+Jun 29 - Jul 3
+Summer Arch Break-no classes
+July 2026
+Date
+Day
+Event
+Jul 6
+Mon
+Summer Session III Classes Begin
+Registrar's Office
+Academy Hall
+Suite 2600
+518-276-6231
+Office of the Provost
+Back to top
+Rensselaer Polytechnic Institute
+110 Eighth Street |
+Troy, NY USA 12180
+(518) 276-6000
+Contact Us
+Policies:
+Media
+Web Privacy
+Title IX
+Student Consumer Information
+Accessibility
+Copyright © 2025 Rensselaer Polytechnic Institute (RPI)
+RPI is committed to the cultivation of a community that is welcoming, inclusive, and above all values learning. RPI prohibits discrimination on the basis of race, color, religion, sex, sexual orientation or gender identity, national origin, disability status, protected veteran status, or other characteristic protected by law.

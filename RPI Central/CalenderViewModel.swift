@@ -57,7 +57,6 @@ final class CalendarViewModel: ObservableObject {
         Color(red: 1.0,       green: 0.95686,  blue: 0.81569)   // #fff4d0 (yellow)
     ]
 
-    // FIX: you previously had green twice (so “blue” effectively disappeared).
     private let darkPalette: [Color] = [
         Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366 (red)
         Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432 (orange)
@@ -107,7 +106,8 @@ final class CalendarViewModel: ObservableObject {
     /// Return events for this date.
     /// - Class events (enrollmentID != nil) are treated as *template weekly* events
     ///   and are mapped onto whatever week you're viewing.
-    /// - Non-class events (enrollmentID == nil) are fixed-date events.
+    /// - Fixed-date events (enrollmentID == nil) are anchored to real dates.
+    ///   All-day / multi-day events show on every day in their range.
     func events(on date: Date) -> [ClassEvent] {
         var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
@@ -143,19 +143,33 @@ final class CalendarViewModel: ObservableObject {
                     endDate: newEnd,
                     backgroundColor: base.backgroundColor,
                     accentColor: base.accentColor,
-                    enrollmentID: base.enrollmentID
+                    enrollmentID: base.enrollmentID,
+                    isAllDay: false
                 )
 
                 result.append(copy)
             } else {
                 // Fixed-date event (academic calendar, manual event, etc.)
-                if calendar.isDate(base.startDate, inSameDayAs: date) {
-                    result.append(base)
+                if base.isAllDay {
+                    let d = calendar.startOfDay(for: date)
+                    let s = calendar.startOfDay(for: base.startDate)
+                    let e = calendar.startOfDay(for: base.endDate)
+                    if s <= d && d <= e {
+                        result.append(base)
+                    }
+                } else {
+                    if calendar.isDate(base.startDate, inSameDayAs: date) {
+                        result.append(base)
+                    }
                 }
             }
         }
 
-        return result.sorted { $0.startDate < $1.startDate }
+        // Show all-day events first, then timed events.
+        return result.sorted {
+            if $0.isAllDay != $1.isAllDay { return $0.isAllDay && !$1.isAllDay }
+            return $0.startDate < $1.startDate
+        }
     }
 
     func addEvent(
@@ -176,7 +190,8 @@ final class CalendarViewModel: ObservableObject {
             endDate: end,
             backgroundColor: color,
             accentColor: color,
-            enrollmentID: nil
+            enrollmentID: nil,
+            isAllDay: false
         )
         events.append(new)
     }
@@ -383,7 +398,8 @@ final class CalendarViewModel: ObservableObject {
                 endDate: ev.endDate,
                 backgroundColor: Color.gray.opacity(0.3),
                 accentColor: .gray,
-                enrollmentID: nil
+                enrollmentID: nil,
+                isAllDay: true
             )
             events.append(event)
         }
@@ -437,7 +453,8 @@ final class CalendarViewModel: ObservableObject {
             endDate: endDate,
             backgroundColor: bg,
             accentColor: accent,
-            enrollmentID: enrollmentID
+            enrollmentID: enrollmentID,
+            isAllDay: false
         )
         events.append(event)
     }
@@ -461,8 +478,11 @@ final class CalendarViewModel: ObservableObject {
 
     /// Rebuild class events from the current `enrolledCourses` list, for the template week,
     /// only for the active semester.
+    ///
+    /// IMPORTANT: preserve fixed-date events (manual + academic) across semester switches.
     private func rebuildEventsFromEnrollment() {
-        events.removeAll()
+        let fixed = events.filter { $0.enrollmentID == nil }  // keep manual + academic
+        events = fixed
 
         for enrollment in enrolledCourses where enrollment.semesterCode == currentSemester.rawValue {
             let course = enrollment.course

@@ -59,7 +59,7 @@ struct CalendarView: View {
                     }
             )
             .task {
-                // AI academic events stub
+                // Load academic events ONCE
                 if !viewModel.academicEventsLoaded {
                     AcademicCalendarService.shared.fetchEventsForCurrentYear { result in
                         switch result {
@@ -266,6 +266,7 @@ struct TimelineCalendarView: View {
     private let dayStartHour = 7
     private let dayEndHour = 22
     private let rowHeight: CGFloat = 60
+    private let timeColWidth: CGFloat = 56
 
     /// Minutes in the visible range (e.g. 7–22 = 15h = 900 minutes)
     private var totalMinutes: Int {
@@ -279,7 +280,7 @@ struct TimelineCalendarView: View {
             // Day labels row
             HStack(alignment: .bottom, spacing: 0) {
                 Text("")
-                    .frame(width: 56) // time column spacer
+                    .frame(width: timeColWidth) // time column spacer
 
                 ForEach(days, id: \.self) { day in
                     VStack(spacing: 2) {
@@ -298,10 +299,52 @@ struct TimelineCalendarView: View {
 
             Divider()
 
+            // All-day strip (academic calendar, holidays, breaks, etc.)
+            let anyAllDay = days.contains { !viewModel.events(on: $0).filter(\.isAllDay).isEmpty }
+            if anyAllDay {
+                HStack(alignment: .top, spacing: 0) {
+                    Text("All day")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: timeColWidth, alignment: .leading)
+                        .padding(.leading, 6)
+
+                    ForEach(days, id: \.self) { day in
+                        let allDayEvents = viewModel.events(on: day).filter(\.isAllDay)
+                        VStack(alignment: .leading, spacing: 4) {
+                            if allDayEvents.isEmpty {
+                                Text("")
+                                    .frame(height: 1)
+                            } else {
+                                ForEach(allDayEvents.prefix(2)) { ev in
+                                    Text(ev.title)
+                                        .font(.caption2)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(Color.white.opacity(0.12))
+                                        .cornerRadius(6)
+                                        .foregroundColor(.white)
+                                        .onTapGesture { selectedEvent = ev }
+                                }
+
+                                if allDayEvents.count > 2 {
+                                    Text("+\(allDayEvents.count - 2) more")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                Divider()
+            }
+
             ScrollView {
                 GeometryReader { geo in
                     let totalHeight = CGFloat(intervalCount) * rowHeight
-                    let timeColWidth: CGFloat = 56
                     let gridLeftX = timeColWidth
                     let gridRightX = geo.size.width
                     let dayWidth = (gridRightX - gridLeftX) / CGFloat(max(days.count, 1))
@@ -312,7 +355,6 @@ struct TimelineCalendarView: View {
                         ForEach(0...intervalCount, id: \.self) { idx in
                             let y = CGFloat(idx) * rowHeight
 
-                            // line at the top of each hour block
                             Path { path in
                                 path.move(to: CGPoint(x: gridLeftX, y: y))
                                 path.addLine(to: CGPoint(x: gridRightX, y: y))
@@ -331,7 +373,7 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Vertical inner grid lines (no outermost ones)
+                        // Vertical inner grid lines
                         if days.count > 1 {
                             ForEach(1..<days.count, id: \.self) { col in
                                 let x = gridLeftX + dayWidth * CGFloat(col)
@@ -343,7 +385,7 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Current time horizontal line (only if visible range includes today)
+                        // Current time horizontal line
                         if displayMode == .day || displayMode == .threeDay || displayMode == .week {
                             if let nowY = nowLineY(totalHeight: totalHeight) {
                                 Path { path in
@@ -359,14 +401,14 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Events overlay
+                        // Events overlay (TIMED ONLY)
                         ForEach(Array(days.enumerated()), id: \.1) { (colIndex, day) in
-                            let eventsForDay = viewModel.events(on: day)
+                            let eventsForDay = viewModel.events(on: day).filter { !$0.isAllDay }
+
                             ForEach(eventsForDay) { event in
                                 if let rect = rectForEvent(event,
                                                            totalHeight: totalHeight) {
 
-                                    // Center the box in its column with small left/right margins
                                     let columnLeft = gridLeftX + dayWidth * CGFloat(colIndex)
                                     let eventWidth = max(dayWidth - 8, 0)
                                     let centerX = columnLeft + dayWidth / 2
@@ -414,7 +456,7 @@ struct TimelineCalendarView: View {
 
         let minY = startRatio * totalHeight
         let maxY = endRatio * totalHeight
-        let height = max(24, maxY - minY)   // ensure it’s tappable
+        let height = max(24, maxY - minY)
 
         return CGRect(x: 0, y: minY, width: 0, height: height)
     }
@@ -450,12 +492,9 @@ struct TimelineCalendarView: View {
         return df.string(from: date)
     }
 
-    // MARK: - Event chip (box centered, text top-left, multi-line)
-
     private func eventChip(_ event: ClassEvent) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                // Dark strip on the left
                 Rectangle()
                     .fill(event.accentColor)
                     .frame(width: 4)
@@ -518,14 +557,20 @@ struct MonthWithScheduleView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 4)
                 } else {
+                    let allDay = events.filter(\.isAllDay)
+                    let timed  = events.filter { !$0.isAllDay }.sorted { $0.startDate < $1.startDate }
+                    let merged = allDay + timed
+
                     List {
-                        ForEach(events.sorted(by: { $0.startDate < $1.startDate })) { event in
+                        ForEach(merged) { event in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(event.title)
                                     .font(.headline)
+
                                 Text(timeRangeString(for: event))
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+
                                 if !event.location.isEmpty {
                                     Text(event.location)
                                         .font(.subheadline)
@@ -542,6 +587,21 @@ struct MonthWithScheduleView: View {
     }
 
     private func timeRangeString(for event: ClassEvent) -> String {
+        if event.isAllDay {
+            // If it spans multiple days, show range; else "All day"
+            let startDay = calendar.startOfDay(for: event.startDate)
+            let endDay = calendar.startOfDay(for: event.endDate)
+
+            let df = DateFormatter()
+            df.dateStyle = .medium
+            df.timeStyle = .none
+
+            if startDay != endDay {
+                return "\(df.string(from: startDay)) – \(df.string(from: endDay))"
+            }
+            return "All day"
+        }
+
         let df = DateFormatter()
         df.timeStyle = .short
         return "\(df.string(from: event.startDate)) – \(df.string(from: event.endDate))"
@@ -655,11 +715,25 @@ struct ClassEventDetailView: View {
                 Text(event.title)
                     .font(.title3.bold())
 
-                Text(dfDate.string(from: event.startDate))
-                    .font(.subheadline)
+                if event.isAllDay {
+                    Text("All-day event")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
-                Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
-                    .font(.subheadline)
+                    Text("\(dfDate.string(from: event.startDate))")
+                        .font(.subheadline)
+
+                    if Calendar.current.startOfDay(for: event.startDate) != Calendar.current.startOfDay(for: event.endDate) {
+                        Text("Through \(dfDate.string(from: event.endDate))")
+                            .font(.subheadline)
+                    }
+                } else {
+                    Text(dfDate.string(from: event.startDate))
+                        .font(.subheadline)
+
+                    Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
+                        .font(.subheadline)
+                }
 
                 if !event.location.isEmpty {
                     Text(event.location)
