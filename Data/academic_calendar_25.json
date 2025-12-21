@@ -1,0 +1,773 @@
+{
+  "source": "https://registrar.rpi.edu/academic-calendar",
+  "academicYear": "2025",
+  "generatedAt": "2025-12-21T20:30:49+00:00",
+  "terms": {
+    "fall": {
+      "classesBegin": "2025-08-28",
+      "classesEnd": "2025-12-12"
+    },
+    "spring": {
+      "classesBegin": "2026-01-12",
+      "classesEnd": "2026-04-29"
+    }
+  },
+  "events": [
+    {
+      "title": "Last day for undergraduate students to add or remove Pass/No credit designations for Summer Session III",
+      "startDate": "2025-08-01",
+      "endDate": "2025-08-01",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to drop a course with a W grade for Summer Session III 2025",
+      "startDate": "2025-08-01",
+      "endDate": "2025-08-01",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Fall 2025 SIS registration for all Undergraduate students reopens",
+      "startDate": "2025-08-11",
+      "endDate": "2025-08-11",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day of Summer Session I and III classes-Exams should be given in class during the final meeting day",
+      "startDate": "2025-08-15",
+      "endDate": "2025-08-15",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Bill due date for Fall 2025",
+      "startDate": "2025-08-15",
+      "endDate": "2025-08-15",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "August 2025 Degree Conferral Date. Final clearance will occur during the first two weeks of September 2025. Diplomas/E-Diplomas to be sent out in late September 2025",
+      "startDate": "2025-08-22",
+      "endDate": "2025-08-22",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Application for graduation for December 2025 available in SIS",
+      "startDate": "2025-08-25",
+      "endDate": "2025-08-25",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Fall 2025 Classes Begin-Follow a Monday Class Schedule today",
+      "startDate": "2025-08-28",
+      "endDate": "2025-08-28",
+      "dow": "Thu",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": true,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Labor Day-no classes. Staff Holiday",
+      "startDate": "2025-09-01",
+      "endDate": "2025-09-01",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": true,
+        "holiday": true,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Follow a Monday Class Schedule today",
+      "startDate": "2025-09-05",
+      "endDate": "2025-09-05",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": true,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to add courses, change sections, or to put courses on audit for Fall 2025",
+      "startDate": "2025-09-12",
+      "endDate": "2025-09-12",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to drop a course in Fall 2025 without being issued a W grade",
+      "startDate": "2025-09-12",
+      "endDate": "2025-09-12",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Nomination of Master's Thesis committee forms due to the Office of Graduate Education for December 2025 degree applicants",
+      "startDate": "2025-09-12",
+      "endDate": "2025-09-12",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Final deadline for completion of NE/I grade expectations related to Spring 2025 courses",
+      "startDate": "2025-09-12",
+      "endDate": "2025-09-12",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "NSBE/SHPE 47th Annual Career Fair",
+      "startDate": "2025-09-25",
+      "endDate": "2025-09-26",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day to file an online Degree Application via SIS for December 2025 graduation",
+      "startDate": "2025-10-10",
+      "endDate": "2025-10-10",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Late Degree Application (paper) for December 2025 graduation, if you did not apply in SIS, will begin being accepted",
+      "startDate": "2025-10-11",
+      "endDate": "2025-10-11",
+      "dow": "Sat",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Columbus Day/Indigenous Peoples Day-no classes",
+      "startDate": "2025-10-13",
+      "endDate": "2025-10-13",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Consultation weeks. Advisement for Spring 2026 registration. Students should consult with their HUB or faculty advisors",
+      "startDate": "2025-10-20",
+      "endDate": "2025-10-31",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Doctoral dissertations for December 2025 degree applicants, are due to their advisors",
+      "startDate": "2025-10-24",
+      "endDate": "2025-10-24",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day to file a late Degree Application (paper) for December 2025 graduation",
+      "startDate": "2025-10-24",
+      "endDate": "2025-10-24",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Deadline for Master's thesis and Engineering projects, for December 2025 degree applicants, to be turned in to advisors",
+      "startDate": "2025-10-31",
+      "endDate": "2025-10-31",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Pre-registration for the Spring 2026 term opens for currently enrolled students",
+      "startDate": "2025-11-03",
+      "endDate": "2025-11-21",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to drop a course with a W grade for Fall 2025",
+      "startDate": "2025-11-07",
+      "endDate": "2025-11-07",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Master's thesis due to the Office of Graduate Education for December 2025 degree applicants. Last day for Doctoral candidates who applied for December 2025 graduation, to defend their thesis.",
+      "startDate": "2025-11-10",
+      "endDate": "2025-11-10",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day for undergraduate students to add or remove Pass/No credit designations for Fall 2025",
+      "startDate": "2025-11-14",
+      "endDate": "2025-11-14",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Deadline for Doctoral dissertations to be submitted to the Office of Graduate Education for December 2025 degree applicants.",
+      "startDate": "2025-11-24",
+      "endDate": "2025-11-24",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Thanksgiving Break-no classes.",
+      "startDate": "2025-11-24",
+      "endDate": "2025-11-28",
+      "dow": null,
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": true
+      }
+    },
+    {
+      "title": "Last day of Fall 2025 classes",
+      "startDate": "2025-12-12",
+      "endDate": "2025-12-12",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Reading/Study days. Instructors can schedule no exams nor require any student work expectations on these days.",
+      "startDate": "2025-12-13",
+      "endDate": "2025-12-15",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": true,
+        "break": false
+      }
+    },
+    {
+      "title": "Final Exams",
+      "startDate": "2025-12-16",
+      "endDate": "2025-12-22",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": true,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Winter Break-no classes",
+      "startDate": "2025-12-23",
+      "endDate": "2026-01-09",
+      "dow": null,
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": true
+      }
+    },
+    {
+      "title": "December 2025 Degree Conferral Date. Final clearance will occur during the first two weeks of January 2026. Diplomas/E-Diplomas to be sent out in late January 2026",
+      "startDate": "2025-12-31",
+      "endDate": "2025-12-31",
+      "dow": "Wed",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Bill due date for Spring 2026",
+      "startDate": "2026-01-09",
+      "endDate": "2026-01-09",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Spring 2026 Classes Begin",
+      "startDate": "2026-01-12",
+      "endDate": "2026-01-12",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Dr. Martin Luther King, Jr Day-no classes. Staff Holiday",
+      "startDate": "2026-01-19",
+      "endDate": "2026-01-19",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": true,
+        "holiday": true,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "President's Day-no classes. Staff Holiday",
+      "startDate": "2026-02-16",
+      "endDate": "2026-02-16",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": true,
+        "holiday": true,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Follow a Monday Class Schedule today",
+      "startDate": "2026-02-17",
+      "endDate": "2026-02-17",
+      "dow": "Tue",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": true,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Spring Break-no classes",
+      "startDate": "2026-03-02",
+      "endDate": "2026-03-06",
+      "dow": null,
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": true
+      }
+    },
+    {
+      "title": "GM Week",
+      "startDate": "2026-03-23",
+      "endDate": "2026-03-27",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "GM Activities-no classes today",
+      "startDate": "2026-03-25",
+      "endDate": "2026-03-25",
+      "dow": "Wed",
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last day of Spring 2026 Classes",
+      "startDate": "2026-04-29",
+      "endDate": "2026-04-29",
+      "dow": "Wed",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Reading/Study days. Instructors can schedule no exams nor require any student work expectations on these days.",
+      "startDate": "2026-04-30",
+      "endDate": "2026-05-03",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": true,
+        "break": false
+      }
+    },
+    {
+      "title": "Final Exams",
+      "startDate": "2026-05-04",
+      "endDate": "2026-05-08",
+      "dow": null,
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": true,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Ph.D. Hooding Ceremony",
+      "startDate": "2026-05-15",
+      "endDate": "2026-05-15",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Commencement Ceremony 2026",
+      "startDate": "2026-05-16",
+      "endDate": "2026-05-16",
+      "dow": "Sat",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Summer Session I and II Classes Begin",
+      "startDate": "2026-05-18",
+      "endDate": "2026-05-18",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Memorial Day-no classes. Staff Holiday",
+      "startDate": "2026-05-25",
+      "endDate": "2026-05-25",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": true,
+        "holiday": true,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Follow a Monday Class Schedule today",
+      "startDate": "2026-05-27",
+      "endDate": "2026-05-27",
+      "dow": "Wed",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": true,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Follow a Friday Class Schedule today",
+      "startDate": "2026-06-17",
+      "endDate": "2026-06-17",
+      "dow": "Wed",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": true,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Juneteenth-no classes. Staff Holiday",
+      "startDate": "2026-06-19",
+      "endDate": "2026-06-19",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": true,
+        "holiday": true,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Last Day of Summer Session II Classes-Exams should be given in class during the final meeting day",
+      "startDate": "2026-06-26",
+      "endDate": "2026-06-26",
+      "dow": "Fri",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
+      "title": "Summer Arch Break-no classes",
+      "startDate": "2026-06-29",
+      "endDate": "2026-07-03",
+      "dow": null,
+      "tags": {
+        "noClasses": true,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": true
+      }
+    },
+    {
+      "title": "Summer Session III Classes Begin",
+      "startDate": "2026-07-06",
+      "endDate": "2026-07-06",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    }
+  ]
+}
