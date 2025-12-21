@@ -1,5 +1,7 @@
+//
 // CoursesView.swift
 // RPI Central
+//
 
 import SwiftUI
 
@@ -26,15 +28,24 @@ struct CoursesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Semester picker
-                Picker("Semester", selection: $catalog.semester) {
-                    ForEach(Semester.allCases) { sem in
-                        Text(sem.displayName).tag(sem)
+                // Term dropdown
+                HStack {
+                    Text("Term")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Picker("Term", selection: $catalog.semester) {
+                        ForEach(Semester.allCases) { sem in
+                            Text(sem.displayName).tag(sem)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal)
-                .padding(.top, 8)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
                 .onChange(of: catalog.semester) { _, newValue in
                     calendarViewModel.changeSemester(to: newValue)
                 }

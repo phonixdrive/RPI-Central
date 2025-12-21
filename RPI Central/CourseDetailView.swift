@@ -1,11 +1,12 @@
+//
 //  CourseDetailView.swift
 //  RPI Central
+//
 
 import SwiftUI
 
 struct CourseDetailView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
-
     let course: Course
 
     var body: some View {
@@ -44,18 +45,25 @@ struct CourseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: - Section card
-
     private func sectionCard(_ section: CourseSection) -> some View {
         let isEnrolled = calendarViewModel.isEnrolled(for: course, section: section)
+        let hasConflict = calendarViewModel.hasConflict(for: course, section: section)
         let crnText = section.crn.map(String.init) ?? "N/A"
+
+        let buttonTitle: String = {
+            if isEnrolled { return "Remove" }
+            if hasConflict { return "Time conflict" }
+            return "Add"
+        }()
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("CRN \(crnText) • Sec \(section.section)")
                     .font(.subheadline.bold())
+
                 Spacer()
-                Button(isEnrolled ? "Remove" : "Add") {
+
+                Button(buttonTitle) {
                     if isEnrolled {
                         if let enrollment = calendarViewModel.enrollment(for: course, section: section) {
                             calendarViewModel.removeEnrollment(enrollment)
@@ -65,8 +73,9 @@ struct CourseDetailView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(isEnrolled ? .red : .accentColor)
+                .tint(isEnrolled ? .red : (hasConflict ? .gray : .accentColor))
                 .font(.caption)
+                .disabled(!isEnrolled && hasConflict)
             }
 
             if !section.instructor.isEmpty {
@@ -83,6 +92,12 @@ struct CourseDetailView: View {
                 }
             } else {
                 Text("No scheduled meeting time")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !section.prerequisitesText.isEmpty {
+                Text("Prereqs: \(section.prerequisitesText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
