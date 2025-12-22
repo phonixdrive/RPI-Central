@@ -51,10 +51,13 @@ final class CalendarViewModel: ObservableObject {
     // For prereq “auto-fulfillment” when a user adds a course without prereqs.
     // Map: assumedCourseID -> set of courseIDs that caused this assumption.
     private let assumedPrereqsStorageKey = "assumed_prereqs_v1"
-    private var assumedBy: [String: Set<String>] = [:]   // e.g. "MATH-1010" -> {"MATH-1020"}
+    private var assumedBy: [String: Set<String>] = [:]
 
     // Track which academic years we’ve already loaded to avoid duplicates.
     private var loadedAcademicYearStarts: Set<Int> = []
+
+    // ✅ Dedup academic events so you never get “same all-day event 5 times”
+    private var academicEventKeys: Set<String> = []
 
     // Your color palette: [light, dark]
     // Order: red, orange, blue, green, yellow
@@ -69,7 +72,7 @@ final class CalendarViewModel: ObservableObject {
     private let darkPalette: [Color] = [
         Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366
         Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432
-        Color(red: 0.231,     green: 0.510,    blue: 0.965),    // blue-ish
+        Color(red: 0.231,     green: 0.510,    blue: 0.965),
         Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58
         Color(red: 1.0,       green: 0.79216,  blue: 0.26667)   // #ffca44
     ]
@@ -94,14 +97,19 @@ final class CalendarViewModel: ObservableObject {
 
         loadAssumedPrereqs()
         loadEnrollment()
+
+        // ✅ Build weekly templates for ALL enrollments (not just currentSemester)
         rebuildEventsFromEnrollment()
 
-        // Best-effort: ensure current semester’s term bounds + academic events are loaded
-        ensureTermBoundsLoaded(for: currentSemester)
+        // ✅ Load term bounds for ALL enrollments so calendar auto-switches which classes show by date
+        ensureTermBoundsForAllEnrollments()
+
+        // Best-effort: academic year events for currentSemester
         ensureAcademicEventsLoaded(for: currentSemester)
+        ensureTermBoundsLoaded(for: currentSemester)
     }
 
-    // MARK: - Public “ensure loaded” (called from CalendarView.swift)
+    // MARK: - Public “ensure loaded”
 
     func ensureTermBoundsLoaded(for semester: Semester) {
         let code = semester.rawValue
@@ -118,6 +126,16 @@ final class CalendarViewModel: ObservableObject {
                 }
             case .failure(let err):
                 print("❌ Failed to load term bounds for \(semester.displayName):", err)
+            }
+        }
+    }
+
+    // ✅ NEW: load term bounds for every semester you have enrolled courses in
+    func ensureTermBoundsForAllEnrollments() {
+        let codes = Set(enrolledCourses.map { $0.semesterCode })
+        for c in codes {
+            if let sem = Semester(rawValue: c) {
+                ensureTermBoundsLoaded(for: sem)
             }
         }
     }
@@ -162,14 +180,17 @@ final class CalendarViewModel: ObservableObject {
                 let baseWeekday = calendar.component(.weekday, from: base.startDate)
                 guard baseWeekday == weekday else { continue }
 
-                // Filter by term bounds (if available)
-                if let semCode = enrollmentSemesterByID[enrollmentID],
-                   let interval = termBoundsBySemesterCode[semCode] {
-                    let day = calendar.startOfDay(for: date)
-                    let s = calendar.startOfDay(for: interval.start)
-                    let e = calendar.startOfDay(for: interval.end)
-                    if !(s <= day && day <= e) { continue }
+                // ✅ CRITICAL FIX:
+                // Only show this class if we HAVE bounds for its semester AND the day is within them.
+                guard let semCode = enrollmentSemesterByID[enrollmentID],
+                      let interval = termBoundsBySemesterCode[semCode] else {
+                    continue
                 }
+
+                let day = calendar.startOfDay(for: date)
+                let s = calendar.startOfDay(for: interval.start)
+                let e = calendar.startOfDay(for: interval.end)
+                if !(s <= day && day <= e) { continue }
 
                 let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
                 let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
@@ -251,7 +272,7 @@ final class CalendarViewModel: ObservableObject {
         events.append(new)
     }
 
-    // MARK: - Semester switching
+    // MARK: - Semester switching (Courses tab still uses this)
 
     func changeSemester(to newSemester: Semester) {
         currentSemester = newSemester
@@ -342,7 +363,7 @@ final class CalendarViewModel: ObservableObject {
         hasTimeConflict(for: section)
     }
 
-    // MARK: - Prereqs
+    // MARK: - Prereqs (unchanged)
 
     private func courseKey(_ course: Course) -> String {
         "\(course.subject)-\(course.number)"
@@ -425,7 +446,6 @@ final class CalendarViewModel: ObservableObject {
         if enrolledCourses.contains(where: { $0.id == id }) { return }
         if hasTimeConflict(for: section) { return }
 
-        // If user adds a course while missing prereqs, auto-assume prereqs
         let missing = missingPrerequisites(for: course)
         if !missing.isEmpty {
             assumePrereqs(missing, causedBy: courseKey(course))
@@ -456,7 +476,9 @@ final class CalendarViewModel: ObservableObject {
 
         recolorAllEvents()
         saveEnrollment()
-        ensureTermBoundsLoaded(for: currentSemester)
+
+        // ✅ load bounds for the semester you just enrolled in
+        ensureTermBoundsForAllEnrollments()
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
@@ -469,7 +491,7 @@ final class CalendarViewModel: ObservableObject {
         unassumePrereqs(causedBy: removedCourseID)
     }
 
-    // MARK: - Assumed prereqs (auto-fulfillment)
+    // MARK: - Assumed prereqs (unchanged)
 
     private func assumePrereqs(_ prereqIDs: [String], causedBy courseID: String) {
         var changed = false
@@ -562,6 +584,10 @@ final class CalendarViewModel: ObservableObject {
 
     func addAcademicEvents(_ academicEvents: [AcademicEvent]) {
         for ev in academicEvents {
+            let key = "\(ev.title)|\(ev.startDate.timeIntervalSince1970)|\(ev.endDate.timeIntervalSince1970)|\(ev.kind.rawValue)"
+            if academicEventKeys.contains(key) { continue }
+            academicEventKeys.insert(key)
+
             let bg = ClassEvent.backgroundForAcademic(kind: ev.kind)
             let accent = ClassEvent.accentForAcademic(kind: ev.kind)
 
@@ -653,7 +679,8 @@ final class CalendarViewModel: ObservableObject {
         let fixed = events.filter { $0.enrollmentID == nil }  // keep manual + academic
         events = fixed
 
-        for enrollment in enrolledCourses where enrollment.semesterCode == currentSemester.rawValue {
+        // ✅ CRITICAL FIX: build templates for ALL enrollments (not just currentSemester)
+        for enrollment in enrolledCourses {
             let course = enrollment.course
             let section = enrollment.section
             let id = enrollment.id
