@@ -10,7 +10,7 @@ final class CourseCatalogService: ObservableObject {
     static let shared = CourseCatalogService()
 
     @Published private(set) var courses: [Course] = []
-    @Published var semester: Semester = .spring2025 {
+    @Published var semester: Semester = .fall2025 {
         didSet { loadCourses(for: semester) }
     }
 
@@ -66,7 +66,6 @@ private enum QuACSLoader {
             subdirectory: subdir
         )) ?? [:]
 
-        // Flatten QuACS structure into your app's [Course]
         var result: [Course] = []
         result.reserveCapacity(5000)
 
@@ -78,7 +77,6 @@ private enum QuACSLoader {
                 let title = cat?.name ?? c.title ?? "\(c.subj) \(c.crse)"
                 let desc = cat?.description ?? ""
 
-                // Build sections
                 let sections: [CourseSection] = c.sections.map { sec in
                     let meetings = buildMeetings(from: sec.timeslots)
                     let instructor = buildInstructor(from: sec.timeslots)
@@ -109,12 +107,9 @@ private enum QuACSLoader {
             }
         }
 
-        // Sort like before
         result.sort { ($0.subject, $0.number) < ($1.subject, $1.number) }
         return result
     }
-
-    // MARK: - Decode helpers
 
     private static func loadJSON<T: Decodable>(_ name: String, subdirectory: String) throws -> T {
         guard let url = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: subdirectory) else {
@@ -129,14 +124,11 @@ private enum QuACSLoader {
         return try decoder.decode(T.self, from: data)
     }
 
-    // MARK: - Transform helpers
-
     private static func buildInstructor(from timeslots: [QuACSTimeslot]) -> String {
         let names = timeslots
             .map { $0.instructor.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && $0.uppercased() != "TBA" }
 
-        // unique but stable order
         var seen = Set<String>()
         var uniq: [String] = []
         for n in names {
@@ -152,7 +144,6 @@ private enum QuACSLoader {
         var meetings: [Meeting] = []
 
         for t in timeslots {
-            // ignore TBA
             guard t.timeStart >= 0, t.timeEnd >= 0 else { continue }
             guard !t.days.isEmpty else { continue }
 
@@ -228,16 +219,11 @@ private struct QuACSCatalogItem: Decodable {
     let source: String
 }
 
-// prereqs.json is keyed by CRN string
 private struct QuACSPrereqEntry: Decodable {
     let cross_list_courses: [String]?
     let prerequisites: QuACSPrereqNode?
 }
 
-// Recursive prereq node:
-// { "type":"course", "course":"MATH 2010", "min_grade":"D" }
-// { "type":"and", "nested":[ ... ] }
-// { "type":"or",  "nested":[ ... ] }
 private indirect enum QuACSPrereqNode: Decodable {
     case course(course: String, minGrade: String?)
     case and([QuACSPrereqNode])
@@ -269,7 +255,6 @@ private indirect enum QuACSPrereqNode: Decodable {
             self = .or(nested)
 
         default:
-            // unknown type -> treat as empty AND
             self = .and([])
         }
     }

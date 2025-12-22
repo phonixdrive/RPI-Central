@@ -27,7 +27,6 @@ struct CalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     @State private var displayMode: CalendarDisplayMode = .week
 
-    // Dark app background and slightly lighter bar background
     private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
     private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
 
@@ -40,7 +39,6 @@ struct CalendarView: View {
                 Divider()
                 content
             }
-            // Swipe left / right to move period, with animation
             .gesture(
                 DragGesture(minimumDistance: 20)
                     .onEnded { value in
@@ -48,25 +46,18 @@ struct CalendarView: View {
                         let dy = value.translation.height
                         guard abs(dx) > abs(dy) else { return }
                         if dx < 0 {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                shift(by: 1)
-                            }
+                            withAnimation(.easeInOut(duration: 0.25)) { shift(by: 1) }
                         } else {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                shift(by: -1)
-                            }
+                            withAnimation(.easeInOut(duration: 0.25)) { shift(by: -1) }
                         }
                     }
             )
             .task {
-                // Load academic events ONCE
                 if !viewModel.academicEventsLoaded {
                     AcademicCalendarService.shared.fetchEventsForCurrentYear { result in
                         switch result {
                         case .success(let events):
-                            DispatchQueue.main.async {
-                                viewModel.addAcademicEvents(events)
-                            }
+                            DispatchQueue.main.async { viewModel.addAcademicEvents(events) }
                         case .failure(let error):
                             print("❌ Failed to load academic events:", error)
                         }
@@ -80,11 +71,7 @@ struct CalendarView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    shift(by: -1)
-                }
-            } label: {
+            Button { withAnimation(.easeInOut(duration: 0.25)) { shift(by: -1) } } label: {
                 Image(systemName: "chevron.left")
             }
 
@@ -95,9 +82,7 @@ struct CalendarView: View {
             Menu {
                 ForEach(CalendarDisplayMode.allCases) { mode in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            displayMode = mode
-                        }
+                        withAnimation(.easeInOut(duration: 0.2)) { displayMode = mode }
                     } label: {
                         if mode == displayMode {
                             Label(mode.title, systemImage: "checkmark")
@@ -113,11 +98,7 @@ struct CalendarView: View {
                 }
             }
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    shift(by: 1)
-                }
-            } label: {
+            Button { withAnimation(.easeInOut(duration: 0.25)) { shift(by: 1) } } label: {
                 Image(systemName: "chevron.right")
             }
         }
@@ -127,7 +108,6 @@ struct CalendarView: View {
         .background(barColor)
     }
 
-    /// Month name + year, tap to jump to any month in a small year range.
     private var monthPicker: some View {
         let cal = Calendar.current
         let current = viewModel.selectedDate
@@ -165,25 +145,16 @@ struct CalendarView: View {
     private var content: some View {
         switch displayMode {
         case .day:
-            TimelineCalendarView(
-                days: [viewModel.selectedDate],
-                displayMode: displayMode
-            )
-            .environmentObject(viewModel)
+            TimelineCalendarView(days: [viewModel.selectedDate], displayMode: displayMode)
+                .environmentObject(viewModel)
 
         case .threeDay:
-            TimelineCalendarView(
-                days: daysFrom(selected: viewModel.selectedDate, count: 3),
-                displayMode: displayMode
-            )
-            .environmentObject(viewModel)
+            TimelineCalendarView(days: daysFrom(selected: viewModel.selectedDate, count: 3), displayMode: displayMode)
+                .environmentObject(viewModel)
 
         case .week:
-            TimelineCalendarView(
-                days: weekdaysOfCurrentWeek(from: viewModel.selectedDate),
-                displayMode: displayMode
-            )
-            .environmentObject(viewModel)
+            TimelineCalendarView(days: weekdaysOfCurrentWeek(from: viewModel.selectedDate), displayMode: displayMode)
+                .environmentObject(viewModel)
 
         case .month:
             MonthWithScheduleView()
@@ -234,21 +205,14 @@ struct CalendarView: View {
 
     private func daysFrom(selected: Date, count: Int) -> [Date] {
         let cal = Calendar.current
-        return (0..<count).compactMap {
-            cal.date(byAdding: .day, value: $0, to: selected)
-        }
+        return (0..<count).compactMap { cal.date(byAdding: .day, value: $0, to: selected) }
     }
 
     private func weekdaysOfCurrentWeek(from date: Date) -> [Date] {
         let cal = Calendar.current
-        guard let weekInterval = cal.dateInterval(of: .weekOfYear, for: date) else {
-            return []
-        }
+        guard let weekInterval = cal.dateInterval(of: .weekOfYear, for: date) else { return [] }
         let sunday = weekInterval.start
-        // 1 = Sunday, so [1...5] => Mon–Fri
-        return (1...5).compactMap {
-            cal.date(byAdding: .day, value: $0, to: sunday)
-        }
+        return (1...5).compactMap { cal.date(byAdding: .day, value: $0, to: sunday) }
     }
 }
 
@@ -268,19 +232,14 @@ struct TimelineCalendarView: View {
     private let rowHeight: CGFloat = 60
     private let timeColWidth: CGFloat = 56
 
-    /// Minutes in the visible range (e.g. 7–22 = 15h = 900 minutes)
-    private var totalMinutes: Int {
-        (dayEndHour - dayStartHour) * 60
-    }
+    private var totalMinutes: Int { (dayEndHour - dayStartHour) * 60 }
 
     var body: some View {
         let intervalCount = dayEndHour - dayStartHour
 
         VStack(spacing: 0) {
-            // Day labels row
             HStack(alignment: .bottom, spacing: 0) {
-                Text("")
-                    .frame(width: timeColWidth) // time column spacer
+                Text("").frame(width: timeColWidth)
 
                 ForEach(days, id: \.self) { day in
                     VStack(spacing: 2) {
@@ -299,7 +258,7 @@ struct TimelineCalendarView: View {
 
             Divider()
 
-            // All-day strip (academic calendar, holidays, breaks, etc.)
+            // All-day strip
             let anyAllDay = days.contains { !viewModel.events(on: $0).filter(\.isAllDay).isEmpty }
             if anyAllDay {
                 HStack(alignment: .top, spacing: 0) {
@@ -313,19 +272,23 @@ struct TimelineCalendarView: View {
                         let allDayEvents = viewModel.events(on: day).filter(\.isAllDay)
                         VStack(alignment: .leading, spacing: 4) {
                             if allDayEvents.isEmpty {
-                                Text("")
-                                    .frame(height: 1)
+                                Text("").frame(height: 1)
                             } else {
                                 ForEach(allDayEvents.prefix(2)) { ev in
-                                    Text(ev.title)
-                                        .font(.caption2)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                        .background(Color.white.opacity(0.12))
-                                        .cornerRadius(6)
-                                        .foregroundColor(.white)
-                                        .onTapGesture { selectedEvent = ev }
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(ev.displayColor)
+                                            .frame(width: 6, height: 6)
+                                        Text(ev.title)
+                                            .font(.caption2)
+                                            .lineLimit(1)
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color.white.opacity(0.10))
+                                    .cornerRadius(6)
+                                    .onTapGesture { selectedEvent = ev }
                                 }
 
                                 if allDayEvents.count > 2 {
@@ -350,8 +313,6 @@ struct TimelineCalendarView: View {
                     let dayWidth = (gridRightX - gridLeftX) / CGFloat(max(days.count, 1))
 
                     ZStack(alignment: .topLeading) {
-
-                        // Horizontal grid lines + time labels
                         ForEach(0...intervalCount, id: \.self) { idx in
                             let y = CGFloat(idx) * rowHeight
 
@@ -366,14 +327,10 @@ struct TimelineCalendarView: View {
                                 Text(hourLabel(hour))
                                     .font(.caption)
                                     .foregroundColor(.white)
-                                    .position(
-                                        x: gridLeftX - 26,
-                                        y: y + 8
-                                    )
+                                    .position(x: gridLeftX - 26, y: y + 8)
                             }
                         }
 
-                        // Vertical inner grid lines
                         if days.count > 1 {
                             ForEach(1..<days.count, id: \.self) { col in
                                 let x = gridLeftX + dayWidth * CGFloat(col)
@@ -385,7 +342,6 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Current time horizontal line
                         if displayMode == .day || displayMode == .threeDay || displayMode == .week {
                             if let nowY = nowLineY(totalHeight: totalHeight) {
                                 Path { path in
@@ -401,27 +357,20 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Events overlay (TIMED ONLY)
+                        // Timed events only
                         ForEach(Array(days.enumerated()), id: \.1) { (colIndex, day) in
                             let eventsForDay = viewModel.events(on: day).filter { !$0.isAllDay }
 
                             ForEach(eventsForDay) { event in
-                                if let rect = rectForEvent(event,
-                                                           totalHeight: totalHeight) {
-
+                                if let rect = rectForEvent(event, totalHeight: totalHeight) {
                                     let columnLeft = gridLeftX + dayWidth * CGFloat(colIndex)
                                     let eventWidth = max(dayWidth - 8, 0)
                                     let centerX = columnLeft + dayWidth / 2
 
                                     eventChip(event)
                                         .frame(width: eventWidth, height: rect.height)
-                                        .position(
-                                            x: centerX,
-                                            y: rect.minY + rect.height / 2
-                                        )
-                                        .onTapGesture {
-                                            selectedEvent = event
-                                        }
+                                        .position(x: centerX, y: rect.minY + rect.height / 2)
+                                        .onTapGesture { selectedEvent = event }
                                 }
                             }
                         }
@@ -435,10 +384,7 @@ struct TimelineCalendarView: View {
         }
     }
 
-    // MARK: - Geometry helpers
-
-    private func rectForEvent(_ event: ClassEvent,
-                              totalHeight: CGFloat) -> CGRect? {
+    private func rectForEvent(_ event: ClassEvent, totalHeight: CGFloat) -> CGRect? {
         let comps = calendar.dateComponents([.hour, .minute], from: event.startDate)
         let endComps = calendar.dateComponents([.hour, .minute], from: event.endDate)
 
@@ -463,9 +409,7 @@ struct TimelineCalendarView: View {
 
     private func nowLineY(totalHeight: CGFloat) -> CGFloat? {
         let now = Date()
-        guard days.contains(where: { calendar.isDate($0, inSameDayAs: now) }) else {
-            return nil
-        }
+        guard days.contains(where: { calendar.isDate($0, inSameDayAs: now) }) else { return nil }
 
         let comps = calendar.dateComponents([.hour, .minute], from: now)
         guard let h = comps.hour, let m = comps.minute else { return nil }
@@ -530,7 +474,6 @@ struct TimelineCalendarView: View {
 
 struct MonthWithScheduleView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-
     private let calendar = Calendar.current
 
     var body: some View {
@@ -544,51 +487,56 @@ struct MonthWithScheduleView: View {
             let selected = viewModel.selectedDate
             let events = viewModel.events(on: selected)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(selected.formatted("EEEE, MMM d"))
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.top, 8)
+            // ✅ FIX #1: Always use a List (even empty) so the layout doesn't collapse/"droop".
+            List {
+                Section {
+                    if events.isEmpty {
+                        Text("No events for this day.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        let allDay = events.filter(\.isAllDay)
+                        let timed  = events.filter { !$0.isAllDay }.sorted { $0.startDate < $1.startDate }
+                        let merged = allDay + timed
 
-                if events.isEmpty {
-                    Text("No classes for this day.")
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                } else {
-                    let allDay = events.filter(\.isAllDay)
-                    let timed  = events.filter { !$0.isAllDay }.sorted { $0.startDate < $1.startDate }
-                    let merged = allDay + timed
-
-                    List {
                         ForEach(merged) { event in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(event.title)
-                                    .font(.headline)
+                            HStack(alignment: .top, spacing: 10) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(event.displayColor)
+                                    .frame(width: 4)
+                                    .padding(.top, 4)
 
-                                Text(timeRangeString(for: event))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(event.title)
+                                        .font(.headline)
 
-                                if !event.location.isEmpty {
-                                    Text(event.location)
+                                    Text(timeRangeString(for: event))
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
+
+                                    if !event.location.isEmpty {
+                                        Text(event.location)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
                         }
                     }
-                    .listStyle(.plain)
+                } header: {
+                    Text(selected.formatted("EEEE, MMM d"))
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .textCase(nil)
                 }
             }
+            .listStyle(.plain)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // keeps month grid pinned
     }
 
     private func timeRangeString(for event: ClassEvent) -> String {
         if event.isAllDay {
-            // If it spans multiple days, show range; else "All day"
             let startDay = calendar.startOfDay(for: event.startDate)
             let endDay = calendar.startOfDay(for: event.endDate)
 
@@ -612,7 +560,6 @@ struct MonthWithScheduleView: View {
 
 struct MonthGridView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-
     private let calendar = Calendar.current
 
     var body: some View {
@@ -648,35 +595,53 @@ struct MonthGridView: View {
                         if dayNumber < 1 || dayNumber > range.count {
                             Rectangle()
                                 .fill(Color.clear)
-                                .frame(height: 36)
+                                .frame(height: 40)
                                 .frame(maxWidth: .infinity)
                         } else {
                             let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: start) ?? start
-                            let hasEvents = !viewModel.events(on: date).isEmpty
+                            let dayEvents = viewModel.events(on: date)
                             let isSelected = calendar.isDate(date, inSameDayAs: viewModel.selectedDate)
 
-                            VStack(spacing: 2) {
+                            let isBreakDay = dayEvents.contains { $0.isAllDay && $0.kind == .break }
+                            let dotColors = dotColorsForDayEvents(dayEvents)
+
+                            VStack(spacing: 3) {
                                 Text("\(dayNumber)")
                                     .font(.caption)
                                     .foregroundColor(isSelected ? .black : .white)
                                     .frame(maxWidth: .infinity)
 
-                                if hasEvents {
-                                    Circle()
-                                        .fill(isSelected ? Color.black : Color.green)
-                                        .frame(width: 4, height: 4)
-                                } else {
+                                // ✅ FIX #2: color-coded dots (up to 3)
+                                if dotColors.isEmpty {
                                     Circle()
                                         .fill(Color.clear)
-                                        .frame(width: 4, height: 4)
+                                        .frame(width: 5, height: 5)
+                                } else {
+                                    HStack(spacing: 3) {
+                                        ForEach(Array(dotColors.prefix(3).enumerated()), id: \.offset) { _, c in
+                                            Circle()
+                                                .fill(c)
+                                                .frame(width: 5, height: 5)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity)
                                 }
                             }
-                            .padding(4)
+                            .padding(5)
                             .background(
-                                isSelected ? Color.white : Color.clear
+                                ZStack {
+                                    if isSelected {
+                                        Color.white
+                                    } else if isBreakDay {
+                                        // ✅ break "spans" across days via per-cell tint
+                                        Color.orange.opacity(0.22)
+                                    } else {
+                                        Color.clear
+                                    }
+                                }
                             )
-                            .cornerRadius(6)
-                            .frame(height: 36)
+                            .cornerRadius(7)
+                            .frame(height: 40)
                             .frame(maxWidth: .infinity)
                             .onTapGesture {
                                 viewModel.selectedDate = date
@@ -688,9 +653,50 @@ struct MonthGridView: View {
             }
         }
     }
+
+    private func dotColorsForDayEvents(_ events: [ClassEvent]) -> [Color] {
+        // Prefer non-class academic types first so breaks/holidays stand out.
+        // Then classes.
+        var colors: [Color] = []
+
+        let academic = events
+            .filter { $0.isAllDay }
+            .sorted { priority($0.kind) < priority($1.kind) }
+
+        let classes = events
+            .filter { !$0.isAllDay && $0.kind == .classMeeting }
+
+        for e in academic {
+            colors.append(e.displayColor)
+        }
+        for e in classes {
+            colors.append(e.displayColor)
+        }
+
+        // unique (by approximate identity)
+        var unique: [Color] = []
+        for c in colors {
+            if unique.contains(where: { $0 == c }) { continue }
+            unique.append(c)
+        }
+        return unique
+    }
+
+    private func priority(_ kind: CalendarEventKind) -> Int {
+        switch kind {
+        case .break:       return 0
+        case .holiday:     return 1
+        case .readingDays: return 2
+        case .finals:      return 3
+        case .noClasses:   return 4
+        case .followDay:   return 5
+        case .academicOther: return 6
+        default:           return 9
+        }
+    }
 }
 
-// MARK: - Detail sheet when you tap a class block
+// MARK: - Detail sheet
 
 struct ClassEventDetailView: View {
     let event: ClassEvent
@@ -743,7 +749,7 @@ struct ClassEventDetailView: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("Class Details")
+            .navigationTitle("Event Details")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
