@@ -32,8 +32,6 @@ final class AcademicCalendarService {
     }
 
     /// Loads academic calendar events from a bundled JSON and returns them as `[AcademicEvent]`.
-    /// This matches the call site in `CalendarView`:
-    /// `AcademicCalendarService.shared.fetchEventsForCurrentYear { ... }`
     func fetchEventsForCurrentYear(
         completion: @escaping (Result<[AcademicEvent], Error>) -> Void
     ) {
@@ -53,7 +51,6 @@ final class AcademicCalendarService {
                     "rpi_academic_calendar_\(y2)"
                 ]
 
-                // Pick the first that exists in the bundle.
                 let filename: String? = candidates.first { name in
                     Bundle.main.url(forResource: name, withExtension: "json") != nil
                 }
@@ -70,7 +67,6 @@ final class AcademicCalendarService {
 
                 let calendar = try self.loadBundledCalendar(named: filename)
 
-                // Convert to your `AcademicEvent` model (date-only).
                 var out: [AcademicEvent] = []
                 out.reserveCapacity(calendar.events.count)
 
@@ -78,12 +74,15 @@ final class AcademicCalendarService {
                     guard let start = self.parseYMD(e.startDate) else { continue }
                     let end = self.parseYMD(e.endDate ?? e.startDate) ?? start
 
+                    let kind = self.kindFromTags(e.tags)
+
                     out.append(
                         AcademicEvent(
                             title: e.title,
                             startDate: start,
                             endDate: end,
-                            location: nil
+                            location: nil,
+                            kind: kind
                         )
                     )
                 }
@@ -95,8 +94,18 @@ final class AcademicCalendarService {
         }
     }
 
-    /// Expands multi-day events (e.g., "Dec 16 - Dec 22") into per-day items for easy UI lookup.
-    /// (Not currently required because we range-check all-day events in the ViewModel.)
+    private func kindFromTags(_ tags: AcademicTags) -> CalendarEventKind {
+        // Priority matters: break/holiday/finals/readingDays should dominate
+        if tags.break { return .break }
+        if tags.holiday { return .holiday }
+        if tags.finals { return .finals }
+        if tags.readingDays { return .readingDays }
+        if tags.noClasses { return .noClasses }
+        if tags.followDay { return .followDay }
+        return .academicOther
+    }
+
+    /// Expands multi-day events into per-day items (optional helper).
     func expandToPerDayEvents(_ calendar: AcademicCalendar) -> [AcademicDayEvent] {
         var out: [AcademicDayEvent] = []
         var cal = Calendar(identifier: .gregorian)
@@ -126,6 +135,6 @@ final class AcademicCalendarService {
 struct AcademicDayEvent: Identifiable {
     var id: String { "\(raw.id)|\(date.timeIntervalSince1970)" }
 
-    let date: Date                 // specific day (start-of-day)
-    let raw: AcademicCalendarEvent  // original calendar event
+    let date: Date
+    let raw: AcademicCalendarEvent
 }
