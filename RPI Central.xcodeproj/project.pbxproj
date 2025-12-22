@@ -43,16 +43,16 @@
 		0D8E96122EF8706900B6269D /* Exceptions for "RPI Central" folder in "RPI Central" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Assets.xcassets,
 				"Preview Content/Preview Assets.xcassets",
-				rpi_courses_202501.json,
-				rpi_courses_202509.json,
+				Untitled.swift,
 			);
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 		};
 		0D8E96132EF8706900B6269D /* Exceptions for "Data" folder in "RPI Central" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				rpi_courses_202501.json,
+				rpi_courses_202509.json,
 				semester_data/199805/catalog.json,
 				semester_data/199805/courses.json,
 				semester_data/199805/mod.rs,

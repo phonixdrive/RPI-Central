@@ -1,5 +1,5 @@
-//  CalendarView.swift
-//  RPI Central
+// CalendarView.swift
+// RPI Central
 
 import SwiftUI
 
@@ -27,6 +27,9 @@ struct CalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     @State private var displayMode: CalendarDisplayMode = .week
 
+    // ✅ Add-event sheet
+    @State private var showingAddEvent: Bool = false
+
     private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
     private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
 
@@ -53,16 +56,24 @@ struct CalendarView: View {
                     }
             )
             .task {
-                if !viewModel.academicEventsLoaded {
-                    AcademicCalendarService.shared.fetchEventsForCurrentYear { result in
-                        switch result {
-                        case .success(let events):
-                            DispatchQueue.main.async { viewModel.addAcademicEvents(events) }
-                        case .failure(let error):
-                            print("❌ Failed to load academic events:", error)
-                        }
-                    }
-                }
+                // Academic year events for whichever semester the app is currently using
+                viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
+
+                // ✅ Load term bounds not just for currentSemester, but for ALL enrollments,
+                // so the calendar can automatically show Fall before break and Spring after.
+                viewModel.ensureTermBoundsForAllEnrollments()
+                viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
+            }
+            .onChange(of: viewModel.currentSemester) { _, newSem in
+                viewModel.ensureAcademicEventsLoaded(for: newSem)
+                viewModel.ensureTermBoundsLoaded(for: newSem)
+            }
+            .onChange(of: viewModel.enrolledCourses) { _, _ in
+                viewModel.ensureTermBoundsForAllEnrollments()
+            }
+            .sheet(isPresented: $showingAddEvent) {
+                AddEventView(date: viewModel.selectedDate, isPresented: $showingAddEvent)
+                    .environmentObject(viewModel)
             }
         }
     }
@@ -78,6 +89,12 @@ struct CalendarView: View {
             monthPicker
 
             Spacer()
+
+            // ✅ plus button: right of month, left of display-mode dropdown
+            Button(action: { showingAddEvent = true }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+            }
 
             Menu {
                 ForEach(CalendarDisplayMode.allCases) { mode in
@@ -487,7 +504,6 @@ struct MonthWithScheduleView: View {
             let selected = viewModel.selectedDate
             let events = viewModel.events(on: selected)
 
-            // ✅ FIX #1: Always use a List (even empty) so the layout doesn't collapse/"droop".
             List {
                 Section {
                     if events.isEmpty {
@@ -532,7 +548,7 @@ struct MonthWithScheduleView: View {
             }
             .listStyle(.plain)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // keeps month grid pinned
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func timeRangeString(for event: ClassEvent) -> String {
@@ -569,7 +585,7 @@ struct MonthGridView: View {
         let range: Range<Int> = calendar.range(of: .day, in: .month, for: selectedDate) ?? (1..<32)
 
         let firstWeekday = calendar.component(.weekday, from: start) // 1 = Sunday
-        let leadingBlanks = (firstWeekday + 6) % 7  // make Monday=0
+        let leadingBlanks = (firstWeekday - 2 + 7) % 7   // Monday=0 ... Sunday=6
 
         let totalCells = leadingBlanks + range.count
         let rows = Int(ceil(Double(totalCells) / 7.0))
@@ -611,7 +627,6 @@ struct MonthGridView: View {
                                     .foregroundColor(isSelected ? .black : .white)
                                     .frame(maxWidth: .infinity)
 
-                                // ✅ FIX #2: color-coded dots (up to 3)
                                 if dotColors.isEmpty {
                                     Circle()
                                         .fill(Color.clear)
@@ -633,7 +648,6 @@ struct MonthGridView: View {
                                     if isSelected {
                                         Color.white
                                     } else if isBreakDay {
-                                        // ✅ break "spans" across days via per-cell tint
                                         Color.orange.opacity(0.22)
                                     } else {
                                         Color.clear
@@ -655,8 +669,6 @@ struct MonthGridView: View {
     }
 
     private func dotColorsForDayEvents(_ events: [ClassEvent]) -> [Color] {
-        // Prefer non-class academic types first so breaks/holidays stand out.
-        // Then classes.
         var colors: [Color] = []
 
         let academic = events
@@ -666,14 +678,9 @@ struct MonthGridView: View {
         let classes = events
             .filter { !$0.isAllDay && $0.kind == .classMeeting }
 
-        for e in academic {
-            colors.append(e.displayColor)
-        }
-        for e in classes {
-            colors.append(e.displayColor)
-        }
+        for e in academic { colors.append(e.displayColor) }
+        for e in classes { colors.append(e.displayColor) }
 
-        // unique (by approximate identity)
         var unique: [Color] = []
         for c in colors {
             if unique.contains(where: { $0 == c }) { continue }
