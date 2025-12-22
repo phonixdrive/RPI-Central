@@ -1,7 +1,5 @@
-//
-//  CalendarViewModel.swift
-//  RPI Central
-//
+// CalendarViewModel.swift
+// RPI Central
 
 import Foundation
 import SwiftUI
@@ -28,8 +26,11 @@ final class CalendarViewModel: ObservableObject {
     // THEME (for .tint and Settings)
     @Published var themeColor: Color = .blue
 
-    // whether we've already pulled academic events
+    // whether we've already pulled academic events for at least one year
     @Published private(set) var academicEventsLoaded: Bool = false
+
+    // Term bounds by semesterCode (e.g. "202601" -> DateInterval)
+    @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:]
 
     // Prereq enforcement (Settings toggle)
     @Published var enforcePrerequisites: Bool = false {
@@ -46,6 +47,14 @@ final class CalendarViewModel: ObservableObject {
 
     private let enrolledStorageKey = "enrolled_courses_v1"
     private let enforcePrereqsKey  = "enforce_prereqs_v1"
+
+    // For prereq “auto-fulfillment” when a user adds a course without prereqs.
+    // Map: assumedCourseID -> set of courseIDs that caused this assumption.
+    private let assumedPrereqsStorageKey = "assumed_prereqs_v1"
+    private var assumedBy: [String: Set<String>] = [:]   // e.g. "MATH-1010" -> {"MATH-1020"}
+
+    // Track which academic years we’ve already loaded to avoid duplicates.
+    private var loadedAcademicYearStarts: Set<Int> = []
 
     // Your color palette: [light, dark]
     // Order: red, orange, blue, green, yellow
@@ -83,25 +92,84 @@ final class CalendarViewModel: ObservableObject {
 
         self.enforcePrerequisites = UserDefaults.standard.bool(forKey: enforcePrereqsKey)
 
+        loadAssumedPrereqs()
         loadEnrollment()
         rebuildEventsFromEnrollment()
+
+        // Best-effort: ensure current semester’s term bounds + academic events are loaded
+        ensureTermBoundsLoaded(for: currentSemester)
+        ensureAcademicEventsLoaded(for: currentSemester)
+    }
+
+    // MARK: - Public “ensure loaded” (called from CalendarView.swift)
+
+    func ensureTermBoundsLoaded(for semester: Semester) {
+        let code = semester.rawValue
+        if termBoundsBySemesterCode[code] != nil { return }
+
+        AcademicCalendarService.shared.fetchTermBounds(for: semester) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let bounds):
+                DispatchQueue.main.async {
+                    let interval = DateInterval(start: bounds.start, end: bounds.end)
+                    self.termBoundsBySemesterCode[code] = interval
+                    self.objectWillChange.send()
+                }
+            case .failure(let err):
+                print("❌ Failed to load term bounds for \(semester.displayName):", err)
+            }
+        }
+    }
+
+    func ensureAcademicEventsLoaded(for semester: Semester) {
+        let ayStart = academicYearStart(for: semester)
+        if loadedAcademicYearStarts.contains(ayStart) { return }
+
+        AcademicCalendarService.shared.fetchEvents(for: semester) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let evs):
+                DispatchQueue.main.async {
+                    self.addAcademicEvents(evs)
+                    self.loadedAcademicYearStarts.insert(ayStart)
+                    self.academicEventsLoaded = true
+                }
+            case .failure(let err):
+                print("❌ Failed to load academic events for \(semester.displayName):", err)
+            }
+        }
     }
 
     // MARK: - Events per day
 
     /// Return events for this date.
-    /// - Class events (enrollmentID != nil) are treated as *template weekly* events.
+    /// - Class events (enrollmentID != nil && kind == .classMeeting) are treated as *template weekly* events.
     /// - Fixed-date events (enrollmentID == nil) are anchored to real dates.
     ///   All-day / multi-day events show on every day in their range.
     func events(on date: Date) -> [ClassEvent] {
         var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
 
+        // quick lookup: enrollmentID -> semesterCode
+        let enrollmentSemesterByID: [String: String] = Dictionary(
+            uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
+        )
+
         for base in events {
-            if base.kind == .classMeeting, base.enrollmentID != nil {
-                // Weekly template (class)
+            if base.kind == .classMeeting, let enrollmentID = base.enrollmentID {
+                // Template weekly class (only show on matching weekday)
                 let baseWeekday = calendar.component(.weekday, from: base.startDate)
                 guard baseWeekday == weekday else { continue }
+
+                // Filter by term bounds (if available)
+                if let semCode = enrollmentSemesterByID[enrollmentID],
+                   let interval = termBoundsBySemesterCode[semCode] {
+                    let day = calendar.startOfDay(for: date)
+                    let s = calendar.startOfDay(for: interval.start)
+                    let e = calendar.startOfDay(for: interval.end)
+                    if !(s <= day && day <= e) { continue }
+                }
 
                 let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
                 let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
@@ -187,6 +255,8 @@ final class CalendarViewModel: ObservableObject {
 
     func changeSemester(to newSemester: Semester) {
         currentSemester = newSemester
+        ensureTermBoundsLoaded(for: newSemester)
+        ensureAcademicEventsLoaded(for: newSemester)
         rebuildEventsFromEnrollment()
     }
 
@@ -272,20 +342,17 @@ final class CalendarViewModel: ObservableObject {
         hasTimeConflict(for: section)
     }
 
-    // MARK: - Prereqs (FIXED)
+    // MARK: - Prereqs
 
     private func courseKey(_ course: Course) -> String {
         "\(course.subject)-\(course.number)"
     }
 
-    /// Returns prereq course IDs like ["MATH-1010","PHYS-1100"] if available.
-    /// First tries prereq_graph.json (normalized), then falls back to parsing section prereq strings.
     func prerequisiteCourseIDs(for course: Course) -> [String] {
         let key = courseKey(course)
         let fromGraph = PrereqStore.shared.prereqIDs(for: key)
         if !fromGraph.isEmpty { return fromGraph }
 
-        // Fallback: parse from prerequisitesText (best-effort)
         let texts = course.sections.map { $0.prerequisitesText }.filter { !$0.isEmpty }
         var out: [String] = []
         for t in texts {
@@ -294,11 +361,17 @@ final class CalendarViewModel: ObservableObject {
         return Array(Set(out)).sorted()
     }
 
+    private func completedCourseIDs() -> Set<String> {
+        var completed: Set<String> = Set(enrolledCourses.map { "\($0.course.subject)-\($0.course.number)" })
+        completed.formUnion(Set(assumedBy.keys))
+        return completed
+    }
+
     func missingPrerequisites(for course: Course) -> [String] {
         let prereqs = prerequisiteCourseIDs(for: course)
         if prereqs.isEmpty { return [] }
 
-        let completed: Set<String> = Set(enrolledCourses.map { "\($0.course.subject)-\($0.course.number)" })
+        let completed = completedCourseIDs()
         return prereqs.filter { !completed.contains($0) }
     }
 
@@ -310,7 +383,6 @@ final class CalendarViewModel: ObservableObject {
                 .joined(separator: ", ")
         }
 
-        // If we still have nothing, show any human-readable per-section string
         let texts = course.sections
             .map { $0.prerequisitesText.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -321,7 +393,6 @@ final class CalendarViewModel: ObservableObject {
     private func extractCourseIDs(from text: String) -> [String] {
         let upper = text.uppercased()
 
-        // Match "CSCI 1200" or "CSCI-1200"
         let patterns = [
             #"([A-Z]{3,4})\s*[- ]\s*(\d{4})"#,
             #"([A-Z]{3,4})(\d{4})"#
@@ -351,12 +422,13 @@ final class CalendarViewModel: ObservableObject {
     func addCourseSection(_ section: CourseSection, course: Course) {
         let id = enrollmentID(for: course, section: section)
 
-        if enrolledCourses.contains(where: { $0.id == id }) {
-            return
-        }
+        if enrolledCourses.contains(where: { $0.id == id }) { return }
+        if hasTimeConflict(for: section) { return }
 
-        if hasTimeConflict(for: section) {
-            return
+        // If user adds a course while missing prereqs, auto-assume prereqs
+        let missing = missingPrerequisites(for: course)
+        if !missing.isEmpty {
+            assumePrereqs(missing, causedBy: courseKey(course))
         }
 
         let enrollment = EnrolledCourse(
@@ -384,6 +456,7 @@ final class CalendarViewModel: ObservableObject {
 
         recolorAllEvents()
         saveEnrollment()
+        ensureTermBoundsLoaded(for: currentSemester)
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
@@ -391,6 +464,98 @@ final class CalendarViewModel: ObservableObject {
         events.removeAll { $0.enrollmentID == enrollment.id }
         recolorAllEvents()
         saveEnrollment()
+
+        let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
+        unassumePrereqs(causedBy: removedCourseID)
+    }
+
+    // MARK: - Assumed prereqs (auto-fulfillment)
+
+    private func assumePrereqs(_ prereqIDs: [String], causedBy courseID: String) {
+        var changed = false
+        let expanded = expandTransitivePrereqs(prereqIDs)
+
+        for p in expanded {
+            var reasons = assumedBy[p] ?? []
+            if !reasons.contains(courseID) {
+                reasons.insert(courseID)
+                assumedBy[p] = reasons
+                changed = true
+            }
+        }
+
+        if changed {
+            saveAssumedPrereqs()
+            objectWillChange.send()
+        }
+    }
+
+    private func unassumePrereqs(causedBy courseID: String) {
+        var changed = false
+        var toRemove: [String] = []
+
+        for (assumedCourse, reasons) in assumedBy {
+            var r = reasons
+            if r.contains(courseID) {
+                r.remove(courseID)
+                if r.isEmpty {
+                    toRemove.append(assumedCourse)
+                } else {
+                    assumedBy[assumedCourse] = r
+                }
+                changed = true
+            }
+        }
+
+        for k in toRemove { assumedBy.removeValue(forKey: k) }
+
+        if changed {
+            saveAssumedPrereqs()
+            objectWillChange.send()
+        }
+    }
+
+    private func expandTransitivePrereqs(_ prereqIDs: [String]) -> [String] {
+        var out: Set<String> = []
+        var stack: [String] = prereqIDs
+        var seen: Set<String> = []
+
+        while let cur = stack.popLast() {
+            if seen.contains(cur) { continue }
+            seen.insert(cur)
+            out.insert(cur)
+
+            let next = PrereqStore.shared.prereqIDs(for: cur)
+            for n in next where !seen.contains(n) { stack.append(n) }
+        }
+
+        return Array(out).sorted()
+    }
+
+    private func saveAssumedPrereqs() {
+        let dict: [String: [String]] = assumedBy.mapValues { Array($0).sorted() }
+        if let data = try? JSONSerialization.data(withJSONObject: dict, options: []) {
+            UserDefaults.standard.set(data, forKey: assumedPrereqsStorageKey)
+        }
+    }
+
+    private func loadAssumedPrereqs() {
+        guard let data = UserDefaults.standard.data(forKey: assumedPrereqsStorageKey) else {
+            assumedBy = [:]
+            return
+        }
+        do {
+            let obj = try JSONSerialization.jsonObject(with: data, options: [])
+            if let dict = obj as? [String: [String]] {
+                var out: [String: Set<String>] = [:]
+                for (k, v) in dict { out[k] = Set(v) }
+                assumedBy = out
+            } else {
+                assumedBy = [:]
+            }
+        } catch {
+            assumedBy = [:]
+        }
     }
 
     // MARK: - Academic events
@@ -484,8 +649,6 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    /// Rebuild class events from enrolledCourses for the template week,
-    /// preserving fixed-date events (manual + academic).
     private func rebuildEventsFromEnrollment() {
         let fixed = events.filter { $0.enrollmentID == nil }  // keep manual + academic
         events = fixed
@@ -550,9 +713,28 @@ final class CalendarViewModel: ObservableObject {
         comps.minute = minute
         return comps
     }
+
+    // MARK: - Academic year helper
+
+    /// Academic year token:
+    /// - Fall YYYY => AY start = YYYY
+    /// - Spring YYYY => AY start = YYYY-1
+    private func academicYearStart(for semester: Semester) -> Int {
+        let year = semester.year
+        return semester.isFall ? year : (year - 1)
+    }
 }
 
-// MARK: - Date helpers
+// MARK: - Semester helpers (file-local)
+
+private extension Semester {
+    var year: Int { Int(rawValue.prefix(4)) ?? Calendar.current.component(.year, from: Date()) }
+    var month: Int { Int(rawValue.suffix(2)) ?? 1 }
+    var isFall: Bool { month == 9 }
+    var isSpring: Bool { month == 1 }
+}
+
+// MARK: - Date helpers (RESTORED)
 
 extension Date {
     func startOfMonth(using calendar: Calendar = .current) -> Date {

@@ -1,7 +1,5 @@
-//
-//  CourseDetailView.swift
-//  RPI Central
-//
+// CourseDetailView.swift
+// RPI Central
 
 import SwiftUI
 
@@ -109,7 +107,6 @@ struct CourseDetailView: View {
                     }
 
                     if hasConflict {
-                        // disabled anyway; do nothing
                         return
                     }
 
@@ -119,7 +116,7 @@ struct CourseDetailView: View {
                         return
                     }
 
-                    // add
+                    // add (NO bypassPrerequisites arg!)
                     calendarViewModel.addCourseSection(section, course: course)
                     bypassArmed.remove(section.id)
                 }

@@ -53,16 +53,13 @@ struct CalendarView: View {
                     }
             )
             .task {
-                if !viewModel.academicEventsLoaded {
-                    AcademicCalendarService.shared.fetchEventsForCurrentYear { result in
-                        switch result {
-                        case .success(let events):
-                            DispatchQueue.main.async { viewModel.addAcademicEvents(events) }
-                        case .failure(let error):
-                            print("❌ Failed to load academic events:", error)
-                        }
-                    }
-                }
+                // ✅ If you’re using the updated CalendarViewModel (term bounds + academic year loading)
+                viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
+                viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
+            }
+            .onChange(of: viewModel.currentSemester) { _, newSem in
+                viewModel.ensureAcademicEventsLoaded(for: newSem)
+                viewModel.ensureTermBoundsLoaded(for: newSem)
             }
         }
     }
@@ -487,7 +484,7 @@ struct MonthWithScheduleView: View {
             let selected = viewModel.selectedDate
             let events = viewModel.events(on: selected)
 
-            // ✅ FIX #1: Always use a List (even empty) so the layout doesn't collapse/"droop".
+            // Always use a List (even empty) so the layout doesn't collapse/"droop".
             List {
                 Section {
                     if events.isEmpty {
@@ -532,7 +529,7 @@ struct MonthWithScheduleView: View {
             }
             .listStyle(.plain)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // keeps month grid pinned
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func timeRangeString(for event: ClassEvent) -> String {
@@ -569,7 +566,8 @@ struct MonthGridView: View {
         let range: Range<Int> = calendar.range(of: .day, in: .month, for: selectedDate) ?? (1..<32)
 
         let firstWeekday = calendar.component(.weekday, from: start) // 1 = Sunday
-        let leadingBlanks = (firstWeekday + 6) % 7  // make Monday=0
+        // ✅ FIX: Monday-first grid alignment
+        let leadingBlanks = (firstWeekday - 2 + 7) % 7   // Monday=0 ... Sunday=6
 
         let totalCells = leadingBlanks + range.count
         let rows = Int(ceil(Double(totalCells) / 7.0))
@@ -611,7 +609,6 @@ struct MonthGridView: View {
                                     .foregroundColor(isSelected ? .black : .white)
                                     .frame(maxWidth: .infinity)
 
-                                // ✅ FIX #2: color-coded dots (up to 3)
                                 if dotColors.isEmpty {
                                     Circle()
                                         .fill(Color.clear)
@@ -633,7 +630,6 @@ struct MonthGridView: View {
                                     if isSelected {
                                         Color.white
                                     } else if isBreakDay {
-                                        // ✅ break "spans" across days via per-cell tint
                                         Color.orange.opacity(0.22)
                                     } else {
                                         Color.clear
@@ -655,8 +651,6 @@ struct MonthGridView: View {
     }
 
     private func dotColorsForDayEvents(_ events: [ClassEvent]) -> [Color] {
-        // Prefer non-class academic types first so breaks/holidays stand out.
-        // Then classes.
         var colors: [Color] = []
 
         let academic = events
@@ -666,14 +660,9 @@ struct MonthGridView: View {
         let classes = events
             .filter { !$0.isAllDay && $0.kind == .classMeeting }
 
-        for e in academic {
-            colors.append(e.displayColor)
-        }
-        for e in classes {
-            colors.append(e.displayColor)
-        }
+        for e in academic { colors.append(e.displayColor) }
+        for e in classes { colors.append(e.displayColor) }
 
-        // unique (by approximate identity)
         var unique: [Color] = []
         for c in colors {
             if unique.contains(where: { $0 == c }) { continue }
