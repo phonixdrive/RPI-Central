@@ -1,5 +1,5 @@
-//  CalendarView.swift
-//  RPI Central
+// CalendarView.swift
+// RPI Central
 
 import SwiftUI
 
@@ -27,6 +27,9 @@ struct CalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     @State private var displayMode: CalendarDisplayMode = .week
 
+    // ✅ Add-event sheet
+    @State private var showingAddEvent: Bool = false
+
     private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
     private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
 
@@ -53,13 +56,24 @@ struct CalendarView: View {
                     }
             )
             .task {
-                // ✅ If you’re using the updated CalendarViewModel (term bounds + academic year loading)
+                // Academic year events for whichever semester the app is currently using
                 viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
+
+                // ✅ Load term bounds not just for currentSemester, but for ALL enrollments,
+                // so the calendar can automatically show Fall before break and Spring after.
+                viewModel.ensureTermBoundsForAllEnrollments()
                 viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
             }
             .onChange(of: viewModel.currentSemester) { _, newSem in
                 viewModel.ensureAcademicEventsLoaded(for: newSem)
                 viewModel.ensureTermBoundsLoaded(for: newSem)
+            }
+            .onChange(of: viewModel.enrolledCourses) { _, _ in
+                viewModel.ensureTermBoundsForAllEnrollments()
+            }
+            .sheet(isPresented: $showingAddEvent) {
+                AddEventView(date: viewModel.selectedDate, isPresented: $showingAddEvent)
+                    .environmentObject(viewModel)
             }
         }
     }
@@ -75,6 +89,12 @@ struct CalendarView: View {
             monthPicker
 
             Spacer()
+
+            // ✅ plus button: right of month, left of display-mode dropdown
+            Button(action: { showingAddEvent = true }) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+            }
 
             Menu {
                 ForEach(CalendarDisplayMode.allCases) { mode in
@@ -484,7 +504,6 @@ struct MonthWithScheduleView: View {
             let selected = viewModel.selectedDate
             let events = viewModel.events(on: selected)
 
-            // Always use a List (even empty) so the layout doesn't collapse/"droop".
             List {
                 Section {
                     if events.isEmpty {
@@ -566,7 +585,6 @@ struct MonthGridView: View {
         let range: Range<Int> = calendar.range(of: .day, in: .month, for: selectedDate) ?? (1..<32)
 
         let firstWeekday = calendar.component(.weekday, from: start) // 1 = Sunday
-        // ✅ FIX: Monday-first grid alignment
         let leadingBlanks = (firstWeekday - 2 + 7) % 7   // Monday=0 ... Sunday=6
 
         let totalCells = leadingBlanks + range.count
