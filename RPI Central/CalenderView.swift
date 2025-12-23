@@ -30,6 +30,15 @@ struct CalendarView: View {
     // ✅ Add-event sheet
     @State private var showingAddEvent: Bool = false
 
+    // ✅ Fullscreen boot overlay (local to view)
+    @State private var showBootOverlay: Bool = false
+    @State private var bootCanSkip: Bool = false
+    @State private var bootSubtitle: String = "Loading calendar…"
+    @State private var bootTimerStarted: Bool = false
+
+    // ✅ NEW: when user presses Continue, suppress ALL loading overlays for this session
+    @State private var suppressLoadingOverlays: Bool = false
+
     private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
     private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
 
@@ -42,6 +51,7 @@ struct CalendarView: View {
                 Divider()
                 content
             }
+            // ✅ Keep your background swipe navigation (overlap stacks use highPriorityGesture)
             .gesture(
                 DragGesture(minimumDistance: 20)
                     .onEnded { value in
@@ -53,14 +63,15 @@ struct CalendarView: View {
                         } else {
                             withAnimation(.easeInOut(duration: 0.25)) { shift(by: -1) }
                         }
-                    }
+                    },
+                including: .gesture
             )
             .task {
-                // Academic year events for whichever semester the app is currently using
-                viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
+                // ✅ Start fullscreen boot overlay (Simulator-safe)
+                beginBootOverlayIfNeeded()
 
-                // ✅ Load term bounds not just for currentSemester, but for ALL enrollments,
-                // so the calendar can automatically show Fall before break and Spring after.
+                // ✅ Your existing loading work
+                viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
                 viewModel.ensureTermBoundsForAllEnrollments()
                 viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
             }
@@ -71,9 +82,103 @@ struct CalendarView: View {
             .onChange(of: viewModel.enrolledCourses) { _, _ in
                 viewModel.ensureTermBoundsForAllEnrollments()
             }
+            .onChange(of: isCalendarLoading) { _, loading in
+                if !loading {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        showBootOverlay = false
+                    }
+                } else {
+                    beginBootOverlayIfNeeded()
+                }
+            }
             .sheet(isPresented: $showingAddEvent) {
                 AddEventView(date: viewModel.selectedDate, isPresented: $showingAddEvent)
                     .environmentObject(viewModel)
+            }
+
+            // ✅ Fullscreen boot overlay (shown only if NOT suppressed)
+            if showBootOverlay && isCalendarLoading && !suppressLoadingOverlays {
+                BootLoadingOverlay(
+                    title: "RPI Central",
+                    subtitle: bootSubtitle,
+                    showSkip: bootCanSkip,
+                    onSkip: {
+                        // ✅ This is the key fix: once user continues, kill BOTH layers.
+                        suppressLoadingOverlays = true
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            showBootOverlay = false
+                        }
+                    },
+                    onRetry: {
+                        bootSubtitle = "Retrying…"
+                        viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
+                        viewModel.ensureTermBoundsForAllEnrollments()
+                        viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(1000)
+            }
+
+            // ✅ Optional small overlay (non-blocking) ONLY if NOT suppressed
+            if isCalendarLoading && !showBootOverlay && !suppressLoadingOverlays {
+                ZStack {
+                    Color.black.opacity(0.20).ignoresSafeArea()
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Loading calendar…")
+                            .foregroundColor(.white)
+                            .font(.callout)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.12))
+                    .cornerRadius(12)
+                }
+                .zIndex(999)
+            }
+        }
+    }
+
+    private var isCalendarLoading: Bool {
+        // Academic: treat “attempted” as non-blocking (prevents simulator perma-load)
+        let academicReady = viewModel.academicEventsLoaded
+            || viewModel.didAttemptAcademicEvents(for: viewModel.currentSemester)
+
+        // Term bounds: only block on bounds that are missing AND unattempted
+        let codes = Set(viewModel.enrolledCourses.map { $0.semesterCode })
+        let missingUnattemptedBounds = codes.contains { code in
+            (viewModel.termBoundsBySemesterCode[code] == nil) && !viewModel.didAttemptTermBounds(for: code)
+        }
+
+        return (!academicReady) || missingUnattemptedBounds
+    }
+
+    // MARK: - Boot overlay helpers
+
+    private func beginBootOverlayIfNeeded() {
+        // ✅ If user pressed Continue, never show loading overlays again this session
+        if suppressLoadingOverlays { return }
+
+        guard !bootTimerStarted else {
+            if isCalendarLoading && !showBootOverlay {
+                showBootOverlay = true
+            }
+            return
+        }
+
+        bootTimerStarted = true
+        showBootOverlay = true
+        bootCanSkip = false
+        bootSubtitle = "Loading calendar…"
+
+        // Enable skip quickly (Simulator can hang)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5s
+            if isCalendarLoading && !suppressLoadingOverlays {
+                bootCanSkip = true
+                bootSubtitle = "Still loading… (You can continue if the Simulator hangs)"
             }
         }
     }
@@ -90,7 +195,6 @@ struct CalendarView: View {
 
             Spacer()
 
-            // ✅ plus button: right of month, left of display-mode dropdown
             Button(action: { showingAddEvent = true }) {
                 Image(systemName: "plus.circle.fill")
                     .font(.title3)
@@ -233,6 +337,8 @@ struct CalendarView: View {
     }
 }
 
+// NOTE: rest of file unchanged (TimelineCalendarView, MonthWithScheduleView, etc.)
+// Keeping exactly as your working version.
 // MARK: - Timeline (Day / 3-day / Week views)
 
 struct TimelineCalendarView: View {
@@ -242,6 +348,14 @@ struct TimelineCalendarView: View {
     let displayMode: CalendarDisplayMode
 
     @State private var selectedEvent: ClassEvent?
+
+    // ✅ overlap swipe state: groupKey -> topEventKey
+    @State private var topEventKeyByGroup: [String: String] = [:]
+
+    // ✅ all-day “show all” sheet
+    @State private var showAllDaySheet: Bool = false
+    @State private var allDaySheetTitle: String = ""
+    @State private var allDaySheetEvents: [ClassEvent] = []
 
     private let calendar = Calendar.current
     private let dayStartHour = 7
@@ -287,6 +401,7 @@ struct TimelineCalendarView: View {
 
                     ForEach(days, id: \.self) { day in
                         let allDayEvents = viewModel.events(on: day).filter(\.isAllDay)
+
                         VStack(alignment: .leading, spacing: 4) {
                             if allDayEvents.isEmpty {
                                 Text("").frame(height: 1)
@@ -305,7 +420,6 @@ struct TimelineCalendarView: View {
                                     .padding(.vertical, 3)
                                     .background(Color.white.opacity(0.10))
                                     .cornerRadius(6)
-                                    .onTapGesture { selectedEvent = ev }
                                 }
 
                                 if allDayEvents.count > 2 {
@@ -317,6 +431,13 @@ struct TimelineCalendarView: View {
                         }
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard !allDayEvents.isEmpty else { return }
+                            allDaySheetTitle = day.formatted("EEEE, MMM d")
+                            allDaySheetEvents = allDayEvents
+                            showAllDaySheet = true
+                        }
                     }
                 }
                 Divider()
@@ -374,20 +495,35 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // Timed events only
+                        // ✅ render timed events per overlap group
                         ForEach(Array(days.enumerated()), id: \.1) { (colIndex, day) in
-                            let eventsForDay = viewModel.events(on: day).filter { !$0.isAllDay }
+                            let timed = viewModel.events(on: day).filter { !$0.isAllDay }
+                            let groups = overlapGroups(timed)
 
-                            ForEach(eventsForDay) { event in
-                                if let rect = rectForEvent(event, totalHeight: totalHeight) {
-                                    let columnLeft = gridLeftX + dayWidth * CGFloat(colIndex)
-                                    let eventWidth = max(dayWidth - 8, 0)
-                                    let centerX = columnLeft + dayWidth / 2
+                            ForEach(groups.indices, id: \.self) { gi in
+                                let group = groups[gi]
+                                let columnLeft = gridLeftX + dayWidth * CGFloat(colIndex)
+                                let eventWidth = max(dayWidth - 8, 0)
+                                let centerX = columnLeft + dayWidth / 2
+                                let groupKey = makeGroupKey(day: day, group: group)
 
-                                    eventChip(event)
-                                        .frame(width: eventWidth, height: rect.height)
-                                        .position(x: centerX, y: rect.minY + rect.height / 2)
-                                        .onTapGesture { selectedEvent = event }
+                                if group.count == 1, let ev = group.first,
+                                   let r = rectForEvent(ev, totalHeight: totalHeight) {
+
+                                    eventChip(ev)
+                                        .frame(width: eventWidth, height: r.height)
+                                        .position(x: centerX, y: r.minY + r.height / 2)
+                                        .onTapGesture { selectedEvent = ev }
+                                        .contextMenu { chipMenu(for: ev) }
+
+                                } else {
+                                    overlapStack(
+                                        groupKey: groupKey,
+                                        group: group,
+                                        width: eventWidth,
+                                        centerX: centerX,
+                                        totalHeight: totalHeight
+                                    )
                                 }
                             }
                         }
@@ -398,8 +534,158 @@ struct TimelineCalendarView: View {
         }
         .sheet(item: $selectedEvent) { event in
             ClassEventDetailView(event: event)
+                .environmentObject(viewModel)
+        }
+        .sheet(isPresented: $showAllDaySheet) {
+            AllDayEventsListView(title: allDaySheetTitle, events: allDaySheetEvents)
+                .environmentObject(viewModel)
         }
     }
+
+    // MARK: - Context menu actions
+
+    @ViewBuilder
+    private func chipMenu(for event: ClassEvent) -> some View {
+        if event.isAllDay {
+            Button(role: .destructive) {
+                viewModel.hideAllDayEvent(event)
+            } label: {
+                Label("Hide all-day event", systemImage: "eye.slash")
+            }
+        }
+
+        if event.kind == .personal {
+            Button(role: .destructive) {
+                viewModel.removePersonalEvent(event)
+            } label: {
+                Label("Remove event", systemImage: "trash")
+            }
+
+            if let sid = event.seriesID {
+                Button(role: .destructive) {
+                    viewModel.removePersonalSeries(seriesID: sid)
+                } label: {
+                    Label("Remove recurrence", systemImage: "trash.slash")
+                }
+            }
+        }
+
+        if event.kind == .classMeeting {
+            Button(role: .destructive) {
+                viewModel.hideClassOccurrence(event)
+            } label: {
+                Label("Hide this occurrence", systemImage: "eye.slash")
+            }
+
+            if let id = event.enrollmentID,
+               let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
+                Button(role: .destructive) {
+                    viewModel.removeEnrollment(enrollment)
+                } label: {
+                    Label("Remove course from calendar", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    // MARK: - Overlap grouping (timed events)
+
+    private func overlapGroups(_ events: [ClassEvent]) -> [[ClassEvent]] {
+        let sorted = events.sorted { $0.startDate < $1.startDate }
+        var groups: [[ClassEvent]] = []
+        var cur: [ClassEvent] = []
+        var curEnd: Date?
+
+        for e in sorted {
+            if cur.isEmpty {
+                cur = [e]
+                curEnd = e.endDate
+                continue
+            }
+            if let ce = curEnd, e.startDate < ce {
+                cur.append(e)
+                if e.endDate > ce { curEnd = e.endDate }
+            } else {
+                groups.append(cur)
+                cur = [e]
+                curEnd = e.endDate
+            }
+        }
+        if !cur.isEmpty { groups.append(cur) }
+        return groups
+    }
+
+    private func makeGroupKey(day: Date, group: [ClassEvent]) -> String {
+        let dayKey = day.formatted("yyyy-MM-dd")
+        let ids = group.map(\.interactionKey).sorted().joined(separator: "|")
+        return "\(dayKey)||\(ids)"
+    }
+
+    private func rotate<T: Equatable>(_ arr: [T], startingAt item: T) -> [T] {
+        guard let i = arr.firstIndex(of: item) else { return arr }
+        return Array(arr[i...]) + Array(arr[..<i])
+    }
+
+    @ViewBuilder
+    private func overlapStack(
+        groupKey: String,
+        group: [ClassEvent],
+        width: CGFloat,
+        centerX: CGFloat,
+        totalHeight: CGFloat
+    ) -> some View {
+
+        // default order: shortest duration first
+        let base = group.sorted {
+            let d0 = $0.endDate.timeIntervalSince($0.startDate)
+            let d1 = $1.endDate.timeIntervalSince($1.startDate)
+            if d0 != d1 { return d0 < d1 }
+            return $0.startDate < $1.startDate
+        }
+
+        let defaultTop = base.first?.interactionKey ?? group[0].interactionKey
+        let topKey = topEventKeyByGroup[groupKey] ?? defaultTop
+
+        let baseKeys = base.map(\.interactionKey)
+        let rotatedKeys = rotate(baseKeys, startingAt: topKey)
+
+        let ordered: [ClassEvent] = rotatedKeys.compactMap { k in
+            base.first(where: { $0.interactionKey == k })
+        }
+
+        ZStack {
+            ForEach(Array(ordered.prefix(3).enumerated()), id: \.element.interactionKey) { (i, ev) in
+                if let r = rectForEvent(ev, totalHeight: totalHeight) {
+                    let xOff: CGFloat = CGFloat(i) * 6
+                    let yOff: CGFloat = CGFloat(i) * 6
+
+                    eventChip(ev)
+                        .frame(width: width, height: r.height)
+                        .position(x: centerX + xOff, y: r.minY + r.height / 2 + yOff)
+                        .zIndex(Double(100 - i))
+                        .onTapGesture { selectedEvent = ev }
+                        .contextMenu { chipMenu(for: ev) }
+                }
+            }
+        }
+        // ✅ Only overlap stacks steal swipe → week swipe doesn't break
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 12)
+                .onEnded { value in
+                    let dx = value.translation.width
+                    let dy = value.translation.height
+                    guard abs(dx) > abs(dy), abs(dx) > 20 else { return }
+                    guard rotatedKeys.count > 1 else { return }
+
+                    let newTop = (dx < 0) ? rotatedKeys[1] : (rotatedKeys.last ?? topKey)
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        topEventKeyByGroup[groupKey] = newTop
+                    }
+                }
+        )
+    }
+
+    // MARK: - Geometry helpers
 
     private func rectForEvent(_ event: ClassEvent, totalHeight: CGFloat) -> CGRect? {
         let comps = calendar.dateComponents([.hour, .minute], from: event.startDate)
