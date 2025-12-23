@@ -779,6 +779,8 @@ struct MonthWithScheduleView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     private let calendar = Calendar.current
 
+    @State private var selectedEvent: ClassEvent?
+
     var body: some View {
         VStack(spacing: 0) {
             MonthGridView()
@@ -823,6 +825,11 @@ struct MonthWithScheduleView: View {
                                 }
                                 .padding(.vertical, 4)
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture { selectedEvent = event }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                monthSwipeActions(for: event)
+                            }
                         }
                     }
                 } header: {
@@ -835,6 +842,45 @@ struct MonthWithScheduleView: View {
             .listStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .sheet(item: $selectedEvent) { event in
+            ClassEventDetailView(event: event)
+                .environmentObject(viewModel)
+        }
+    }
+
+    @ViewBuilder
+    private func monthSwipeActions(for event: ClassEvent) -> some View {
+        if event.isAllDay {
+            Button(role: .destructive) {
+                viewModel.hideAllDayEvent(event)
+            } label: {
+                Label("Hide", systemImage: "eye.slash")
+            }
+        }
+
+        if event.kind == .personal {
+            Button(role: .destructive) {
+                viewModel.removePersonalEvent(event)
+            } label: {
+                Label("Remove", systemImage: "trash")
+            }
+
+            if let sid = event.seriesID {
+                Button(role: .destructive) {
+                    viewModel.removePersonalSeries(seriesID: sid)
+                } label: {
+                    Label("Recurrence", systemImage: "trash.slash")
+                }
+            }
+        }
+
+        if event.kind == .classMeeting {
+            Button(role: .destructive) {
+                viewModel.hideClassOccurrence(event)
+            } label: {
+                Label("Hide", systemImage: "eye.slash")
+            }
+        }
     }
 
     private func timeRangeString(for event: ClassEvent) -> String {
@@ -919,9 +965,9 @@ struct MonthGridView: View {
                                         .frame(width: 5, height: 5)
                                 } else {
                                     HStack(spacing: 3) {
-                                        ForEach(Array(dotColors.prefix(3).enumerated()), id: \.offset) { _, c in
+                                        ForEach(Array(dotColors.prefix(3).enumerated()), id: \.offset) { pair in
                                             Circle()
-                                                .fill(c)
+                                                .fill(pair.element)
                                                 .frame(width: 5, height: 5)
                                         }
                                     }
@@ -964,8 +1010,12 @@ struct MonthGridView: View {
         let classes = events
             .filter { !$0.isAllDay && $0.kind == .classMeeting }
 
+        let personal = events
+            .filter { !$0.isAllDay && $0.kind == .personal }
+
         for e in academic { colors.append(e.displayColor) }
         for e in classes { colors.append(e.displayColor) }
+        for e in personal { colors.append(e.displayColor) }
 
         var unique: [Color] = []
         for c in colors {
@@ -989,10 +1039,18 @@ struct MonthGridView: View {
     }
 }
 
-// MARK: - Detail sheet
+// MARK: - Detail sheet + All-day list + corner radius helper
 
 struct ClassEventDetailView: View {
+    @EnvironmentObject var viewModel: CalendarViewModel
     let event: ClassEvent
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmRemoveOne: Bool = false
+    @State private var confirmRemoveSeries: Bool = false
+    @State private var confirmRemoveCourse: Bool = false
+    @State private var confirmHideOccurrence: Bool = false
+    @State private var confirmHideAllDay: Bool = false
 
     private let dfDate: DateFormatter = {
         let df = DateFormatter()
@@ -1044,7 +1102,245 @@ struct ClassEventDetailView: View {
             .padding()
             .navigationTitle("Event Details")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if event.isAllDay {
+                            Button(role: .destructive) { confirmHideAllDay = true } label: {
+                                Label("Hide all-day event", systemImage: "eye.slash")
+                            }
+                        }
+
+                        if event.kind == .personal {
+                            Button(role: .destructive) { confirmRemoveOne = true } label: {
+                                Label("Remove event", systemImage: "trash")
+                            }
+
+                            if let sid = event.seriesID {
+                                Button(role: .destructive) { confirmRemoveSeries = true } label: {
+                                    Label("Remove recurrence", systemImage: "trash.slash")
+                                }
+                            }
+                        }
+
+                        if event.kind == .classMeeting {
+                            Button(role: .destructive) { confirmHideOccurrence = true } label: {
+                                Label("Hide this occurrence", systemImage: "eye.slash")
+                            }
+
+                            if event.enrollmentID != nil {
+                                Button(role: .destructive) { confirmRemoveCourse = true } label: {
+                                    Label("Remove course from calendar", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+            .confirmationDialog("Hide all-day event?", isPresented: $confirmHideAllDay, titleVisibility: .visible) {
+                Button("Hide", role: .destructive) {
+                    viewModel.hideAllDayEvent(event)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Remove event?", isPresented: $confirmRemoveOne, titleVisibility: .visible) {
+                Button("Remove event", role: .destructive) {
+                    viewModel.removePersonalEvent(event)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Remove recurrence?", isPresented: $confirmRemoveSeries, titleVisibility: .visible) {
+                Button("Remove recurrence", role: .destructive) {
+                    if let sid = event.seriesID {
+                        viewModel.removePersonalSeries(seriesID: sid)
+                    }
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Remove course?", isPresented: $confirmRemoveCourse, titleVisibility: .visible) {
+                Button("Remove course", role: .destructive) {
+                    if let id = event.enrollmentID,
+                       let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
+                        viewModel.removeEnrollment(enrollment)
+                    }
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Hide this class meeting only?", isPresented: $confirmHideOccurrence, titleVisibility: .visible) {
+                Button("Hide this occurrence", role: .destructive) {
+                    viewModel.hideClassOccurrence(event)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
+    }
+}
+
+struct AllDayEventsListView: View {
+    @EnvironmentObject var viewModel: CalendarViewModel
+    let title: String
+    let events: [ClassEvent]
+
+    @State private var selectedEvent: ClassEvent?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(events) { ev in
+                    HStack(spacing: 10) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(ev.displayColor)
+                            .frame(width: 4)
+
+                        Text(ev.title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedEvent = ev }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if ev.isAllDay {
+                            Button(role: .destructive) {
+                                viewModel.hideAllDayEvent(ev)
+                            } label: {
+                                Label("Hide", systemImage: "eye.slash")
+                            }
+                        }
+
+                        if ev.kind == .personal {
+                            Button(role: .destructive) {
+                                viewModel.removePersonalEvent(ev)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
+
+                            if let sid = ev.seriesID {
+                                Button(role: .destructive) {
+                                    viewModel.removePersonalSeries(seriesID: sid)
+                                } label: {
+                                    Label("Recurrence", systemImage: "trash.slash")
+                                }
+                            }
+                        }
+
+                        if ev.kind == .classMeeting {
+                            Button(role: .destructive) {
+                                viewModel.hideClassOccurrence(ev)
+                            } label: {
+                                Label("Hide", systemImage: "eye.slash")
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $selectedEvent) { ev in
+                ClassEventDetailView(event: ev)
+                    .environmentObject(viewModel)
+            }
+        }
+    }
+}
+
+// MARK: - Boot loading overlay
+
+fileprivate struct BootLoadingOverlay: View {
+    let title: String
+    let subtitle: String
+    let showSkip: Bool
+    let onSkip: () -> Void
+    let onRetry: () -> Void
+
+    @State private var pulse: Bool = false
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.95),
+                    Color.black.opacity(0.85),
+                    Color.black.opacity(0.95)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 52, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .scaleEffect(pulse ? 1.04 : 1.0)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
+
+                VStack(spacing: 6) {
+                    Text(title)
+                        .font(.title2.bold())
+                        .foregroundColor(.white)
+
+                    Text(subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .scaleEffect(1.1)
+
+                HStack(spacing: 12) {
+                    Button {
+                        onRetry()
+                    } label: {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(.callout.bold())
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color.white.opacity(0.14))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.white)
+
+                    if showSkip {
+                        Button {
+                            onSkip()
+                        } label: {
+                            Text("Continue")
+                                .font(.callout.bold())
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.black)
+                    }
+                }
+                .padding(.top, 4)
+
+                if showSkip {
+                    Text("If the Simulator gets stuck, tap Continue — your calendar will still load when it can.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 26)
+                        .padding(.top, 2)
+                }
+            }
+            .padding(.top, 10)
+        }
+        .onAppear { pulse = true }
     }
 }
 
