@@ -24,6 +24,10 @@ struct ClassEvent: Identifiable, Equatable {
     /// `nil` for manually-added events and academic calendar events.
     let enrollmentID: String?
 
+    /// Optional recurrence group for manually-added events.
+    /// If non-nil, all events in the recurrence share the same seriesID.
+    let seriesID: UUID?
+
     /// True for all-day / date-range events (academic calendar, holidays, breaks).
     let isAllDay: Bool
 
@@ -38,6 +42,7 @@ struct ClassEvent: Identifiable, Equatable {
         backgroundColor: Color,
         accentColor: Color,
         enrollmentID: String?,
+        seriesID: UUID? = nil,
         isAllDay: Bool = false,
         kind: CalendarEventKind = .personal
     ) {
@@ -48,18 +53,19 @@ struct ClassEvent: Identifiable, Equatable {
         self.backgroundColor = backgroundColor
         self.accentColor = accentColor
         self.enrollmentID = enrollmentID
+        self.seriesID = seriesID
         self.isAllDay = isAllDay
         self.kind = kind
     }
 
     /// A consistent color for dots / list indicators.
-    /// For class meetings, use the assigned accent color.
+    /// For class meetings + personal events, use the accent color (two-tone system).
     var displayColor: Color {
         switch kind {
         case .classMeeting:
             return accentColor
         case .personal:
-            return .gray
+            return accentColor
 
         case .holiday:
             return .red
@@ -76,6 +82,13 @@ struct ClassEvent: Identifiable, Equatable {
         case .academicOther:
             return .yellow
         }
+    }
+
+    /// Used for overlap-group swipe state + hiding single class occurrences.
+    var interactionKey: String {
+        let sid = seriesID?.uuidString ?? "nil"
+        let eid = enrollmentID ?? "nil"
+        return "\(title)|\(location)|\(startDate.timeIntervalSince1970)|\(endDate.timeIntervalSince1970)|\(kind.rawValue)|\(isAllDay)|\(eid)|\(sid)"
     }
 
     /// Suggested background color for academic all-day events.
