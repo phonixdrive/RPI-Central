@@ -44,7 +44,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Preview Content/Preview Assets.xcassets",
-				Untitled.swift,
 			);
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 		};
