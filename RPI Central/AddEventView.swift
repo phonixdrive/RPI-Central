@@ -27,6 +27,10 @@ struct AddEventView: View {
     @State private var startTime: Date
     @State private var endTime: Date
 
+    // ✅ Keyboard control
+    private enum Field: Hashable { case title, location }
+    @FocusState private var focusedField: Field?
+
     // Recurrence
     @State private var frequency: RepeatFrequency = .none
     @State private var repeatUntil: Date
@@ -53,7 +57,14 @@ struct AddEventView: View {
             Form {
                 Section(header: Text("Event info")) {
                     TextField("Title (e.g. FOCS)", text: $title)
+                        .focused($focusedField, equals: .title)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .location }
+
                     TextField("Location (e.g. DCC 308)", text: $location)
+                        .focused($focusedField, equals: .location)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                 }
 
                 Section(header: Text("Time")) {
@@ -98,6 +109,12 @@ struct AddEventView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                // ✅ “Done” button to dismiss keyboard
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
                 }
             }
             .onAppear {
@@ -180,6 +197,9 @@ struct AddEventView: View {
             fixedEndTime = Calendar.current.date(byAdding: .hour, value: 1, to: startTime) ?? endTime
         }
 
+        // ✅ recurrence id (shared across generated events)
+        let seriesID: UUID? = (frequency == .none) ? nil : UUID()
+
         switch frequency {
         case .none:
             viewModel.addEvent(
@@ -187,7 +207,8 @@ struct AddEventView: View {
                 location: location,
                 date: date,
                 startTime: startTime,
-                endTime: fixedEndTime
+                endTime: fixedEndTime,
+                seriesID: nil
             )
             isPresented = false
 
@@ -196,7 +217,8 @@ struct AddEventView: View {
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
-                endTime: fixedEndTime
+                endTime: fixedEndTime,
+                seriesID: seriesID
             )
             isPresented = false
 
@@ -205,7 +227,8 @@ struct AddEventView: View {
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
-                endTime: fixedEndTime
+                endTime: fixedEndTime,
+                seriesID: seriesID
             )
             isPresented = false
 
@@ -214,13 +237,14 @@ struct AddEventView: View {
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
-                endTime: fixedEndTime
+                endTime: fixedEndTime,
+                seriesID: seriesID
             )
             isPresented = false
         }
     }
 
-    private func addDailyEvents(title: String, location: String, startTime: Date, endTime: Date) {
+    private func addDailyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
         var cal = Calendar.current
         cal.timeZone = .current
 
@@ -233,7 +257,7 @@ struct AddEventView: View {
             let isWeekend = (weekday == 1 || weekday == 7)
 
             if !(dailyWeekdaysOnly && isWeekend) {
-                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime)
+                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
             }
 
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
@@ -241,7 +265,7 @@ struct AddEventView: View {
         }
     }
 
-    private func addWeeklyEvents(title: String, location: String, startTime: Date, endTime: Date) {
+    private func addWeeklyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
         var cal = Calendar.current
         cal.timeZone = .current
 
@@ -255,20 +279,20 @@ struct AddEventView: View {
         var cur = startDay
         while cur <= endDay {
             if let wk = weekdayEnum(for: cur), days.contains(wk) {
-                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime)
+                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
             }
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
             cur = next
         }
     }
 
-    private func addMonthlyEvents(title: String, location: String, startTime: Date, endTime: Date) {
+    private func addMonthlyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
         let cal = Calendar.current
         let day = dayOfMonth(date)
 
         var cur = date
         while cur <= repeatUntil {
-            viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime)
+            viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
 
             guard let nextMonth = cal.date(byAdding: .month, value: 1, to: cur) else { break }
             var comps = cal.dateComponents([.year, .month], from: nextMonth)
