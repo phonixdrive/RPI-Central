@@ -1,4 +1,4 @@
-
+//Semester.swift
 import Foundation
 
 /// Matches your JSON folder names like `semester_data/202501/courses.json`

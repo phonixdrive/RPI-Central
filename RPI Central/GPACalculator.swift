@@ -1,71 +1,66 @@
 //
-//  LetterGrade.swift
+//  GPACalculator.swift
 //  RPI Central
-//
-//  Created by Neil Shrestha on 1/6/26.
 //
 
 import Foundation
 
-enum LetterGrade: String, CaseIterable, Codable, Hashable, Identifiable {
-    case aPlus = "A+"
-    case a = "A"
+/// Standard 4.0 GPA scale with +/-.
+enum LetterGrade: String, CaseIterable, Identifiable, Codable {
+    case aPlus  = "A+"
+    case a      = "A"
     case aMinus = "A-"
-    case bPlus = "B+"
-    case b = "B"
+    case bPlus  = "B+"
+    case b      = "B"
     case bMinus = "B-"
-    case cPlus = "C+"
-    case c = "C"
+    case cPlus  = "C+"
+    case c      = "C"
     case cMinus = "C-"
-    case dPlus = "D+"
-    case d = "D"
-    case dMinus = "D-"
-    case f = "F"
-
-    // Common non-GPA grades (exclude from GPA by default)
-    case p = "P"
-    case nc = "NC"
-    case s = "S"
-    case u = "U"
-    case w = "W"
-    case i = "I"
+    case d      = "D"
+    case f      = "F"
 
     var id: String { rawValue }
 
-    var isGPAEligible: Bool {
+    /// Grade points on a 4.0 scale.
+    var points: Double {
         switch self {
-        case .p, .nc, .s, .u, .w, .i:
-            return false
-        default:
-            return true
+        case .aPlus:  return 4.00
+        case .a:      return 4.00
+        case .aMinus: return 3.67
+        case .bPlus:  return 3.33
+        case .b:      return 3.00
+        case .bMinus: return 2.67
+        case .cPlus:  return 2.33
+        case .c:      return 2.00
+        case .cMinus: return 1.67
+        case .d:      return 1.00
+        case .f:      return 0.00
         }
     }
 
-    /// 4.0 scale (A+ treated as 4.0 here; adjust if you want).
-    var gpaPoints: Double? {
-        guard isGPAEligible else { return nil }
-        switch self {
-        case .aPlus: return 4.0
-        case .a: return 4.0
-        case .aMinus: return 3.7
-        case .bPlus: return 3.3
-        case .b: return 3.0
-        case .bMinus: return 2.7
-        case .cPlus: return 2.3
-        case .c: return 2.0
-        case .cMinus: return 1.7
-        case .dPlus: return 1.3
-        case .d: return 1.0
-        case .dMinus: return 0.7
-        case .f: return 0.0
-        default: return nil
+    /// Display ordering (A+ ... F)
+    static var ordered: [LetterGrade] { Self.allCases }
+}
+
+enum GPACalculator {
+
+    static func weightedGPA(_ entries: [(grade: LetterGrade, credits: Double)]) -> Double? {
+        guard !entries.isEmpty else { return nil }
+
+        var totalPoints = 0.0
+        var totalCredits = 0.0
+
+        for e in entries {
+            totalPoints += e.grade.points * e.credits
+            totalCredits += e.credits
         }
+
+        guard totalCredits > 0 else { return nil }
+        return totalPoints / totalCredits
     }
 
-    static var gpaPickerGrades: [LetterGrade] {
-        // Show GPA grades first, then the non-GPA ones.
-        let eligible = Self.allCases.filter { $0.isGPAEligible }
-        let non = Self.allCases.filter { !$0.isGPAEligible }
-        return eligible + non
+    static func format(_ gpa: Double?) -> String {
+        guard let gpa else { return "—" }
+        return String(format: "%.2f", gpa)
     }
 }

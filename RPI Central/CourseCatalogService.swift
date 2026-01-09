@@ -93,6 +93,7 @@ private enum QuACSLoader {
                         instructor: instructor,
                         meetings: meetings,
                         prerequisitesText: prereqText
+                        ,credits: sec.credMax ?? sec.credMin ?? 4.0 //fallback 4
                     )
                 }
 
@@ -198,6 +199,8 @@ private struct QuACSSection: Decodable {
     let subj: String
     let crse: Int
     let title: String?
+    let credMin: Double?
+    let credMax: Double?
     let timeslots: [QuACSTimeslot]
 }
 
