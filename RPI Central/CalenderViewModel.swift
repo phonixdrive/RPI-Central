@@ -44,6 +44,12 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    // MARK: - GPA / Grades (per enrollment)
+
+    /// enrollmentID -> LetterGrade rawValue (e.g. "CSCI-2300-35222" -> "A-")
+    @Published private(set) var gradesByEnrollmentID: [String: String] = [:]
+    private let gradesStorageKey = "enrollment_grades_v1"
+
     private let calendar = Calendar.current
 
     /// We treat the *current* week as a template week for class meetings
@@ -117,6 +123,7 @@ final class CalendarViewModel: ObservableObject {
         loadHiddenAllDay()
         loadAssumedPrereqs()
         loadEnrollment()
+        loadGrades() // ✅ load grades after enrollment so we can prune invalid IDs
 
         // ✅ Build weekly templates for ALL enrollments (not just currentSemester)
         rebuildEventsFromEnrollment()
@@ -665,7 +672,7 @@ final class CalendarViewModel: ObservableObject {
         for meeting in section.meetings {
             for day in meeting.days {
                 guard let classDate = firstDate(onOrAfter: weekStartDate,
-                                                weekday: day.calendarWeekday) else { continue }
+                                               weekday: day.calendarWeekday) else { continue }
 
                 generateSingleWeekEvent(
                     course: course,
@@ -684,6 +691,9 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
+        // ✅ also remove any saved grade for this enrollment
+        clearGrade(for: enrollment.id)
+
         enrolledCourses.removeAll { $0.id == enrollment.id }
         events.removeAll { $0.enrollmentID == enrollment.id }
         recolorAllEvents()
@@ -691,6 +701,62 @@ final class CalendarViewModel: ObservableObject {
 
         let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
         unassumePrereqs(causedBy: removedCourseID)
+    }
+
+    // MARK: - Grades (GPA)
+
+    func grade(for enrollmentID: String) -> LetterGrade? {
+        guard let raw = gradesByEnrollmentID[enrollmentID] else { return nil }
+        return LetterGrade(rawValue: raw)
+    }
+
+    func setGrade(_ grade: LetterGrade, for enrollmentID: String) {
+        gradesByEnrollmentID[enrollmentID] = grade.rawValue
+        saveGrades()
+        objectWillChange.send()
+    }
+
+    func clearGrade(for enrollmentID: String) {
+        gradesByEnrollmentID.removeValue(forKey: enrollmentID)
+        saveGrades()
+        objectWillChange.send()
+    }
+
+    /// Term GPA (unweighted): average of assigned grade points for enrollments in that semesterCode.
+    func gpa(for semesterCode: String) -> Double? {
+        let entries = enrolledCourses
+            .filter { $0.semesterCode == semesterCode }
+            .compactMap { e -> (LetterGrade, Double)? in
+                guard let g = grade(for: e.id) else { return nil }
+                return (g, e.section.credits)
+            }
+
+        return GPACalculator.weightedGPA(entries)
+    }
+
+    func overallGPA() -> Double? {
+        let entries = enrolledCourses.compactMap { e -> (LetterGrade, Double)? in
+            guard let g = grade(for: e.id) else { return nil }
+            return (g, e.section.credits)
+        }
+
+        return GPACalculator.weightedGPA(entries)
+    }
+
+    private func saveGrades() {
+        UserDefaults.standard.set(gradesByEnrollmentID, forKey: gradesStorageKey)
+    }
+
+    private func loadGrades() {
+        if let dict = UserDefaults.standard.dictionary(forKey: gradesStorageKey) as? [String: String] {
+            gradesByEnrollmentID = dict
+        } else {
+            gradesByEnrollmentID = [:]
+        }
+
+        // Drop grades for enrollments that no longer exist
+        let validIDs = Set(enrolledCourses.map { $0.id })
+        gradesByEnrollmentID = gradesByEnrollmentID.filter { validIDs.contains($0.key) }
     }
 
     // MARK: - Assumed prereqs (unchanged)

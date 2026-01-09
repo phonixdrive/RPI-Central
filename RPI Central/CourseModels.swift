@@ -29,15 +29,13 @@ enum Weekday: String, Codable, CaseIterable {
         }
     }
 
-    var shortName: String {
-        rawValue
-    }
+    var shortName: String { rawValue }
 }
 
 // MARK: - Meeting (one timeslot)
 
 struct Meeting: Codable {
-    let days: [Weekday]      // e.g. ["M", "R"]
+    let days: [Weekday]      // e.g. [.mon, .thu]
     let start: String        // "09:30"
     let end: String          // "10:50"
     let location: String
@@ -46,16 +44,14 @@ struct Meeting: Codable {
 // MARK: - Course section (CRN)
 
 struct CourseSection: Codable, Identifiable {
-    // Use CRN + section as a string ID
     var id: String { "\(crn ?? -1)-\(section)" }
 
     let crn: Int?
     let section: String
     let instructor: String
     let meetings: [Meeting]
-
-    // NEW: prereqs pulled from prerequisites.json (human readable)
     let prerequisitesText: String
+    let credits: Double
 
     enum CodingKeys: String, CodingKey {
         case crn
@@ -63,9 +59,11 @@ struct CourseSection: Codable, Identifiable {
         case instructor
         case meetings
         case prerequisitesText
+        case credits
     }
 
     // Custom decode so section can be String or Int, etc.
+    // IMPORTANT: credits defaults to 4.0 for older saved enrollments that didn't store credits.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
@@ -82,6 +80,9 @@ struct CourseSection: Codable, Identifiable {
         instructor = (try? container.decode(String.self, forKey: .instructor)) ?? ""
         meetings = (try? container.decode([Meeting].self, forKey: .meetings)) ?? []
         prerequisitesText = (try? container.decode(String.self, forKey: .prerequisitesText)) ?? ""
+
+        // ✅ Key fix: old persisted data won't have this key, so default to 4.0 (not 0.0)
+        credits = (try? container.decode(Double.self, forKey: .credits)) ?? 4.0
     }
 
     // Manual memberwise init so we can use this in builders/tests
@@ -90,13 +91,15 @@ struct CourseSection: Codable, Identifiable {
         section: String,
         instructor: String,
         meetings: [Meeting],
-        prerequisitesText: String = ""
+        prerequisitesText: String = "",
+        credits: Double = 4.0
     ) {
         self.crn = crn
         self.section = section
         self.instructor = instructor
         self.meetings = meetings
         self.prerequisitesText = prerequisitesText
+        self.credits = credits
     }
 }
 
