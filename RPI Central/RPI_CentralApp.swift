@@ -11,6 +11,10 @@ struct RPI_CentralApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(calendarViewModel)
+                // ✅ persisted theme tint
+                .tint(calendarViewModel.themeColor)
+                // ✅ persisted system/light/dark (default dark)
+                .preferredColorScheme(calendarViewModel.appearanceMode.colorScheme)
         }
     }
 }
