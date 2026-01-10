@@ -186,7 +186,7 @@ struct CalendarView: View {
     // MARK: - Top bar
 
     private var topBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button { withAnimation(.easeInOut(duration: 0.25)) { shift(by: -1) } } label: {
                 Image(systemName: "chevron.left")
             }
@@ -195,10 +195,20 @@ struct CalendarView: View {
 
             Spacer()
 
-            Button(action: { showingAddEvent = true }) {
-                Image(systemName: "plus.circle.fill")
+            // ✅ TODAY button
+            
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    let today = Date()
+                    viewModel.selectedDate = today
+                    viewModel.displayedMonthStart = today.startOfMonth()
+                }
+            } label: {
+                Image(systemName: "scope")
                     .font(.title3)
             }
+            .accessibilityLabel("Today")
 
             Menu {
                 ForEach(CalendarDisplayMode.allCases) { mode in
@@ -232,28 +242,28 @@ struct CalendarView: View {
     private var monthPicker: some View {
         let cal = Calendar.current
         let current = viewModel.selectedDate
-        let currentYear = cal.component(.year, from: current)
-        let years = (currentYear - 1)...(currentYear + 1)
+
+        // ✅ Use semester-window month starts when available
+        let monthStarts = viewModel.monthPickerMonthStarts()
 
         return Menu {
-            ForEach(Array(years), id: \.self) { year in
+            // Group by year for readability
+            let grouped = Dictionary(grouping: monthStarts, by: { cal.component(.year, from: $0) })
+            let years = grouped.keys.sorted()
+
+            ForEach(years, id: \.self) { year in
                 Section("Year \(year)") {
-                    ForEach(1...12, id: \.self) { month in
+                    let months = (grouped[year] ?? []).sorted()
+                    ForEach(months, id: \.self) { monthStart in
                         Button {
-                            var comps = DateComponents()
-                            comps.year = year
-                            comps.month = month
-                            comps.day = 1
-                            if let newDate = cal.date(from: comps) {
-                                viewModel.selectedDate = newDate
-                                viewModel.displayedMonthStart = newDate.startOfMonth(using: cal)
-                            }
+                            viewModel.setSelectedDate(monthStart)
                         } label: {
-                            Text("\(monthName(month)) \(year)")
+                            Text(monthTitle(for: monthStart))
                         }
                     }
                 }
             }
+
         } label: {
             Text(monthTitle(for: current))
                 .font(.title2.bold())
@@ -291,35 +301,24 @@ struct CalendarView: View {
         return df.string(from: date)
     }
 
-    private func monthName(_ month: Int) -> String {
-        var comps = DateComponents()
-        comps.month = month
-        comps.day = 1
-        let cal = Calendar.current
-        let date = cal.date(from: comps) ?? Date()
-        let df = DateFormatter()
-        df.dateFormat = "LLLL"
-        return df.string(from: date)
-    }
-
     private func shift(by offset: Int) {
         let cal = Calendar.current
         switch displayMode {
         case .day:
             if let newDate = cal.date(byAdding: .day, value: offset, to: viewModel.selectedDate) {
-                viewModel.selectedDate = newDate
+                viewModel.setSelectedDate(newDate)
             }
         case .threeDay:
             if let newDate = cal.date(byAdding: .day, value: 3 * offset, to: viewModel.selectedDate) {
-                viewModel.selectedDate = newDate
+                viewModel.setSelectedDate(newDate)
             }
         case .week:
             if let newDate = cal.date(byAdding: .weekOfYear, value: offset, to: viewModel.selectedDate) {
-                viewModel.selectedDate = newDate
+                viewModel.setSelectedDate(newDate)
             }
         case .month:
             if let newDate = cal.date(byAdding: .month, value: offset, to: viewModel.selectedDate) {
-                viewModel.selectedDate = newDate
+                viewModel.setSelectedDate(newDate)
             }
         }
     }
@@ -337,8 +336,6 @@ struct CalendarView: View {
     }
 }
 
-// NOTE: rest of file unchanged (TimelineCalendarView, MonthWithScheduleView, etc.)
-// Keeping exactly as your working version.
 // MARK: - Timeline (Day / 3-day / Week views)
 
 struct TimelineCalendarView: View {
@@ -367,21 +364,30 @@ struct TimelineCalendarView: View {
 
     var body: some View {
         let intervalCount = dayEndHour - dayStartHour
+        let today = Date()
 
         VStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: 0) {
                 Text("").frame(width: timeColWidth)
 
                 ForEach(days, id: \.self) { day in
+                    let isToday = calendar.isDate(day, inSameDayAs: today)
+
                     VStack(spacing: 2) {
+                        let isToday = calendar.isDateInToday(day)
+
                         Text(day.formatted("EEE"))
                             .font(.subheadline.bold())
-                            .foregroundColor(.white)
+                            .foregroundColor(isToday ? viewModel.themeColor : .white)
+
                         Text(day.formatted("MM/dd"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(isToday ? .black.opacity(0.85) : .secondary)
                     }
+                    .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
+                    .background(isToday ? Color.white : Color.clear)
+                    .cornerRadius(10)
                 }
             }
             .padding(.horizontal, 4)
@@ -922,6 +928,8 @@ struct MonthGridView: View {
         let totalCells = leadingBlanks + range.count
         let rows = Int(ceil(Double(totalCells) / 7.0))
 
+        let today = Date()
+
         VStack(spacing: 4) {
             HStack {
                 ForEach(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], id: \.self) { label in
@@ -949,6 +957,7 @@ struct MonthGridView: View {
                             let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: start) ?? start
                             let dayEvents = viewModel.events(on: date)
                             let isSelected = calendar.isDate(date, inSameDayAs: viewModel.selectedDate)
+                            let isToday = calendar.isDate(date, inSameDayAs: today)
 
                             let isBreakDay = dayEvents.contains { $0.isAllDay && $0.kind == .break }
                             let dotColors = dotColorsForDayEvents(dayEvents)
@@ -986,11 +995,16 @@ struct MonthGridView: View {
                                     }
                                 }
                             )
+                            .overlay(
+                                // ✅ Today highlight (outline)
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(isToday ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1.6)
+                            )
                             .cornerRadius(7)
                             .frame(height: 40)
                             .frame(maxWidth: .infinity)
                             .onTapGesture {
-                                viewModel.selectedDate = date
+                                viewModel.setSelectedDate(date)
                             }
                         }
                     }

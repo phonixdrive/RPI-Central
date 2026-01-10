@@ -1,5 +1,7 @@
+//
 // CalendarViewModel.swift
 // RPI Central
+//
 
 import Foundation
 import SwiftUI
@@ -48,7 +50,12 @@ final class CalendarViewModel: ObservableObject {
     @Published var selectedDate: Date
     @Published var events: [ClassEvent]
     @Published var enrolledCourses: [EnrolledCourse] = []
+
+    // ✅ "Current" semester becomes a derived/managed value (auto-updated as selection moves)
     @Published var currentSemester: Semester = .fall2025
+
+    // ✅ Semester window: prev / current / next around an anchor semester
+    @Published private(set) var semesterWindow: [Semester] = []
 
     // MARK: - Persisted appearance settings
 
@@ -215,9 +222,101 @@ final class CalendarViewModel: ObservableObject {
         // ✅ Load term bounds for ALL enrollments so calendar auto-switches which classes show by date
         ensureTermBoundsForAllEnrollments()
 
+        // ✅ Establish a semester window immediately (fallbacks work even before term bounds finish)
+        refreshSemesterWindow(anchorPreferred: nil)
+
         // Best-effort: academic year events for currentSemester
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
+    }
+
+    // MARK: - Semester windowing (prev/current/next)
+
+    /// Call whenever selection/enrollments/term bounds change.
+    /// Anchor priority:
+    /// 1) Semester containing `selectedDate` (if any known bounds)
+    /// 2) Earliest enrolled semester (if any)
+    /// 3) currentSemester
+    private func refreshSemesterWindow(anchorPreferred: Semester?) {
+        let anchor: Semester = {
+            if let pref = anchorPreferred { return pref }
+            if let sem = semesterContaining(date: selectedDate) { return sem }
+            if let earliest = earliestEnrolledSemester() { return earliest }
+            return currentSemester
+        }()
+
+        let window = [anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 }
+        semesterWindow = window
+
+        // Keep currentSemester aligned with anchor if it changes.
+        if currentSemester != anchor {
+            currentSemester = anchor
+        }
+
+        // Proactively kick loads for the window (best-effort, non-blocking).
+        for sem in window {
+            ensureTermBoundsLoaded(for: sem)
+            ensureAcademicEventsLoaded(for: sem)
+        }
+    }
+
+    private func earliestEnrolledSemester() -> Semester? {
+        let codes = Set(enrolledCourses.map { $0.semesterCode })
+        let semesters = codes.compactMap { Semester(rawValue: $0) }
+        return semesters.sorted(by: { $0.rawValue < $1.rawValue }).first
+    }
+
+    private func semesterContaining(date: Date) -> Semester? {
+        // Search only semesters we already know bounds for (fast, deterministic).
+        for (code, interval) in termBoundsBySemesterCode {
+            guard let sem = Semester(rawValue: code) else { continue }
+            let d = calendar.startOfDay(for: date)
+            let s = calendar.startOfDay(for: interval.start)
+            let e = calendar.startOfDay(for: interval.end)
+            if s <= d && d <= e {
+                return sem
+            }
+        }
+        return nil
+    }
+
+    /// Month starts to show in the CalendarView month picker.
+    /// Uses the current semesterWindow bounds if available; otherwise falls back to +/- 1 year around selectedDate.
+    func monthPickerMonthStarts() -> [Date] {
+        let cal = calendar
+
+        // Use known bounds for the window, if any.
+        let intervals: [DateInterval] = semesterWindow.compactMap { sem in
+            termBoundsBySemesterCode[sem.rawValue]
+        }
+
+        if let minStart = intervals.map(\.start).min(),
+           let maxEnd = intervals.map(\.end).max() {
+            let startMonth = minStart.startOfMonth(using: cal)
+            let endMonth = maxEnd.startOfMonth(using: cal)
+
+            var out: [Date] = []
+            var cur = startMonth
+            while cur <= endMonth {
+                out.append(cur)
+                guard let next = cal.date(byAdding: .month, value: 1, to: cur) else { break }
+                cur = next
+            }
+            return out
+        }
+
+        // Fallback: +/- 12 months around selectedDate
+        let start = (cal.date(byAdding: .month, value: -12, to: selectedDate) ?? selectedDate).startOfMonth(using: cal)
+        let end = (cal.date(byAdding: .month, value:  12, to: selectedDate) ?? selectedDate).startOfMonth(using: cal)
+
+        var out: [Date] = []
+        var cur = start
+        while cur <= end {
+            out.append(cur)
+            guard let next = cal.date(byAdding: .month, value: 1, to: cur) else { break }
+            cur = next
+        }
+        return out
     }
 
     // MARK: - Public “attempted” helpers (used by CalendarView)
@@ -229,6 +328,21 @@ final class CalendarViewModel: ObservableObject {
 
     func didAttemptTermBounds(for semesterCode: String) -> Bool {
         return attemptedTermBoundsCodes.contains(semesterCode) || termBoundsBySemesterCode[semesterCode] != nil
+    }
+
+    // MARK: - Public: selection helpers (CalendarView uses these)
+
+    func goToToday() {
+        let today = Date()
+        selectedDate = today
+        displayedMonthStart = today.startOfMonth(using: calendar)
+        refreshSemesterWindow(anchorPreferred: nil)
+    }
+
+    func setSelectedDate(_ date: Date) {
+        selectedDate = date
+        displayedMonthStart = date.startOfMonth(using: calendar)
+        refreshSemesterWindow(anchorPreferred: nil)
     }
 
     // MARK: - Boot/loading overlay control (kept)
@@ -318,6 +432,10 @@ final class CalendarViewModel: ObservableObject {
                     let interval = DateInterval(start: bounds.start, end: bounds.end)
                     self.termBoundsBySemesterCode[code] = interval
                     self.objectWillChange.send()
+
+                    // ✅ When bounds arrive, re-evaluate semester selection + window.
+                    self.refreshSemesterWindow(anchorPreferred: nil)
+
                     self.refreshBootLoadingStateIfPossible()
                 }
             case .failure(let err):
@@ -527,6 +645,9 @@ final class CalendarViewModel: ObservableObject {
         ensureAcademicEventsLoaded(for: newSemester)
         rebuildEventsFromEnrollment()
         updateBootLoadingStatus()
+
+        // ✅ keep window aligned with an explicit user semester switch
+        refreshSemesterWindow(anchorPreferred: newSemester)
     }
 
     // MARK: - Enrollment helpers
@@ -772,6 +893,9 @@ final class CalendarViewModel: ObservableObject {
         saveEnrollment()
 
         ensureTermBoundsForAllEnrollments()
+
+        // ✅ enrollments changed → refresh window
+        refreshSemesterWindow(anchorPreferred: nil)
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
@@ -785,6 +909,9 @@ final class CalendarViewModel: ObservableObject {
 
         let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
         unassumePrereqs(causedBy: removedCourseID)
+
+        // ✅ enrollments changed → refresh window
+        refreshSemesterWindow(anchorPreferred: nil)
     }
 
     // MARK: - Grades (GPA)
@@ -1161,6 +1288,19 @@ private extension Semester {
     var month: Int { Int(rawValue.suffix(2)) ?? 1 }
     var isFall: Bool { month == 9 }
     var isSpring: Bool { month == 1 }
+
+    // ✅ Prev/next based on your curated Semester set (not assuming every term exists)
+    var previousSemester: Semester? {
+        let all = Semester.allCases.sorted { $0.rawValue < $1.rawValue }
+        guard let i = all.firstIndex(of: self), i > 0 else { return nil }
+        return all[i - 1]
+    }
+
+    var nextSemester: Semester? {
+        let all = Semester.allCases.sorted { $0.rawValue < $1.rawValue }
+        guard let i = all.firstIndex(of: self), i < all.count - 1 else { return nil }
+        return all[i + 1]
+    }
 }
 
 // MARK: - Date helpers
