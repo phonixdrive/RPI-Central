@@ -16,6 +16,33 @@ struct EnrolledCourse: Identifiable, Equatable, Codable {
     }
 }
 
+// MARK: - Appearance mode (persisted)
+
+enum AppAppearanceMode: String, CaseIterable, Identifiable, Codable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+
+    /// nil = follow system
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+}
+
 final class CalendarViewModel: ObservableObject {
     @Published var displayedMonthStart: Date
     @Published var selectedDate: Date
@@ -23,8 +50,48 @@ final class CalendarViewModel: ObservableObject {
     @Published var enrolledCourses: [EnrolledCourse] = []
     @Published var currentSemester: Semester = .fall2025
 
-    // THEME (for .tint and Settings)
-    @Published var themeColor: Color = .blue
+    // MARK: - Persisted appearance settings
+
+    // Stored theme tokens (so we can persist reliably without comparing Color values)
+    private enum StoredThemeColor: String, CaseIterable {
+        case blue, red, green, purple, orange
+
+        var color: Color {
+            switch self {
+            case .blue:   return .blue
+            case .red:    return .red
+            case .green:  return .green
+            case .purple: return .purple
+            case .orange: return .orange
+            }
+        }
+
+        static func from(color: Color) -> StoredThemeColor {
+            if color == Color.red { return .red }
+            if color == Color.green { return .green }
+            if color == Color.purple { return .purple }
+            if color == Color.orange { return .orange }
+            return .blue
+        }
+    }
+
+    private let themeColorKey = "settings_theme_color_v1"
+    private let appearanceModeKey = "settings_appearance_mode_v1"
+
+    // THEME (for .tint and Settings) ✅ persisted
+    @Published var themeColor: Color = .blue {
+        didSet {
+            let stored = StoredThemeColor.from(color: themeColor)
+            UserDefaults.standard.set(stored.rawValue, forKey: themeColorKey)
+        }
+    }
+
+    // Light/Dark/System ✅ persisted (default dark)
+    @Published var appearanceMode: AppAppearanceMode = .dark {
+        didSet {
+            UserDefaults.standard.set(appearanceMode.rawValue, forKey: appearanceModeKey)
+        }
+    }
 
     // whether we've already pulled academic events for at least one year
     @Published private(set) var academicEventsLoaded: Bool = false
@@ -102,6 +169,23 @@ final class CalendarViewModel: ObservableObject {
     ]
 
     init() {
+        // ✅ Load persisted appearance first
+        if let raw = UserDefaults.standard.string(forKey: themeColorKey),
+           let stored = StoredThemeColor(rawValue: raw) {
+            self.themeColor = stored.color
+        } else {
+            self.themeColor = .blue
+            UserDefaults.standard.set(StoredThemeColor.blue.rawValue, forKey: themeColorKey)
+        }
+
+        if let raw = UserDefaults.standard.string(forKey: appearanceModeKey),
+           let mode = AppAppearanceMode(rawValue: raw) {
+            self.appearanceMode = mode
+        } else {
+            self.appearanceMode = .dark
+            UserDefaults.standard.set(AppAppearanceMode.dark.rawValue, forKey: appearanceModeKey)
+        }
+
         let today = Date()
 
         // Current week bounds (Sunday start)

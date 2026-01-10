@@ -11,12 +11,19 @@ struct SettingsView: View {
     @State private var notificationsEnabled: Bool = true
     @State private var minutesBeforeClass: Double = 10
     @State private var selectedTheme: AppThemeColor = .blue
+    @State private var selectedAppearance: AppAppearanceMode = .dark
 
     var body: some View {
         NavigationStack {
             Form {
-                // THEME
+                // APPEARANCE
                 Section(header: Text("Appearance")) {
+                    Picker("Mode", selection: $selectedAppearance) {
+                        ForEach(AppAppearanceMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+
                     Picker("Theme color", selection: $selectedTheme) {
                         ForEach(AppThemeColor.allCases) { theme in
                             HStack {
@@ -66,9 +73,13 @@ struct SettingsView: View {
         }
         .onAppear {
             selectedTheme = AppThemeColor.from(color: calendarViewModel.themeColor)
+            selectedAppearance = calendarViewModel.appearanceMode
         }
         .onChange(of: selectedTheme) { newTheme in
             calendarViewModel.themeColor = newTheme.color
+        }
+        .onChange(of: selectedAppearance) { newMode in
+            calendarViewModel.appearanceMode = newMode
         }
     }
 }
