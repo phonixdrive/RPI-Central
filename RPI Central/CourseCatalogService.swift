@@ -10,12 +10,25 @@ final class CourseCatalogService: ObservableObject {
     static let shared = CourseCatalogService()
 
     @Published private(set) var courses: [Course] = []
-    @Published var semester: Semester = .fall2025 {
-        didSet { loadCourses(for: semester) }
+
+    // ✅ Default should be Spring 2026 (matches your desired new "current")
+    // BUT this will be overridden by syncFromCalendarViewModel(...) immediately anyway.
+    @Published var semester: Semester = .spring2026 {
+        didSet {
+            guard oldValue != semester else { return }
+            loadCourses(for: semester)
+        }
     }
 
     private init() {
         loadCourses(for: semester)
+    }
+
+    // ✅ Call this from Views to align catalog term with app's "current semester"
+    func syncFromCalendarViewModel(currentSemester: Semester) {
+        if semester != currentSemester {
+            semester = currentSemester
+        }
     }
 
     // MARK: - Public loader
@@ -92,8 +105,8 @@ private enum QuACSLoader {
                         section: sec.sec,
                         instructor: instructor,
                         meetings: meetings,
-                        prerequisitesText: prereqText
-                        ,credits: sec.credMax ?? sec.credMin ?? 4.0 //fallback 4
+                        prerequisitesText: prereqText,
+                        credits: sec.credMax ?? sec.credMin ?? 4.0 //fallback 4
                     )
                 }
 

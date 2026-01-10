@@ -52,7 +52,8 @@ final class CalendarViewModel: ObservableObject {
     @Published var enrolledCourses: [EnrolledCourse] = []
 
     // ✅ "Current" semester becomes a derived/managed value (auto-updated as selection moves)
-    @Published var currentSemester: Semester = .fall2025
+    // CHANGED: default is now spring2026
+    @Published var currentSemester: Semester = .spring2026
 
     // ✅ Semester window: prev / current / next around an anchor semester
     @Published private(set) var semesterWindow: [Semester] = []
@@ -241,8 +242,8 @@ final class CalendarViewModel: ObservableObject {
         let anchor: Semester = {
             if let pref = anchorPreferred { return pref }
             if let sem = semesterContaining(date: selectedDate) { return sem }
-            if let earliest = earliestEnrolledSemester() { return earliest }
             return currentSemester
+            // if let earliest = earliestEnrolledSemester() { return earliest } // optional fallback
         }()
 
         let window = [anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 }

@@ -13,7 +13,7 @@ struct HomeView: View {
     }
 
     private var sortedSemesterCodes: [String] {
-        groupedBySemester.keys.sorted()
+        groupedBySemester.keys.sorted(by: >) // newest termCode first
     }
 
     var body: some View {
