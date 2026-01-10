@@ -1,12 +1,12 @@
-//Semester.swift
+// Semester.swift
 import Foundation
 
 /// Matches your JSON folder names like `semester_data/202501/courses.json`
 enum Semester: String, CaseIterable, Identifiable, Codable {
-    // Current 3 (per your request)
-    case fall2025   = "202509" // current term
-    case spring2025 = "202501" // previous term
-    case spring2026 = "202601" // next term
+    // Current 3
+    case fall2025   = "202509"
+    case spring2025 = "202501"
+    case spring2026 = "202601"
 
     // Last 3 years (4 years total including 2025): Spring/Fall
     case fall2024   = "202409"
@@ -20,11 +20,12 @@ enum Semester: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
+    // CHANGED: labels updated so Spring 2026 is "current term"
     var displayName: String {
         switch self {
-        case .fall2025:   return "Fall 2025 (current term)"
-        case .spring2025: return "Spring 2025 (previous term)"
-        case .spring2026: return "Spring 2026 (next term)"
+        case .spring2026: return "Spring 2026 (current term)"
+        case .fall2025:   return "Fall 2025 (previous term)"
+        case .spring2025: return "Spring 2025"
 
         case .fall2024:   return "Fall 2024"
         case .spring2024: return "Spring 2024"

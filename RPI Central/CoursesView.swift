@@ -7,7 +7,10 @@ import SwiftUI
 
 struct CoursesView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
-    @StateObject private var catalog = CourseCatalogService.shared
+
+    // ✅ Singleton should be ObservedObject, not StateObject
+    @ObservedObject private var catalog = CourseCatalogService.shared
+
     @State private var searchText: String = ""
 
     private var filteredCourses: [Course] {
@@ -37,7 +40,7 @@ struct CoursesView: View {
                     Spacer()
 
                     Picker("Term", selection: $catalog.semester) {
-                        ForEach(Semester.allCases) { sem in
+                        ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
                             Text(sem.displayName).tag(sem)
                         }
                     }
@@ -71,5 +74,13 @@ struct CoursesView: View {
             .navigationTitle("Courses")
         }
         .searchable(text: $searchText, prompt: "Search by subject, number, or title")
+        .onAppear {
+            // ✅ Force picker + loaded catalog term to match the app's current semester
+            catalog.syncFromCalendarViewModel(currentSemester: calendarViewModel.currentSemester)
+        }
+        .onChange(of: calendarViewModel.currentSemester) { _, newSem in
+            // ✅ Keep courses tab in sync if something else changes the semester
+            catalog.syncFromCalendarViewModel(currentSemester: newSem)
+        }
     }
 }
