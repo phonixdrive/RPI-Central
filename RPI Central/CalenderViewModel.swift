@@ -45,22 +45,25 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - Meeting Overrides + Exam Dates (support CourseDetailView)
+
+struct MeetingOverride: Codable, Equatable {
+    var type: MeetingBlockType
+}
+
 final class CalendarViewModel: ObservableObject {
     @Published var displayedMonthStart: Date
     @Published var selectedDate: Date
     @Published var events: [ClassEvent]
     @Published var enrolledCourses: [EnrolledCourse] = []
 
-    // ✅ "Current" semester becomes a derived/managed value (auto-updated as selection moves)
-    // CHANGED: default is now spring2026
+    // default is now spring2026
     @Published var currentSemester: Semester = .spring2026
 
-    // ✅ Semester window: prev / current / next around an anchor semester
     @Published private(set) var semesterWindow: [Semester] = []
 
     // MARK: - Persisted appearance settings
 
-    // Stored theme tokens (so we can persist reliably without comparing Color values)
     private enum StoredThemeColor: String, CaseIterable {
         case blue, red, green, purple, orange
 
@@ -86,7 +89,6 @@ final class CalendarViewModel: ObservableObject {
     private let themeColorKey = "settings_theme_color_v1"
     private let appearanceModeKey = "settings_appearance_mode_v1"
 
-    // THEME (for .tint and Settings) ✅ persisted
     @Published var themeColor: Color = .blue {
         didSet {
             let stored = StoredThemeColor.from(color: themeColor)
@@ -94,25 +96,19 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    // Light/Dark/System ✅ persisted (default dark)
     @Published var appearanceMode: AppAppearanceMode = .dark {
         didSet {
             UserDefaults.standard.set(appearanceMode.rawValue, forKey: appearanceModeKey)
         }
     }
 
-    // whether we've already pulled academic events for at least one year
     @Published private(set) var academicEventsLoaded: Bool = false
-
-    // Term bounds by semesterCode (e.g. "202601" -> DateInterval)
     @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:]
 
-    // ✅ Boot/loading overlay state (still used elsewhere if you want)
     @Published var isBootLoading: Bool = true
     @Published var canSkipBootLoading: Bool = false
     @Published var bootLoadingStatusText: String = "Loading calendar…"
 
-    // Prereq enforcement (Settings toggle)
     @Published var enforcePrerequisites: Bool = false {
         didSet {
             UserDefaults.standard.set(enforcePrerequisites, forKey: enforcePrereqsKey)
@@ -121,63 +117,60 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - GPA / Grades (per enrollment)
 
-    /// enrollmentID -> LetterGrade rawValue (e.g. "CSCI-2300-35222" -> "A-")
     @Published private(set) var gradesByEnrollmentID: [String: String] = [:]
     private let gradesStorageKey = "enrollment_grades_v1"
 
+    // MARK: - Meeting overrides + exam dates storage
+
+    // meetingKey -> override
+    @Published private(set) var meetingOverridesByKey: [String: MeetingOverride] = [:]
+    private let meetingOverridesStorageKey = "meeting_overrides_v1"
+
+    // meetingKey -> [timeIntervalSince1970 (startOfDay)]
+    @Published private(set) var examDatesByMeetingKey: [String: [Double]] = [:]
+    private let examDatesStorageKey = "exam_dates_by_meeting_key_v1"
+
     private let calendar = Calendar.current
 
-    /// We treat the *current* week as a template week for class meetings
     private let weekStartDate: Date
     private let weekEndDate: Date
 
     private let enrolledStorageKey = "enrolled_courses_v1"
     private let enforcePrereqsKey  = "enforce_prereqs_v1"
 
-    // For prereq “auto-fulfillment” when a user adds a course without prereqs.
-    // Map: assumedCourseID -> set of courseIDs that caused this assumption.
     private let assumedPrereqsStorageKey = "assumed_prereqs_v1"
     private var assumedBy: [String: Set<String>] = [:]
 
-    // Track which academic years we’ve already loaded to avoid duplicates.
     private var loadedAcademicYearStarts: Set<Int> = []
-
-    // ✅ Track “attempted” loads so UI won’t perma-block if requests hang
     private var attemptedAcademicYearStarts: Set<Int> = []
     private var attemptedTermBoundsCodes: Set<String> = []
     private var beganBootLoading: Bool = false
 
-    // ✅ Dedup academic events so you never get “same all-day event 5 times”
     private var academicEventKeys: Set<String> = []
 
-    // ✅ Hide single class occurrences
     private let hiddenOccurrencesKey = "hidden_class_occurrences_v1"
     private var hiddenClassOccurrences: Set<String> = []
 
-    // ✅ Hide all-day events (academic/etc.)
     private let hiddenAllDayKey = "hidden_all_day_events_v1"
     private var hiddenAllDayEvents: Set<String> = []
 
-    // Your color palette: [light, dark]
-    // Order: red, orange, blue, green, yellow
     private let lightPalette: [Color] = [
-        Color(red: 1.0,       green: 0.83529,  blue: 0.87451),  // #ffd5df
-        Color(red: 1.0,       green: 0.91373,  blue: 0.80784),  // #ffe9ce
-        Color(red: 0.81176,   green: 0.93725,  blue: 0.98824),  // #cfeffc
-        Color(red: 0.85490,   green: 0.96863,  blue: 0.85882),  // #daf7db
-        Color(red: 1.0,       green: 0.95686,  blue: 0.81569)   // #fff4d0
+        Color(red: 1.0,       green: 0.83529,  blue: 0.87451),
+        Color(red: 1.0,       green: 0.91373,  blue: 0.80784),
+        Color(red: 0.81176,   green: 0.93725,  blue: 0.98824),
+        Color(red: 0.85490,   green: 0.96863,  blue: 0.85882),
+        Color(red: 1.0,       green: 0.95686,  blue: 0.81569)
     ]
 
     private let darkPalette: [Color] = [
-        Color(red: 0.99608,   green: 0.13725,  blue: 0.4),      // #fe2366
-        Color(red: 1.0,       green: 0.58039,  blue: 0.19608),  // #ff9432
+        Color(red: 0.99608,   green: 0.13725,  blue: 0.4),
+        Color(red: 1.0,       green: 0.58039,  blue: 0.19608),
         Color(red: 0.231,     green: 0.510,    blue: 0.965),
-        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),  // #48da58
-        Color(red: 1.0,       green: 0.79216,  blue: 0.26667)   // #ffca44
+        Color(red: 0.28235,   green: 0.85490,  blue: 0.34510),
+        Color(red: 1.0,       green: 0.79216,  blue: 0.26667)
     ]
 
     init() {
-        // ✅ Load persisted appearance first
         if let raw = UserDefaults.standard.string(forKey: themeColorKey),
            let stored = StoredThemeColor(rawValue: raw) {
             self.themeColor = stored.color
@@ -196,7 +189,6 @@ final class CalendarViewModel: ObservableObject {
 
         let today = Date()
 
-        // Current week bounds (Sunday start)
         let interval = calendar.dateInterval(of: .weekOfYear, for: today)
         let startOfWeek = interval?.start ?? today
         let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) ?? startOfWeek
@@ -215,78 +207,132 @@ final class CalendarViewModel: ObservableObject {
         loadHiddenAllDay()
         loadAssumedPrereqs()
         loadEnrollment()
-        loadGrades() // ✅ load grades after enrollment so we can prune invalid IDs
+        loadGrades()
 
-        // ✅ Build weekly templates for ALL enrollments (not just currentSemester)
+        // NEW: load meeting overrides + exam dates
+        loadMeetingOverrides()
+        loadExamDates()
+
         rebuildEventsFromEnrollment()
-
-        // ✅ Load term bounds for ALL enrollments so calendar auto-switches which classes show by date
         ensureTermBoundsForAllEnrollments()
-
-        // ✅ Establish a semester window immediately (fallbacks work even before term bounds finish)
         refreshSemesterWindow(anchorPreferred: nil)
 
-        // Best-effort: academic year events for currentSemester
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
     }
 
-    // MARK: - Semester windowing (prev/current/next)
+    // MARK: - Meeting override keys + API (matches CourseDetailView)
 
-    /// Call whenever selection/enrollments/term bounds change.
-    /// Anchor priority:
-    /// 1) Semester containing `selectedDate` (if any known bounds)
-    /// 2) Earliest enrolled semester (if any)
-    /// 3) currentSemester
+    func meetingOverrideKey(enrollmentID: String, course: Course, section: CourseSection, meeting: Meeting) -> String {
+        let days = meeting.days.map { "\($0.calendarWeekday)" }.joined(separator: ",")
+        let loc = meeting.location
+        return "\(enrollmentID)|\(days)|\(meeting.start)-\(meeting.end)|\(loc)"
+    }
+
+    func meetingOverride(for key: String) -> MeetingOverride {
+        meetingOverridesByKey[key] ?? MeetingOverride(type: .lecture)
+    }
+
+    func setMeetingOverrideType(_ newType: MeetingBlockType, for key: String) {
+        meetingOverridesByKey[key] = MeetingOverride(type: newType)
+        saveMeetingOverrides()
+        objectWillChange.send()
+    }
+
+    func examDates(for key: String) -> [Date] {
+        let raws = examDatesByMeetingKey[key] ?? []
+        return raws.map { Date(timeIntervalSince1970: $0) }.sorted()
+    }
+
+    func setExamDates(_ dates: Set<Date>, for key: String) {
+        // store startOfDay to make matching deterministic
+        let normalized: [Double] = Array(Set(dates.map { calendar.startOfDay(for: $0).timeIntervalSince1970 })).sorted()
+        examDatesByMeetingKey[key] = normalized
+        saveExamDates()
+        objectWillChange.send()
+    }
+
+    // For class template instances: find the matching meeting key from the enrolledCourse meeting list.
+    private func meetingKeyForTemplateEvent(enrollment: EnrolledCourse, templateStartDate: Date, templateEndDate: Date, templateLocation: String) -> String? {
+        let wd = calendar.component(.weekday, from: templateStartDate)
+
+        // extract meeting.location from templateLocation (best-effort)
+        // Format you build: "SUBJ NUM · <meeting.location> · CRN XXXX" OR "SUBJ NUM · CRN XXXX"
+        var extractedMeetingLoc = ""
+        let parts = templateLocation.components(separatedBy: " · ")
+        if parts.count >= 3 {
+            extractedMeetingLoc = parts[1]
+        } else {
+            extractedMeetingLoc = ""
+        }
+
+        let startStr = hhmm(from: templateStartDate)
+        let endStr = hhmm(from: templateEndDate)
+
+        // pick the meeting whose time matches and includes this weekday and location matches (if available)
+        for m in enrollment.section.meetings {
+            guard m.start == startStr, m.end == endStr else { continue }
+            guard m.days.contains(where: { $0.calendarWeekday == wd }) else { continue }
+
+            // if enrollment meeting has a location, require it; otherwise accept blank extracted
+            if !m.location.isEmpty && m.location != extractedMeetingLoc { continue }
+
+            return meetingOverrideKey(enrollmentID: enrollment.id, course: enrollment.course, section: enrollment.section, meeting: m)
+        }
+
+        // fallback: allow a looser match ignoring location
+        for m in enrollment.section.meetings {
+            guard m.start == startStr, m.end == endStr else { continue }
+            guard m.days.contains(where: { $0.calendarWeekday == wd }) else { continue }
+            return meetingOverrideKey(enrollmentID: enrollment.id, course: enrollment.course, section: enrollment.section, meeting: m)
+        }
+
+        return nil
+    }
+
+    private func hhmm(from date: Date) -> String {
+        let comps = calendar.dateComponents([.hour, .minute], from: date)
+        let h = comps.hour ?? 0
+        let m = comps.minute ?? 0
+        return String(format: "%d:%02d", h, m)
+    }
+
+    // MARK: - Semester windowing
+
     private func refreshSemesterWindow(anchorPreferred: Semester?) {
         let anchor: Semester = {
             if let pref = anchorPreferred { return pref }
             if let sem = semesterContaining(date: selectedDate) { return sem }
             return currentSemester
-            // if let earliest = earliestEnrolledSemester() { return earliest } // optional fallback
         }()
 
         let window = [anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 }
         semesterWindow = window
 
-        // Keep currentSemester aligned with anchor if it changes.
         if currentSemester != anchor {
             currentSemester = anchor
         }
 
-        // Proactively kick loads for the window (best-effort, non-blocking).
         for sem in window {
             ensureTermBoundsLoaded(for: sem)
             ensureAcademicEventsLoaded(for: sem)
         }
     }
 
-    private func earliestEnrolledSemester() -> Semester? {
-        let codes = Set(enrolledCourses.map { $0.semesterCode })
-        let semesters = codes.compactMap { Semester(rawValue: $0) }
-        return semesters.sorted(by: { $0.rawValue < $1.rawValue }).first
-    }
-
     private func semesterContaining(date: Date) -> Semester? {
-        // Search only semesters we already know bounds for (fast, deterministic).
         for (code, interval) in termBoundsBySemesterCode {
             guard let sem = Semester(rawValue: code) else { continue }
             let d = calendar.startOfDay(for: date)
             let s = calendar.startOfDay(for: interval.start)
             let e = calendar.startOfDay(for: interval.end)
-            if s <= d && d <= e {
-                return sem
-            }
+            if s <= d && d <= e { return sem }
         }
         return nil
     }
 
-    /// Month starts to show in the CalendarView month picker.
-    /// Uses the current semesterWindow bounds if available; otherwise falls back to +/- 1 year around selectedDate.
     func monthPickerMonthStarts() -> [Date] {
         let cal = calendar
 
-        // Use known bounds for the window, if any.
         let intervals: [DateInterval] = semesterWindow.compactMap { sem in
             termBoundsBySemesterCode[sem.rawValue]
         }
@@ -306,7 +352,6 @@ final class CalendarViewModel: ObservableObject {
             return out
         }
 
-        // Fallback: +/- 12 months around selectedDate
         let start = (cal.date(byAdding: .month, value: -12, to: selectedDate) ?? selectedDate).startOfMonth(using: cal)
         let end = (cal.date(byAdding: .month, value:  12, to: selectedDate) ?? selectedDate).startOfMonth(using: cal)
 
@@ -320,7 +365,7 @@ final class CalendarViewModel: ObservableObject {
         return out
     }
 
-    // MARK: - Public “attempted” helpers (used by CalendarView)
+    // MARK: - Public attempted helpers
 
     func didAttemptAcademicEvents(for semester: Semester) -> Bool {
         let ayStart = academicYearStart(for: semester)
@@ -328,10 +373,10 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func didAttemptTermBounds(for semesterCode: String) -> Bool {
-        return attemptedTermBoundsCodes.contains(semesterCode) || termBoundsBySemesterCode[semesterCode] != nil
+        attemptedTermBoundsCodes.contains(semesterCode) || termBoundsBySemesterCode[semesterCode] != nil
     }
 
-    // MARK: - Public: selection helpers (CalendarView uses these)
+    // MARK: - Public selection helpers
 
     func goToToday() {
         let today = Date()
@@ -346,7 +391,7 @@ final class CalendarViewModel: ObservableObject {
         refreshSemesterWindow(anchorPreferred: nil)
     }
 
-    // MARK: - Boot/loading overlay control (kept)
+    // MARK: - Boot overlay control
 
     func beginBootLoadingIfNeeded(force: Bool = false) {
         if beganBootLoading && !force { return }
@@ -370,9 +415,7 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    func skipBootLoading() {
-        isBootLoading = false
-    }
+    func skipBootLoading() { isBootLoading = false }
 
     private func updateBootLoadingStatus() {
         let ayStart = academicYearStart(for: currentSemester)
@@ -408,19 +451,16 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Public “ensure loaded”
+    // MARK: - Ensure loaded
 
     func ensureTermBoundsLoaded(for semester: Semester) {
         let code = semester.rawValue
         if termBoundsBySemesterCode[code] != nil { return }
 
-        // ✅ start an attempt immediately (and add a timeout safety)
         if !attemptedTermBoundsCodes.contains(code) {
             attemptedTermBoundsCodes.insert(code)
-
             DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) { [weak self] in
-                guard let self else { return }
-                self.refreshBootLoadingStateIfPossible()
+                self?.refreshBootLoadingStateIfPossible()
             }
         }
 
@@ -430,32 +470,24 @@ final class CalendarViewModel: ObservableObject {
             switch result {
             case .success(let bounds):
                 DispatchQueue.main.async {
-                    let interval = DateInterval(start: bounds.start, end: bounds.end)
-                    self.termBoundsBySemesterCode[code] = interval
+                    self.termBoundsBySemesterCode[code] = DateInterval(start: bounds.start, end: bounds.end)
                     self.objectWillChange.send()
-
-                    // ✅ When bounds arrive, re-evaluate semester selection + window.
                     self.refreshSemesterWindow(anchorPreferred: nil)
-
                     self.refreshBootLoadingStateIfPossible()
                 }
             case .failure(let err):
                 print("❌ Failed to load term bounds for \(semester.displayName):", err)
-                DispatchQueue.main.async {
-                    self.refreshBootLoadingStateIfPossible()
-                }
+                DispatchQueue.main.async { self.refreshBootLoadingStateIfPossible() }
             }
         }
     }
 
-    // ✅ load term bounds for every semester you have enrolled courses in
     func ensureTermBoundsForAllEnrollments() {
         let codes = Set(enrolledCourses.map { $0.semesterCode })
         for c in codes {
             if let sem = Semester(rawValue: c) {
                 ensureTermBoundsLoaded(for: sem)
             } else {
-                // Unknown code in storage -> don't let it perma-block UI
                 attemptedTermBoundsCodes.insert(c)
             }
         }
