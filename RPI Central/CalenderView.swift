@@ -103,7 +103,7 @@ struct CalendarView: View {
                     subtitle: bootSubtitle,
                     showSkip: bootCanSkip,
                     onSkip: {
-                        // ✅ This is the key fix: once user continues, kill BOTH layers.
+                        // ✅ Once user continues, kill BOTH layers for this session.
                         suppressLoadingOverlays = true
                         withAnimation(.easeOut(duration: 0.18)) {
                             showBootOverlay = false
@@ -196,13 +196,9 @@ struct CalendarView: View {
             Spacer()
 
             // ✅ TODAY button
-            
-
             Button {
                 withAnimation(.easeInOut(duration: 0.25)) {
-                    let today = Date()
-                    viewModel.selectedDate = today
-                    viewModel.displayedMonthStart = today.startOfMonth()
+                    viewModel.goToToday()
                 }
             } label: {
                 Image(systemName: "scope")
