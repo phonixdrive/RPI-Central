@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftUI
+import WidgetKit
 
 // Represents a course+section the user has added
 struct EnrolledCourse: Identifiable, Equatable, Codable {
@@ -54,8 +55,22 @@ struct MeetingOverride: Codable, Equatable {
 final class CalendarViewModel: ObservableObject {
     @Published var displayedMonthStart: Date
     @Published var selectedDate: Date
-    @Published var events: [ClassEvent]
-    @Published var enrolledCourses: [EnrolledCourse] = []
+
+    // ✅ publish widgets when schedule changes
+    @Published var events: [ClassEvent] {
+        didSet {
+            guard !suppressWidgetPublishes else { return }
+            scheduleWidgetSnapshotPublish()
+        }
+    }
+
+    // ✅ publish widgets when enrollments change
+    @Published var enrolledCourses: [EnrolledCourse] = [] {
+        didSet {
+            guard !suppressWidgetPublishes else { return }
+            scheduleWidgetSnapshotPublish()
+        }
+    }
 
     // default is now spring2026
     @Published var currentSemester: Semester = .spring2026
@@ -170,6 +185,21 @@ final class CalendarViewModel: ObservableObject {
         Color(red: 1.0,       green: 0.79216,  blue: 0.26667)
     ]
 
+    // MARK: - Widget publish suppression (bulk updates)
+    private var suppressWidgetPublishes: Bool = false
+
+    private func withWidgetPublishingSuppressed(_ body: () -> Void) {
+        let wasSuppressed = suppressWidgetPublishes
+        suppressWidgetPublishes = true
+        body()
+        suppressWidgetPublishes = wasSuppressed
+
+        // Outer-most bulk update: coalesce to one publish
+        if !wasSuppressed {
+            scheduleWidgetSnapshotPublish()
+        }
+    }
+
     init() {
         if let raw = UserDefaults.standard.string(forKey: themeColorKey),
            let stored = StoredThemeColor(rawValue: raw) {
@@ -203,22 +233,319 @@ final class CalendarViewModel: ObservableObject {
 
         self.enforcePrerequisites = UserDefaults.standard.bool(forKey: enforcePrereqsKey)
 
-        loadHiddenOccurrences()
-        loadHiddenAllDay()
-        loadAssumedPrereqs()
-        loadEnrollment()
-        loadGrades()
+        // Avoid widget spam during boot rebuild
+        withWidgetPublishingSuppressed {
+            loadHiddenOccurrences()
+            loadHiddenAllDay()
+            loadAssumedPrereqs()
+            loadEnrollment()
+            loadGrades()
 
-        // NEW: load meeting overrides + exam dates
-        loadMeetingOverrides()
-        loadExamDates()
+            // NEW: load meeting overrides + exam dates
+            loadMeetingOverrides()
+            loadExamDates()
 
-        rebuildEventsFromEnrollment()
-        ensureTermBoundsForAllEnrollments()
-        refreshSemesterWindow(anchorPreferred: nil)
+            rebuildEventsFromEnrollment()
+            ensureTermBoundsForAllEnrollments()
+            refreshSemesterWindow(anchorPreferred: nil)
+        }
 
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
+
+        // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
+        publishWidgetSnapshot()
+    }
+
+    // MARK: - Widgets (AppGroup snapshot publishing)
+
+    private let widgetKindMonth = "RPICentralMonthWidget"
+
+    private func widgetPriority(_ kind: CalendarEventKind) -> Int {
+        switch kind {
+        case .break:         return 0
+        case .holiday:       return 1
+        case .readingDays:   return 2
+        case .finals:        return 3
+        case .noClasses:     return 4
+        case .followDay:     return 5
+        case .academicOther: return 6
+        default:             return 9
+        }
+    }
+
+    /// Identical ordering to MonthGridView.dotColorsForDayEvents, but returns RGBA for widget.
+    private func widgetDotColorsForDayEvents(_ events: [ClassEvent]) -> [RGBAColor] {
+        var colors: [Color] = []
+
+        let academic = events
+            .filter { $0.isAllDay }
+            .sorted { widgetPriority($0.kind) < widgetPriority($1.kind) }
+
+        let classes = events
+            .filter { !$0.isAllDay && $0.kind == .classMeeting }
+
+        let personal = events
+            .filter { !$0.isAllDay && $0.kind == .personal }
+
+        for e in academic { colors.append(e.displayColor) }
+        for e in classes  { colors.append(e.displayColor) }
+        for e in personal { colors.append(e.displayColor) }
+
+        var unique: [RGBAColor] = []
+        unique.reserveCapacity(3)
+
+        for c in colors {
+            let rgba = RGBAColor.from(c)
+            if !unique.contains(rgba) {
+                unique.append(rgba)
+                if unique.count >= 3 { break }
+            }
+        }
+        return unique
+    }
+
+    private var widgetPublishWorkItem: DispatchWorkItem?
+
+    private var lastWidgetReloadAt: Date = .distantPast
+
+    // ✅ Increase this to stop “Attach to widgets” memory-kill loops.
+    private let widgetReloadMinInterval: TimeInterval = 30.0
+
+    private func scheduleWidgetSnapshotPublish() {
+        widgetPublishWorkItem?.cancel()
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.publishWidgetSnapshot()
+        }
+        widgetPublishWorkItem = work
+
+        // ✅ Coalesce harder to reduce reload spam while user edits calendar.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
+    }
+
+    /// Widget-safe variant: DO NOT require term bounds to exist.
+    /// (If bounds exist, we still respect them; if not, we allow events so dots show.)
+    private func eventsForWidget(on date: Date) -> [ClassEvent] {
+        var result: [ClassEvent] = []
+        let weekday = calendar.component(.weekday, from: date)
+        let dayStart = calendar.startOfDay(for: date)
+
+        let enrollmentSemesterByID: [String: String] = Dictionary(
+            uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
+        )
+
+        for base in events {
+            if base.kind == .classMeeting, let enrollmentID = base.enrollmentID {
+                let baseWeekday = calendar.component(.weekday, from: base.startDate)
+                guard baseWeekday == weekday else { continue }
+
+                // ✅ If term bounds exist, respect them; if missing, allow (so widget gets dots immediately)
+                if let semCode = enrollmentSemesterByID[enrollmentID],
+                   let interval = termBoundsBySemesterCode[semCode] {
+                    let s = calendar.startOfDay(for: interval.start)
+                    let e = calendar.startOfDay(for: interval.end)
+                    if !(s <= dayStart && dayStart <= e) { continue }
+                }
+
+                // meeting overrides/exam dates (same as events(on:))
+                if let key = base.meetingKey {
+                    let ov = meetingOverride(for: key)
+
+                    if ov.type == .disabled { continue }
+
+                    if ov.type == .exam {
+                        let allowedDays = Set((examDatesByMeetingKey[key] ?? []).map {
+                            calendar.startOfDay(for: Date(timeIntervalSince1970: $0))
+                        })
+                        if !allowedDays.contains(dayStart) { continue }
+                    }
+                }
+
+                // build the instance on this date (same as events(on:))
+                let startTime = calendar.dateComponents([.hour, .minute, .second], from: base.startDate)
+                let endTime   = calendar.dateComponents([.hour, .minute, .second], from: base.endDate)
+
+                var startComps = calendar.dateComponents([.year, .month, .day], from: date)
+                startComps.hour = startTime.hour
+                startComps.minute = startTime.minute
+                startComps.second = startTime.second
+
+                var endComps = calendar.dateComponents([.year, .month, .day], from: date)
+                endComps.hour = endTime.hour
+                endComps.minute = endTime.minute
+                endComps.second = endTime.second
+
+                guard let newStart = calendar.date(from: startComps),
+                      let newEnd   = calendar.date(from: endComps)
+                else { continue }
+
+                var title = base.title
+                if let key = base.meetingKey {
+                    if meetingOverride(for: key).type == .exam {
+                        title = "★ \(title)"
+                    }
+                }
+
+                let copy = ClassEvent(
+                    title: title,
+                    location: base.location,
+                    startDate: newStart,
+                    endDate: newEnd,
+                    backgroundColor: base.backgroundColor,
+                    accentColor: base.accentColor,
+                    enrollmentID: base.enrollmentID,
+                    seriesID: nil,
+                    isAllDay: false,
+                    kind: .classMeeting,
+                    meetingKey: base.meetingKey
+                )
+
+                if hiddenClassOccurrences.contains(copy.interactionKey) { continue }
+                result.append(copy)
+
+            } else {
+                // fixed-date (same as events(on:))
+                if base.isAllDay {
+                    if hiddenAllDayEvents.contains(base.interactionKey) { continue }
+                    let d = dayStart
+                    let s = calendar.startOfDay(for: base.startDate)
+                    let e = calendar.startOfDay(for: base.endDate)
+                    if s <= d && d <= e { result.append(base) }
+                } else {
+                    if calendar.isDate(base.startDate, inSameDayAs: date) {
+                        result.append(base)
+                    }
+                }
+            }
+        }
+
+        return result.sorted {
+            if $0.isAllDay != $1.isAllDay { return $0.isAllDay && !$1.isAllDay }
+            return $0.startDate < $1.startDate
+        }
+    }
+
+    private func publishWidgetSnapshot() {
+        guard let defaults = UserDefaults(suiteName: RPICentralWidgetShared.appGroup) else { return }
+
+        let now = Date()
+
+        let theme: RPICentralWidgetTheme = {
+            if themeColor == .red { return .red }
+            if themeColor == .green { return .green }
+            if themeColor == .purple { return .purple }
+            if themeColor == .orange { return .orange }
+            return .blue
+        }()
+
+        let appearance: RPICentralWidgetAppearance = {
+            switch appearanceMode {
+            case .system: return .system
+            case .light:  return .light
+            case .dark:   return .dark
+            }
+        }()
+
+        // ✅ Use widget-safe events (no hard dependency on term bounds)
+        let todayEventsApp = eventsForWidget(on: now)
+            .sorted {
+                if $0.isAllDay != $1.isAllDay { return $0.isAllDay && !$1.isAllDay }
+                return $0.startDate < $1.startDate
+            }
+            .prefix(12)
+
+        let todayEvents: [WidgetDayEvent] = todayEventsApp.map { e in
+            var badge: String? = nil
+            if e.kind == .classMeeting, let key = e.meetingKey {
+                switch meetingOverride(for: key).type {
+                case .exam: badge = "exam"
+                case .recitation: badge = "recitation"
+                default: badge = nil
+                }
+            }
+
+            return WidgetDayEvent(
+                id: e.id.uuidString,
+                title: e.title,
+                location: e.location,
+                startDate: e.startDate,
+                endDate: e.endDate,
+                isAllDay: e.isAllDay,
+                background: RGBAColor.from(e.backgroundColor),
+                accent: RGBAColor.from(e.accentColor),
+                badge: badge
+            )
+        }
+
+        // Month payload
+        let monthStart = now.startOfMonth(using: calendar)
+        let snapYear = calendar.component(.year, from: monthStart)
+        let snapMonth = calendar.component(.month, from: monthStart)
+
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count ?? 30
+
+        let nowYear = calendar.component(.year, from: now)
+        let nowMonth = calendar.component(.month, from: now)
+        let todayDay: Int? = (nowYear == snapYear && nowMonth == snapMonth) ? calendar.component(.day, from: now) : nil
+
+        var markers: [DayMarker] = []
+        markers.reserveCapacity(daysInMonth)
+
+        for day in 1...daysInMonth {
+            guard let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) else { continue }
+            let dayEvents = eventsForWidget(on: date)
+
+            let isBreakDay = dayEvents.contains { $0.isAllDay && $0.kind == .break }
+
+            let hasExam = dayEvents.contains(where: { ev in
+                if ev.kind == .classMeeting, let key = ev.meetingKey {
+                    return meetingOverride(for: key).type == .exam
+                }
+                return ev.title.hasPrefix("★")
+            })
+
+            let dots = widgetDotColorsForDayEvents(dayEvents)
+            markers.append(DayMarker(day: day, dotColors: dots, hasExam: hasExam, isBreakDay: isBreakDay))
+        }
+
+        let month = MonthSnapshot(
+            year: snapYear,
+            month: snapMonth,
+            firstWeekday: firstWeekday,
+            daysInMonth: daysInMonth,
+            todayDay: todayDay,
+            markers: markers
+        )
+
+        let snapshot = WidgetSnapshot(
+            generatedAt: now,
+            theme: theme,
+            appearance: appearance,
+            todayEvents: todayEvents,
+            month: month
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(snapshot)
+            defaults.set(data, forKey: RPICentralWidgetShared.snapshotKey)
+            defaults.set("wrote snapshot at \(now)", forKey: RPICentralWidgetShared.debugKey)
+#if DEBUG
+let readBack = defaults.data(forKey: RPICentralWidgetShared.snapshotKey)
+print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.count ?? -1)
+#endif
+            // ✅ throttle reload spam (fix attach crash/hang)
+            let t = Date()
+            if t.timeIntervalSince(lastWidgetReloadAt) > widgetReloadMinInterval {
+                lastWidgetReloadAt = t
+                WidgetCenter.shared.reloadTimelines(ofKind: widgetKindMonth)
+            }
+        } catch {
+            // ignore
+        }
     }
 
     // MARK: - Meeting override keys + API (matches CourseDetailView)
