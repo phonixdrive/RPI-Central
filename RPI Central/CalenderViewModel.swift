@@ -259,7 +259,11 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Widgets (AppGroup snapshot publishing)
 
-    private let widgetKindMonth = "RPICentralMonthWidget"
+    private let widgetKindsToReload: [String] = [
+        "RPICentralMonthWidget",
+        "RPICentralMonthAndTodayWidget"
+    ]
+
 
     private func widgetPriority(_ kind: CalendarEventKind) -> Int {
         switch kind {
@@ -447,7 +451,6 @@ final class CalendarViewModel: ObservableObject {
             }
         }()
 
-        // ✅ Use widget-safe events (no hard dependency on term bounds)
         let todayEventsApp = eventsForWidget(on: now)
             .sorted {
                 if $0.isAllDay != $1.isAllDay { return $0.isAllDay && !$1.isAllDay }
@@ -478,7 +481,6 @@ final class CalendarViewModel: ObservableObject {
             )
         }
 
-        // Month payload
         let monthStart = now.startOfMonth(using: calendar)
         let snapYear = calendar.component(.year, from: monthStart)
         let snapMonth = calendar.component(.month, from: monthStart)
@@ -531,17 +533,22 @@ final class CalendarViewModel: ObservableObject {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(snapshot)
+
             defaults.set(data, forKey: RPICentralWidgetShared.snapshotKey)
             defaults.set("wrote snapshot at \(now)", forKey: RPICentralWidgetShared.debugKey)
-#if DEBUG
-let readBack = defaults.data(forKey: RPICentralWidgetShared.snapshotKey)
-print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.count ?? -1)
-#endif
+
+            #if DEBUG
+            let readBack = defaults.data(forKey: RPICentralWidgetShared.snapshotKey)
+            print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.count ?? -1)
+            #endif
+
             // ✅ throttle reload spam (fix attach crash/hang)
             let t = Date()
             if t.timeIntervalSince(lastWidgetReloadAt) > widgetReloadMinInterval {
                 lastWidgetReloadAt = t
-                WidgetCenter.shared.reloadTimelines(ofKind: widgetKindMonth)
+                for kind in widgetKindsToReload {
+                    WidgetCenter.shared.reloadTimelines(ofKind: kind)
+                }
             }
         } catch {
             // ignore
