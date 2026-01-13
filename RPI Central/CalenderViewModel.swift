@@ -564,6 +564,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
         meetingOverridesByKey[key] = MeetingOverride(type: newType)
         saveMeetingOverrides()
         objectWillChange.send()
+        scheduleWidgetSnapshotPublish()
     }
 
     func examDates(for key: String) -> [Date] {
@@ -577,6 +578,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
         examDatesByMeetingKey[key] = normalized
         saveExamDates()
         objectWillChange.send()
+        scheduleWidgetSnapshotPublish()
     }
 
     // For class template instances: find the matching meeting key from the enrolledCourse meeting list.
@@ -801,6 +803,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
                     self.objectWillChange.send()
                     self.refreshSemesterWindow(anchorPreferred: nil)
                     self.refreshBootLoadingStateIfPossible()
+                    self.scheduleWidgetSnapshotPublish() // ✅ term gating can change widget "up next"
                 }
             case .failure(let err):
                 print("❌ Failed to load term bounds for \(semester.displayName):", err)
@@ -840,6 +843,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
                     self.loadedAcademicYearStarts.insert(ayStart)
                     self.academicEventsLoaded = true
                     self.refreshBootLoadingStateIfPossible()
+                    self.scheduleWidgetSnapshotPublish()
                 }
             case .failure(let err):
                 print("❌ Failed to load academic events for \(semester.displayName):", err)
@@ -916,13 +920,12 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
                 else { continue }
 
                 var title = base.title
-                                if let key {
-                                    let ov = meetingOverride(for: key)
-                                    if ov.type == .exam {
-                                        // ✅ guarantees something visible in month view without touching month-cell code
-                                        title = "★ \(title)"
-                                    }
-                                }
+                if let key {
+                    let ov = meetingOverride(for: key)
+                    if ov.type == .exam {
+                        title = "★ \(title)"
+                    }
+                }
 
                 let copy = ClassEvent(
                     title: title,
@@ -934,7 +937,8 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
                     enrollmentID: base.enrollmentID,
                     seriesID: nil,
                     isAllDay: false,
-                    kind: .classMeeting
+                    kind: .classMeeting,
+                    meetingKey: base.meetingKey
                 )
 
                 if hiddenClassOccurrences.contains(copy.interactionKey) { continue }
@@ -1001,6 +1005,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
         hiddenAllDayEvents.insert(event.interactionKey)
         saveHiddenAllDay()
         objectWillChange.send()
+        scheduleWidgetSnapshotPublish()
     }
 
     func removePersonalEvent(_ event: ClassEvent) {
@@ -1016,6 +1021,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
         hiddenClassOccurrences.insert(event.interactionKey)
         saveHiddenOccurrences()
         objectWillChange.send()
+        scheduleWidgetSnapshotPublish()
     }
 
     // MARK: - Semester switching
@@ -1027,6 +1033,7 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
         rebuildEventsFromEnrollment()
         updateBootLoadingStatus()
         refreshSemesterWindow(anchorPreferred: newSemester)
+        scheduleWidgetSnapshotPublish()
     }
 
     // MARK: - Enrollment helpers
@@ -1214,39 +1221,43 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
             assumePrereqs(missing, causedBy: courseKey(course))
         }
 
-        let enrollment = EnrolledCourse(
-            id: id,
-            course: course,
-            section: section,
-            semesterCode: currentSemester.rawValue
-        )
-        enrolledCourses.append(enrollment)
+        withWidgetPublishingSuppressed {
+            let enrollment = EnrolledCourse(
+                id: id,
+                course: course,
+                section: section,
+                semesterCode: currentSemester.rawValue
+            )
+            enrolledCourses.append(enrollment)
 
-        for meeting in section.meetings {
-            for day in meeting.days {
-                guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
-                generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+            for meeting in section.meetings {
+                for day in meeting.days {
+                    guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
+                    generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+                }
             }
-        }
 
-        recolorAllEvents()
-        saveEnrollment()
-        ensureTermBoundsForAllEnrollments()
-        refreshSemesterWindow(anchorPreferred: nil)
+            recolorAllEvents()
+            saveEnrollment()
+            ensureTermBoundsForAllEnrollments()
+            refreshSemesterWindow(anchorPreferred: nil)
+        }
     }
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
-        clearGrade(for: enrollment.id)
+        withWidgetPublishingSuppressed {
+            clearGrade(for: enrollment.id)
 
-        enrolledCourses.removeAll { $0.id == enrollment.id }
-        events.removeAll { $0.enrollmentID == enrollment.id }
-        recolorAllEvents()
-        saveEnrollment()
+            enrolledCourses.removeAll { $0.id == enrollment.id }
+            events.removeAll { $0.enrollmentID == enrollment.id }
+            recolorAllEvents()
+            saveEnrollment()
 
-        let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
-        unassumePrereqs(causedBy: removedCourseID)
+            let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
+            unassumePrereqs(causedBy: removedCourseID)
 
-        refreshSemesterWindow(anchorPreferred: nil)
+            refreshSemesterWindow(anchorPreferred: nil)
+        }
     }
 
     // MARK: - Grades (unchanged)
@@ -1392,29 +1403,31 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
     // MARK: - Academic events
 
     func addAcademicEvents(_ academicEvents: [AcademicEvent]) {
-        for ev in academicEvents {
-            let key = "\(ev.title)|\(ev.startDate.timeIntervalSince1970)|\(ev.endDate.timeIntervalSince1970)|\(ev.kind.rawValue)"
-            if academicEventKeys.contains(key) { continue }
-            academicEventKeys.insert(key)
+        withWidgetPublishingSuppressed {
+            for ev in academicEvents {
+                let key = "\(ev.title)|\(ev.startDate.timeIntervalSince1970)|\(ev.endDate.timeIntervalSince1970)|\(ev.kind.rawValue)"
+                if academicEventKeys.contains(key) { continue }
+                academicEventKeys.insert(key)
 
-            let bg = ClassEvent.backgroundForAcademic(kind: ev.kind)
-            let accent = ClassEvent.accentForAcademic(kind: ev.kind)
+                let bg = ClassEvent.backgroundForAcademic(kind: ev.kind)
+                let accent = ClassEvent.accentForAcademic(kind: ev.kind)
 
-            let event = ClassEvent(
-                title: ev.title,
-                location: ev.location ?? "",
-                startDate: ev.startDate,
-                endDate: ev.endDate,
-                backgroundColor: bg,
-                accentColor: accent,
-                enrollmentID: nil,
-                seriesID: nil,
-                isAllDay: true,
-                kind: ev.kind
-            )
-            events.append(event)
+                let event = ClassEvent(
+                    title: ev.title,
+                    location: ev.location ?? "",
+                    startDate: ev.startDate,
+                    endDate: ev.endDate,
+                    backgroundColor: bg,
+                    accentColor: accent,
+                    enrollmentID: nil,
+                    seriesID: nil,
+                    isAllDay: true,
+                    kind: ev.kind
+                )
+                events.append(event)
+            }
+            academicEventsLoaded = true
         }
-        academicEventsLoaded = true
     }
 
     // MARK: - Event creation helpers
@@ -1494,23 +1507,25 @@ print("📦 Widget snapshot write bytes:", data.count, "readBack:", readBack?.co
     }
 
     private func rebuildEventsFromEnrollment() {
-        let fixed = events.filter { $0.enrollmentID == nil }
-        events = fixed
+        withWidgetPublishingSuppressed {
+            let fixed = events.filter { $0.enrollmentID == nil }
+            events = fixed
 
-        for enrollment in enrolledCourses {
-            let course = enrollment.course
-            let section = enrollment.section
-            let id = enrollment.id
+            for enrollment in enrolledCourses {
+                let course = enrollment.course
+                let section = enrollment.section
+                let id = enrollment.id
 
-            for meeting in section.meetings {
-                for day in meeting.days {
-                    guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
-                    generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+                for meeting in section.meetings {
+                    for day in meeting.days {
+                        guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
+                        generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+                    }
                 }
             }
-        }
 
-        recolorAllEvents()
+            recolorAllEvents()
+        }
     }
 
     // MARK: - Low-level helpers
