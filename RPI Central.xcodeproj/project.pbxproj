@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		0D8E96152EF870A900B6269D /* semester_data in Resources */ = {isa = PBXBuildFile; fileRef = 0D8E96142EF870A900B6269D /* semester_data */; };
+		0DE6D50E2F140E1700388178 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0DE6D50D2F140E1700388178 /* WidgetKit.framework */; };
+		0DE6D5102F140E1700388178 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0DE6D50F2F140E1700388178 /* SwiftUI.framework */; };
+		0DE6D51D2F140E1900388178 /* WidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +28,28 @@
 			remoteGlobalIDString = 0D3BAF132E909BB3006793BF;
 			remoteInfo = "RPI Central";
 		};
+		0DE6D51B2F140E1900388178 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0D3BAF0C2E909BB3006793BF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0DE6D50A2F140E1700388178;
+			remoteInfo = WidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0DE6D5222F140E1900388178 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0DE6D51D2F140E1900388178 /* WidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0D3BAF142E909BB3006793BF /* RPI Central.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RPI Central.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -37,6 +61,10 @@
 		0D8EAA3F2E90A3A80099AA02 /* readme.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = readme.md; sourceTree = "<group>"; };
 		0D8EAA412E90A3D90099AA02 /* _config.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = _config.yml; sourceTree = "<group>"; };
 		0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = rpiproposal.jpg; sourceTree = "<group>"; };
+		0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DE6D50D2F140E1700388178 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		0DE6D50F2F140E1700388178 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		0DE6D5282F1411CF00388178 /* WidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WidgetsExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -44,6 +72,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Preview Content/Preview Assets.xcassets",
+				Widgets/RPICentralWidgetsExtensionBundle.swift,
 			);
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 		};
@@ -518,6 +547,22 @@
 			);
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 		};
+		0DE6D5212F140E1900388178 /* Exceptions for "Widgets" folder in "WidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0DE6D50A2F140E1700388178 /* WidgetsExtension */;
+		};
+		0DE6D52A2F144BFD00388178 /* Exceptions for "RPI Central" folder in "WidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Widgets/RPICentralNextUpWidgets.swift,
+				Widgets/RPICentralWidgetsExtensionBundle.swift,
+				Widgets/WidgetSharedModels.swift,
+			);
+			target = 0DE6D50A2F140E1700388178 /* WidgetsExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -525,6 +570,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				0D8E96122EF8706900B6269D /* Exceptions for "RPI Central" folder in "RPI Central" target */,
+				0DE6D52A2F144BFD00388178 /* Exceptions for "RPI Central" folder in "WidgetsExtension" target */,
 			);
 			path = "RPI Central";
 			sourceTree = "<group>";
@@ -552,6 +598,14 @@
 			path = Data;
 			sourceTree = "<group>";
 		};
+		0DE6D5112F140E1700388178 /* Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0DE6D5212F140E1900388178 /* Exceptions for "Widgets" folder in "WidgetsExtension" target */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -576,12 +630,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0DE6D5082F140E1700388178 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0DE6D5102F140E1700388178 /* SwiftUI.framework in Frameworks */,
+				0DE6D50E2F140E1700388178 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0D3BAF0B2E909BB3006793BF = {
 			isa = PBXGroup;
 			children = (
+				0DE6D5282F1411CF00388178 /* WidgetsExtension.entitlements */,
 				0D8E96142EF870A900B6269D /* semester_data */,
 				0D8E61392EED113000B6269D /* Tools */,
 				0D8EAA432E90A4820099AA02 /* rpiproposal.jpg */,
@@ -592,6 +656,8 @@
 				0D3BAF162E909BB3006793BF /* RPI Central */,
 				0D3BAF272E909BB5006793BF /* RPI CentralTests */,
 				0D3BAF312E909BB5006793BF /* RPI CentralUITests */,
+				0DE6D5112F140E1700388178 /* Widgets */,
+				0DE6D50C2F140E1700388178 /* Frameworks */,
 				0D3BAF152E909BB3006793BF /* Products */,
 				0D8E73122EF7B88300B6269D /* Data */,
 			);
@@ -603,8 +669,18 @@
 				0D3BAF142E909BB3006793BF /* RPI Central.app */,
 				0D3BAF242E909BB5006793BF /* RPI CentralTests.xctest */,
 				0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */,
+				0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0DE6D50C2F140E1700388178 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0DE6D50D2F140E1700388178 /* WidgetKit.framework */,
+				0DE6D50F2F140E1700388178 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -617,10 +693,12 @@
 				0D3BAF102E909BB3006793BF /* Sources */,
 				0D3BAF112E909BB3006793BF /* Frameworks */,
 				0D8E96112EF8706900B6269D /* Resources */,
+				0DE6D5222F140E1900388178 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0DE6D51C2F140E1900388178 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0D3BAF162E909BB3006793BF /* RPI Central */,
@@ -679,6 +757,28 @@
 			productReference = 0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		0DE6D50A2F140E1700388178 /* WidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0DE6D51E2F140E1900388178 /* Build configuration list for PBXNativeTarget "WidgetsExtension" */;
+			buildPhases = (
+				0DE6D5072F140E1700388178 /* Sources */,
+				0DE6D5082F140E1700388178 /* Frameworks */,
+				0DE6D5092F140E1700388178 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0DE6D5112F140E1700388178 /* Widgets */,
+			);
+			name = WidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = WidgetsExtension;
+			productReference = 0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -700,6 +800,9 @@
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = 0D3BAF132E909BB3006793BF;
 					};
+					0DE6D50A2F140E1700388178 = {
+						CreatedOnToolsVersion = 16.0;
+					};
 				};
 			};
 			buildConfigurationList = 0D3BAF0F2E909BB3006793BF /* Build configuration list for PBXProject "RPI Central" */;
@@ -719,6 +822,7 @@
 				0D3BAF132E909BB3006793BF /* RPI Central */,
 				0D3BAF232E909BB5006793BF /* RPI CentralTests */,
 				0D3BAF2D2E909BB5006793BF /* RPI CentralUITests */,
+				0DE6D50A2F140E1700388178 /* WidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -746,6 +850,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0DE6D5092F140E1700388178 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -770,6 +881,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0DE6D5072F140E1700388178 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -782,6 +900,11 @@
 			isa = PBXTargetDependency;
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 			targetProxy = 0D3BAF2F2E909BB5006793BF /* PBXContainerItemProxy */;
+		};
+		0DE6D51C2F140E1900388178 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0DE6D50A2F140E1700388178 /* WidgetsExtension */;
+			targetProxy = 0DE6D51B2F140E1900388178 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -910,6 +1033,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RPI Central/RPI Central.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"RPI Central/Preview Content\"";
@@ -939,6 +1063,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RPI Central/RPI Central.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"RPI Central/Preview Content\"";
@@ -1031,6 +1156,62 @@
 			};
 			name = Release;
 		};
+		0DE6D51F2F140E1900388178 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Widgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.Widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0DE6D5202F140E1900388178 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Widgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.Widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1066,6 +1247,15 @@
 			buildConfigurations = (
 				0D3BAF3F2E909BB5006793BF /* Debug */,
 				0D3BAF402E909BB5006793BF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0DE6D51E2F140E1900388178 /* Build configuration list for PBXNativeTarget "WidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0DE6D51F2F140E1900388178 /* Debug */,
+				0DE6D5202F140E1900388178 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
