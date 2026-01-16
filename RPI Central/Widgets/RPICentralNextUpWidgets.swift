@@ -94,37 +94,105 @@ struct MonthProvider: TimelineProvider {
     }
 }
 
-// MARK: - Widget
+// MARK: - Widgets
 
+/// 1x1 (small): month-only
+/// 1x2 (medium): month-only
+/// 2x2 (large): month + today-events strip at bottom
 struct RPICentralMonthWidget: Widget {
     let kind = "RPICentralMonthWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: MonthProvider()) { entry in
-            RPICentralMonthWidgetView(entry: entry)
+            RPICentralMonthOnlyWidgetView(entry: entry)
         }
         .configurationDisplayName("RPI Central — Month")
-        .description("Month view with today’s events on the left (medium). Large shows month only.")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .description("Month view. Large shows a small today-events preview.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
-// MARK: - View
+/// Separate 1x2 (medium): left today events + right mini month (Apple Calendar-style)
+struct RPICentralMonthAndTodayWidget: Widget {
+    let kind = "RPICentralMonthAndTodayWidget"
 
-struct RPICentralMonthWidgetView: View {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: MonthProvider()) { entry in
+            RPICentralMonthAndTodayWidgetView(entry: entry)
+        }
+        .configurationDisplayName("RPI Central — Today + Month")
+        .description("Today’s events on the left, month on the right.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+// MARK: - Shared styling + helpers
+
+private let widgetBackgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
+private let widgetBarColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
+
+private struct MonthGridMetrics {
+    var cellH: CGFloat
+    var dotSize: CGFloat
+    var cellPad: CGFloat
+    var corner: CGFloat
+    var gridSpacing: CGFloat
+    var colsSpacing: CGFloat
+
+    // ✅ tighten ONLY the 1x1 grid so double-digits fit cleanly
+    static let small  = MonthGridMetrics(cellH: 18, dotSize: 4, cellPad: 1.2, corner: 6, gridSpacing: 1.2, colsSpacing: 0.8)
+
+    static let medium = MonthGridMetrics(cellH: 22, dotSize: 5, cellPad: 4.5, corner: 7, gridSpacing: 4, colsSpacing: 4)
+    static let large  = MonthGridMetrics(cellH: 32, dotSize: 5, cellPad: 5.0, corner: 8, gridSpacing: 4, colsSpacing: 4)
+}
+
+private func monthTitle(year: Int, month: Int) -> String {
+    let df = DateFormatter()
+    df.dateFormat = "LLLL"
+    let cal = Calendar.current
+    let d = cal.date(from: DateComponents(year: year, month: month, day: 1)) ?? Date()
+    return "\(df.string(from: d)) \(year)"
+}
+
+private func timeLabel(for ev: WidgetDayEvent) -> String {
+    if ev.isAllDay { return "All day" }
+    let df = DateFormatter()
+    df.timeStyle = .short
+    return "\(df.string(from: ev.startDate))–\(df.string(from: ev.endDate))"
+}
+
+private func subtitleLine(timeText: String, location: String) -> String {
+    location.isEmpty ? timeText : "\(timeText) • \(location)"
+}
+
+/// ✅ "Today’s events" (not "upcoming after now")
+private func todaysEvents(from all: [WidgetDayEvent], now: Date, max: Int) -> [WidgetDayEvent] {
+    let cal = Calendar.current
+
+    let allDay = all
+        .filter { $0.isAllDay }
+        .filter { cal.isDate($0.startDate, inSameDayAs: now) || cal.isDate($0.endDate, inSameDayAs: now) }
+
+    let timed = all
+        .filter { !$0.isAllDay }
+        .filter { cal.isDate($0.startDate, inSameDayAs: now) }
+        .sorted { $0.startDate < $1.startDate }
+
+    return Array((allDay + timed).prefix(max))
+}
+
+// MARK: - Month-only widget view
+
+struct RPICentralMonthOnlyWidgetView: View {
     let entry: MonthEntry
     @Environment(\.widgetFamily) private var family
 
     private var month: MonthSnapshot { entry.snapshot.month }
 
-    // Match CalendarView.swift background
-    private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
-    private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
-
     var body: some View {
         applyAppearance(
             content
-                .containerBackground(for: .widget) { backgroundColor },
+                .containerBackground(for: .widget) { widgetBackgroundColor },
             appearance: entry.snapshot.appearance
         )
     }
@@ -132,160 +200,118 @@ struct RPICentralMonthWidgetView: View {
     @ViewBuilder
     private var content: some View {
         switch family {
+        case .systemSmall:
+            smallLayout
         case .systemMedium:
-            mediumLayout
+            mediumLayoutMonthOnly
         case .systemLarge:
-            largeCalendarOnlyLayout
+            largeLayoutMonthOnly
         default:
-            mediumLayout
+            mediumLayoutMonthOnly
         }
     }
 
-    // MARK: - Medium: left list + right month grid
+    // MARK: - Small (1x1): month-only
 
-    private var mediumLayout: some View {
-        HStack(spacing: 10) {
-            leftTodayPanel(maxRows: 3, compact: true)
-            rightMonthPanel(compact: true)
-                .layoutPriority(1) // prevent digit-cropping / compression
+    private var smallLayout: some View {
+        VStack(spacing: 2) {
+            monthHeader(font: .caption.bold(), verticalPad: 4, horizontalPad: 6)
+
+            weekdayRow(style: .tiny)
+                .padding(.horizontal, 0)
+
+            monthGridFixed(metrics: .small, compactDigits: true)
+                .padding(.horizontal, 0)
         }
-        .padding(10)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.top, 18)
+        .padding(.bottom, 8)
+        .padding(.horizontal, 0)
     }
 
-    // MARK: - Large: month grid only (NO events)
+    // MARK: - Medium (1x2): month-only
 
-    private var largeCalendarOnlyLayout: some View {
-        rightMonthPanel(compact: false)
-            .padding(14)
+    private var mediumLayoutMonthOnly: some View {
+        VStack(spacing: 5) {
+            monthHeader(font: .subheadline.bold(), verticalPad: 6, horizontalPad: 10)
+                .layoutPriority(1)
+
+            weekdayRow(style: .short)
+                .padding(.horizontal, 2)
+
+            monthGridFixed(metrics: .medium, compactDigits: false)
+                .padding(.horizontal, 2)
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 14)
+        .padding(.horizontal, 16)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    // MARK: - Left panel (Today list)
+    // MARK: - Large (2x2): month + bottom today-events strip
 
-    private func leftTodayPanel(maxRows: Int, compact: Bool) -> some View {
-        let events = entry.snapshot.todayEvents
+    private var largeLayoutMonthOnly: some View {
+        VStack(spacing: 1) {
+            monthHeader(font: .headline.bold(), verticalPad: 8, horizontalPad: 12)
+                .layoutPriority(1)
 
-        return VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-            headerToday(compact: compact)
+            weekdayRow(style: .full)
+                .padding(.horizontal, 4)
 
-            if events.isEmpty {
-                Text("No events today")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            } else {
-                VStack(alignment: .leading, spacing: compact ? 6 : 8) {
-                    ForEach(events.prefix(maxRows)) { ev in
-                        eventRow(ev, compact: compact)
-                    }
-                }
-            }
+            monthGridFixed(metrics: .large, compactDigits: false)
+                .padding(.horizontal, 4)
+
+            todayEventsStrip(maxRows: 3)
+               // .padding(.top, 2)
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 20)  // or 20
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
     }
 
-    private func headerToday(compact: Bool) -> some View {
-        let df = DateFormatter()
-        df.dateFormat = "EEE, MMM d"
-        let title = df.string(from: entry.date)
+    // MARK: - Components
 
-        return VStack(alignment: .leading, spacing: 2) {
-            Text("Today")
-                .font(compact ? .subheadline : .headline)
+    private func monthHeader(font: Font, verticalPad: CGFloat, horizontalPad: CGFloat) -> some View {
+        HStack {
+            Text(monthTitle(year: month.year, month: month.month))
+                .font(font)
                 .foregroundStyle(.white)
                 .lineLimit(1)
-
-            Text(title)
-                .font(compact ? .caption2 : .caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-    }
-
-    private func eventRow(_ ev: WidgetDayEvent, compact: Bool) -> some View {
-        let timeText = timeLabel(for: ev)
-
-        return HStack(alignment: .top, spacing: 8) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(ev.accent.color)
-                .frame(width: 4)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(ev.title)
-                    .font(compact ? .caption : .subheadline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                Text(subtitleLine(timeText: timeText, location: ev.location))
-                    .font(compact ? .caption2 : .caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
             Spacer(minLength: 0)
         }
+        .padding(.horizontal, horizontalPad)
+        .padding(.vertical, verticalPad)
+        .background(widgetBarColor)
+        .cornerRadius(12)
     }
 
-    private func subtitleLine(timeText: String, location: String) -> String {
-        location.isEmpty ? timeText : "\(timeText) • \(location)"
-    }
+    private enum WeekdayStyle { case tiny, short, full }
 
-    private func timeLabel(for ev: WidgetDayEvent) -> String {
-        if ev.isAllDay { return "All day" }
-        let df = DateFormatter()
-        df.timeStyle = .short
-        return "\(df.string(from: ev.startDate)) – \(df.string(from: ev.endDate))"
-    }
-
-    // MARK: - Right panel (Month) — fixed 6-row grid (stable in widgets)
-
-    private func rightMonthPanel(compact: Bool) -> some View {
-        VStack(spacing: compact ? 6 : 8) {
-
-            // mini top bar (like your in-app top bar)
-            HStack {
-                Text(monthTitle(year: month.year, month: month.month))
-                    .font(compact ? .subheadline.bold() : .headline.bold())
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
+    private func weekdayRow(style: WeekdayStyle) -> some View {
+        let labels: [String] = {
+            switch style {
+            case .tiny:  return ["M","T","W","T","F","S","S"]
+            case .short: return ["M","T","W","T","F","S","S"]
+            case .full:  return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, compact ? 6 : 8)
-            .background(barColor)
-            .cornerRadius(12)
-
-            weekdayRow(topPad: 0)
-
-            monthGridFixed(compact: compact)
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-
-    private func weekdayRow(topPad: CGFloat) -> some View {
-        let labels: [String] = (family == .systemMedium)
-            ? ["M","T","W","T","F","S","S"]
-            : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        }()
 
         return HStack {
             ForEach(labels, id: \.self) { label in
                 Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.white)
+                    .font(style == .full ? .caption : .caption2)
+                    .foregroundStyle(.white.opacity(0.95))
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.top, topPad)
     }
 
-    private func monthGridFixed(compact: Bool) -> some View {
-        // In-app: firstWeekday is 1=Sun..7=Sat; Monday-first grid:
+    private func monthGridFixed(metrics: MonthGridMetrics, compactDigits: Bool) -> some View {
+        // firstWeekday is 1=Sun..7=Sat; we want Monday-first grid:
         let leadingBlanks = (month.firstWeekday - 2 + 7) % 7
-        let totalCells = leadingBlanks + month.daysInMonth
 
-        // Always 6 rows in widget (Apple Calendar style stability)
         let rows = 6
         let totalGridCells = rows * 7
 
@@ -293,52 +319,64 @@ struct RPICentralMonthWidgetView: View {
             uniqueKeysWithValues: month.markers.map { ($0.day, $0) }
         )
 
-        let cellH: CGFloat = compact ? 26 : 34
-        let dotSize: CGFloat = 5
+        let cols: [GridItem] = Array(
+            repeating: GridItem(.flexible(), spacing: metrics.colsSpacing),
+            count: 7
+        )
 
-        let cols: [GridItem] = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-
-        return LazyVGrid(columns: cols, spacing: 4) {
-            ForEach(0..<totalGridCells, id: \.self) { idx in
+        return LazyVGrid(columns: cols, spacing: metrics.gridSpacing) {
+            // ✅ IMPORTANT: force Int here so Swift doesn't try to pick the Binding ForEach initializer
+            ForEach(0..<totalGridCells, id: \.self) { (idx: Int) in
                 let dayNumber = idx - leadingBlanks + 1
 
                 if dayNumber < 1 || dayNumber > month.daysInMonth {
                     Color.clear
-                        .frame(height: cellH)
+                        .frame(height: metrics.cellH)
                 } else {
                     let isToday = (month.todayDay == dayNumber)
-                    let isSelected = isToday
-
                     let marker = markerByDay[dayNumber]
                     let dotColors = marker?.dotColors ?? []
                     let isBreakDay = marker?.isBreakDay ?? false
 
-                    VStack(spacing: 3) {
-                        Text("\(dayNumber)")
-                            .font(.caption)
-                            .monospacedDigit() // ✅ fixes 1-digit/2-digit shifting
-                            .foregroundColor(isSelected ? .black : .white)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                    VStack(spacing: 2.5) {
+                        if compactDigits {
+                            // ✅ 1x1 only: make sure 10–31 never clips/ellipsis
+                            Text("\(dayNumber)")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.25)
+                                .allowsTightening(true)
+                                .truncationMode(.tail)
+                                .foregroundColor(isToday ? .black : .white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        } else {
+                            Text("\(dayNumber)")
+                                .font(.caption2)
+                                .monospacedDigit()
+                                .foregroundColor(isToday ? .black : .white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
 
                         if dotColors.isEmpty {
                             Circle().fill(Color.clear)
-                                .frame(width: dotSize, height: dotSize)
+                                .frame(width: metrics.dotSize, height: metrics.dotSize)
                         } else {
-                            HStack(spacing: 3) {
+                            HStack(spacing: 2.5) {
                                 let colors = Array(dotColors.prefix(3))
                                 ForEach(colors.indices, id: \.self) { i in
                                     Circle()
                                         .fill(colors[i].color)
-                                        .frame(width: dotSize, height: dotSize)
+                                        .frame(width: metrics.dotSize, height: metrics.dotSize)
                                 }
                             }
                             .frame(maxWidth: .infinity)
                         }
                     }
-                    .padding(5)
+                    .padding(metrics.cellPad)
                     .background(
                         ZStack {
-                            if isSelected {
+                            if isToday {
                                 Color.white
                             } else if isBreakDay {
                                 Color.orange.opacity(0.22)
@@ -348,23 +386,262 @@ struct RPICentralMonthWidgetView: View {
                         }
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(isToday ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1.6)
+                        RoundedRectangle(cornerRadius: metrics.corner)
+                            .stroke(isToday ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1.4)
                     )
-                    .cornerRadius(7)
-                    .frame(height: cellH)
+                    .cornerRadius(metrics.corner)
+                    .frame(height: metrics.cellH)
                 }
             }
         }
-        .padding(.horizontal, 4)
     }
 
-    private func monthTitle(year: Int, month: Int) -> String {
+    // ✅ detailed strip for 2x2 (title + time/location)
+    private func todayEventsStrip(maxRows: Int) -> some View {
+        let events = todaysEvents(from: entry.snapshot.todayEvents, now: entry.date, max: maxRows)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            if events.isEmpty {
+                Text("No events today")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                ForEach(events.prefix(maxRows)) { ev in
+                    HStack(alignment: .top, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(ev.accent.color)
+                            .frame(width: 4)
+
+                        VStack(alignment: .leading, spacing: 1.5) {
+                            Text(ev.title)
+                                .font(.caption)
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+
+                            Text(subtitleLine(timeText: timeLabel(for: ev), location: ev.location))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(widgetBarColor.opacity(0.7))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Month + Today widget view (medium only)
+
+struct RPICentralMonthAndTodayWidgetView: View {
+    let entry: MonthEntry
+    @Environment(\.widgetFamily) private var family
+
+    private var month: MonthSnapshot { entry.snapshot.month }
+
+    var body: some View {
+        applyAppearance(
+            content
+                .containerBackground(for: .widget) { widgetBackgroundColor },
+            appearance: entry.snapshot.appearance
+        )
+    }
+
+    private var content: some View {
+        HStack(spacing: 12) {
+            todayPanel(maxRows: 2)
+                .layoutPriority(2)
+
+            miniMonthPanel()
+                .frame(width: 175)
+                .layoutPriority(1)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.top, 30)
+        .padding(.bottom, 25)
+        .padding(.horizontal, 16)
+    }
+
+    private func todayPanel(maxRows: Int) -> some View {
         let df = DateFormatter()
-        df.dateFormat = "LLLL"
-        let cal = Calendar.current
-        let d = cal.date(from: DateComponents(year: year, month: month, day: 1)) ?? Date()
-        return "\(df.string(from: d)) \(year)"
+        df.dateFormat = "EEE, MMM d"
+        let title = df.string(from: entry.date)
+
+        let events = todaysEvents(from: entry.snapshot.todayEvents, now: entry.date, max: maxRows)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Today")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            if events.isEmpty {
+                Text("No events")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            } else {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(events.prefix(maxRows)) { ev in
+                        HStack(alignment: .top, spacing: 8) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(ev.accent.color)
+                                .frame(width: 4)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ev.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+
+                                Text(subtitleLine(timeText: timeLabel(for: ev), location: ev.location))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func miniMonthPanel() -> some View {
+        VStack(spacing: 3) {
+            HStack {
+                Text(monthTitle(year: month.year, month: month.month))
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(widgetBarColor)
+            .cornerRadius(12)
+
+            HStack {
+                ForEach(["M","T","W","T","F","S","S"], id: \.self) { label in
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.95))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 2)
+
+            MonthGridReuse(month: month, metrics: .small, compactDigits: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+// MARK: - Reuse grid (for mini month in 1x2)
+
+private struct MonthGridReuse: View {
+    let month: MonthSnapshot
+    let metrics: MonthGridMetrics
+    let compactDigits: Bool
+
+    var body: some View {
+        let leadingBlanks = (month.firstWeekday - 2 + 7) % 7
+        let rows = 6
+        let totalGridCells = rows * 7
+
+        let markerByDay: [Int: DayMarker] = Dictionary(
+            uniqueKeysWithValues: month.markers.map { ($0.day, $0) }
+        )
+
+        let cols: [GridItem] = Array(
+            repeating: GridItem(.flexible(), spacing: metrics.colsSpacing),
+            count: 7
+        )
+
+        return LazyVGrid(columns: cols, spacing: metrics.gridSpacing) {
+            // ✅ IMPORTANT: force Int here as well
+            ForEach(0..<totalGridCells, id: \.self) { (idx: Int) in
+                let dayNumber = idx - leadingBlanks + 1
+
+                if dayNumber < 1 || dayNumber > month.daysInMonth {
+                    Color.clear
+                        .frame(height: metrics.cellH)
+                } else {
+                    let isToday = (month.todayDay == dayNumber)
+                    let marker = markerByDay[dayNumber]
+                    let dotColors = marker?.dotColors ?? []
+                    let isBreakDay = marker?.isBreakDay ?? false
+
+                    VStack(spacing: 2.5) {
+                        if compactDigits {
+                            Text("\(dayNumber)")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.25)
+                                .allowsTightening(true)
+                                .truncationMode(.tail)
+                                .foregroundColor(isToday ? .black : .white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        } else {
+                            Text("\(dayNumber)")
+                                .font(.caption2)
+                                .monospacedDigit()
+                                .foregroundColor(isToday ? .black : .white)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+
+                        if dotColors.isEmpty {
+                            Circle().fill(Color.clear)
+                                .frame(width: metrics.dotSize, height: metrics.dotSize)
+                        } else {
+                            HStack(spacing: 2.5) {
+                                let colors = Array(dotColors.prefix(3))
+                                ForEach(colors.indices, id: \.self) { i in
+                                    Circle()
+                                        .fill(colors[i].color)
+                                        .frame(width: metrics.dotSize, height: metrics.dotSize)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(metrics.cellPad)
+                    .background(
+                        ZStack {
+                            if isToday {
+                                Color.white
+                            } else if isBreakDay {
+                                Color.orange.opacity(0.22)
+                            } else {
+                                Color.clear
+                            }
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: metrics.corner)
+                            .stroke(isToday ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1.4)
+                    )
+                    .cornerRadius(metrics.corner)
+                    .frame(height: metrics.cellH)
+                }
+            }
+        }
     }
 }
 

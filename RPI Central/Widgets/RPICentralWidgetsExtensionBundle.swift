@@ -10,8 +10,6 @@ import SwiftUI
 struct RPICentralWidgetsExtensionBundle: WidgetBundle {
     var body: some Widget {
         RPICentralMonthWidget()
-
-        // Optional: keep NextUp widget too if you want it
-        // RPICentralNextUpWidget()
+        RPICentralMonthAndTodayWidget()
     }
 }

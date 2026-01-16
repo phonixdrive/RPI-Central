@@ -35,6 +35,8 @@ final class CourseCatalogService: ObservableObject {
 
     private func loadCourses(for semester: Semester) {
         let term = semester.rawValue
+        print("🟦 Loading QuACS term:", term, "semester:", semester)
+
         Task.detached(priority: .userInitiated) { [term] in
             do {
                 let built = try QuACSLoader.buildCourses(termCode: term)

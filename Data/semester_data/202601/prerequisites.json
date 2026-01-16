@@ -5503,6 +5503,15 @@
       }
     }
   },
+  "35615": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
   "35616": {
     "restrictions": {
       "level": {
@@ -5683,6 +5692,15 @@
           "Freshman",
           "Junior",
           "Sophomore"
+        ]
+      }
+    }
+  },
+  "35638": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
         ]
       }
     }
@@ -6860,15 +6878,6 @@
     }
   },
   "35802": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "35803": {
     "restrictions": {
       "level": {
         "must_be": [
@@ -12293,12 +12302,6 @@
     }
   },
   "36369": {},
-  "36370": {},
-  "36371": {},
-  "36372": {},
-  "36373": {},
-  "36374": {},
-  "36375": {},
   "36378": {
     "cross_list_courses": [
       "PSYC-4730"
@@ -12363,7 +12366,6 @@
       }
     }
   },
-  "36398": {},
   "36402": {
     "restrictions": {
       "classification": {
@@ -15568,18 +15570,6 @@
       "type": "and"
     }
   },
-  "36668": {
-    "cross_list_courses": [
-      "CSCI-4961"
-    ],
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "36669": {
     "cross_list_courses": [
       "ARTS-2180"
@@ -15892,13 +15882,6 @@
       "course": "ARCH 4820",
       "min_grade": "D",
       "type": "course"
-    },
-    "restrictions": {
-      "college": {
-        "must_be": [
-          "No School Designated"
-        ]
-      }
     }
   },
   "36698": {
@@ -17226,7 +17209,7 @@
   "36851": {
     "prerequisites": {
       "course": "ENGR 6220",
-      "min_grade": "D",
+      "min_grade": "C",
       "type": "course"
     },
     "restrictions": {
@@ -17318,20 +17301,6 @@
     }
   },
   "36857": {
-    "restrictions": {
-      "campus": {
-        "must_be": [
-          "Hartford"
-        ]
-      },
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "36858": {
     "restrictions": {
       "campus": {
         "must_be": [
@@ -17996,28 +17965,6 @@
       }
     }
   },
-  "36921": {
-    "cross_list_courses": [
-      "MGMT-4530"
-    ],
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "36922": {
-    "cross_list_courses": [
-      "MGMT-6630"
-    ]
-  },
   "36923": {
     "cross_list_courses": [
       "CIVL-2060"
@@ -18409,31 +18356,6 @@
         }
       ],
       "type": "and"
-    }
-  },
-  "36964": {
-    "cross_list_courses": [
-      "CSCI-6961"
-    ],
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "CSCI 4150",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "CSCI 4100",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "CSCI 6100",
-          "min_grade": "D",
-          "type": "course"
-        }
-      ],
-      "type": "or"
     }
   },
   "36965": {
@@ -19093,6 +19015,16 @@
       "MGMT-6560"
     ]
   },
+  "37038": {
+    "corequisites": [
+      "ARCH-2810"
+    ],
+    "prerequisites": {
+      "course": "ARCH 2520",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
   "37039": {
     "restrictions": {
       "level": {
@@ -19680,11 +19612,6 @@
       "ARTS-4040"
     ],
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -19840,14 +19767,7 @@
   "37120": {
     "cross_list_courses": [
       "GSAS-6200"
-    ],
-    "restrictions": {
-      "major": {
-        "must_be": [
-          "Games & Simulation Arts & Sci"
-        ]
-      }
-    }
+    ]
   },
   "37121": {
     "restrictions": {
@@ -20619,7 +20539,6 @@
   "37221": {},
   "37222": {},
   "37223": {},
-  "37224": {},
   "37225": {
     "cross_list_courses": [
       "INQR-1220",
@@ -22147,7 +22066,11 @@
       "type": "and"
     }
   },
-  "37437": {},
+  "37437": {
+    "cross_list_courses": [
+      "LGHT-6960"
+    ]
+  },
   "37439": {
     "cross_list_courses": [
       "ERTH-2140"
@@ -22242,27 +22165,6 @@
       "course": "ARCH 4320",
       "min_grade": "D",
       "type": "course"
-    }
-  },
-  "37450": {
-    "corequisites": [
-      "ARCH-2360",
-      "ARCH-2550"
-    ],
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "ARCH 2820",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "ARCH 2540",
-          "min_grade": "D",
-          "type": "course"
-        }
-      ],
-      "type": "and"
     }
   },
   "37451": {},
@@ -22376,13 +22278,6 @@
     ],
     "prerequisites": {
       "course": "ARCH 5160",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
-  "37473": {
-    "prerequisites": {
-      "course": "ARCH 5200",
       "min_grade": "D",
       "type": "course"
     }
@@ -23172,7 +23067,6 @@
       "type": "course"
     }
   },
-  "37648": {},
   "37649": {
     "restrictions": {
       "level": {
@@ -23221,7 +23115,10 @@
   },
   "37661": {},
   "37662": {},
+  "37664": {},
   "37665": {},
+  "37667": {},
+  "37668": {},
   "37669": {},
   "37670": {
     "restrictions": {
@@ -23264,6 +23161,7 @@
       }
     }
   },
+  "37675": {},
   "37679": {},
   "37680": {},
   "37681": {},
@@ -23281,6 +23179,7 @@
     }
   },
   "37688": {},
+  "37689": {},
   "37691": {},
   "37692": {},
   "37693": {},
@@ -23296,6 +23195,8 @@
   "37709": {},
   "37710": {},
   "37712": {},
+  "37713": {},
+  "37714": {},
   "37716": {},
   "37718": {},
   "37719": {},
@@ -23304,6 +23205,7 @@
   "37722": {},
   "37726": {},
   "37730": {},
+  "37732": {},
   "37733": {},
   "37734": {},
   "37735": {},
@@ -23311,17 +23213,21 @@
   "37739": {},
   "37740": {},
   "37742": {},
+  "37743": {},
   "37744": {},
   "37745": {},
   "37746": {},
   "37747": {},
   "37748": {},
   "37749": {},
+  "37750": {},
   "37755": {},
   "37756": {},
   "37757": {},
   "37761": {},
+  "37762": {},
   "37763": {},
+  "37769": {},
   "37771": {},
   "37774": {},
   "37780": {},
@@ -23329,12 +23235,20 @@
   "37784": {},
   "37788": {},
   "37789": {},
+  "37790": {},
+  "37791": {},
   "37793": {},
+  "37801": {},
   "37802": {},
+  "37803": {},
   "37805": {},
+  "37806": {},
   "37807": {},
   "37808": {},
+  "37816": {},
+  "37818": {},
   "37819": {},
+  "37820": {},
   "37821": {},
   "37822": {},
   "37823": {},
@@ -23343,10 +23257,13 @@
   "37827": {},
   "37834": {},
   "37835": {},
+  "37838": {},
   "37840": {},
   "37841": {},
+  "37845": {},
   "37847": {},
   "37851": {},
+  "37854": {},
   "37855": {},
   "37858": {},
   "37862": {},
@@ -23358,19 +23275,29 @@
   "37875": {},
   "37878": {},
   "37879": {},
+  "37882": {},
+  "37889": {},
   "37891": {},
+  "37894": {},
   "37897": {},
   "37898": {},
+  "37902": {},
   "37903": {},
   "37905": {},
   "37912": {},
   "37913": {},
+  "37914": {},
+  "37915": {},
+  "37917": {},
+  "37918": {},
   "37921": {},
   "37922": {},
   "37923": {},
   "37924": {},
   "37927": {},
   "37928": {},
+  "37936": {},
+  "37938": {},
   "37942": {},
   "37945": {},
   "37948": {},
@@ -23378,9 +23305,15 @@
   "37950": {},
   "37957": {},
   "37962": {},
+  "37963": {},
   "37970": {},
   "37972": {},
+  "37985": {},
   "37986": {},
+  "37988": {},
+  "37989": {},
+  "37992": {},
+  "37993": {},
   "37997": {},
   "37998": {},
   "37999": {
@@ -23404,12 +23337,14 @@
   "38036": {},
   "38037": {},
   "38038": {},
+  "38039": {},
   "38042": {},
   "38043": {},
   "38045": {},
   "38046": {},
   "38053": {},
   "38055": {},
+  "38056": {},
   "38057": {
     "restrictions": {
       "classification": {
@@ -23420,6 +23355,7 @@
       }
     }
   },
+  "38058": {},
   "38061": {
     "restrictions": {
       "level": {
@@ -23502,7 +23438,6 @@
   "38089": {},
   "38090": {},
   "38091": {},
-  "38092": {},
   "38095": {},
   "38096": {},
   "38097": {},
@@ -24352,13 +24287,6 @@
       }
     }
   },
-  "38291": {
-    "prerequisites": {
-      "course": "ARCH 2830",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
   "38292": {},
   "38293": {
     "cross_list_courses": [
@@ -24508,11 +24436,6 @@
   },
   "38316": {
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -25068,6 +24991,9 @@
     }
   },
   "38431": {
+    "cross_list_courses": [
+      "CSCI-6967"
+    ],
     "prerequisites": {
       "course": "CSCI 2300",
       "min_grade": "D",
@@ -25075,6 +25001,9 @@
     }
   },
   "38432": {
+    "cross_list_courses": [
+      "CSCI-4967"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -25197,6 +25126,7 @@
     }
   },
   "38447": {
+    "cross_list_courses": [],
     "prerequisites": {
       "nested": [
         {
@@ -26216,24 +26146,6 @@
       }
     }
   },
-  "38525": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman"
-        ]
-      }
-    }
-  },
-  "38526": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman"
-        ]
-      }
-    }
-  },
   "38527": {},
   "38529": {
     "cross_list_courses": [
@@ -26268,15 +26180,6 @@
         "must_be": [
           "Freshman",
           "Sophomore"
-        ]
-      }
-    }
-  },
-  "38532": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman"
         ]
       }
     }
@@ -26345,7 +26248,8 @@
     "restrictions": {
       "classification": {
         "must_be": [
-          "Freshman"
+          "Freshman",
+          "Sophomore"
         ]
       },
       "major": {
@@ -26368,23 +26272,7 @@
       }
     }
   },
-  "38543": {
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "STSO 1100",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "INQR 1100",
-          "min_grade": "D",
-          "type": "course"
-        }
-      ],
-      "type": "or"
-    }
-  },
+  "38543": {},
   "38544": {},
   "38545": {
     "prerequisites": {
@@ -26447,7 +26335,8 @@
     "restrictions": {
       "classification": {
         "must_be": [
-          "Freshman"
+          "Freshman",
+          "Sophomore"
         ]
       }
     }
@@ -28058,5 +27947,129 @@
         ]
       }
     }
-  }
+  },
+  "39061": {},
+  "39062": {},
+  "39063": {},
+  "39064": {},
+  "39065": {},
+  "39066": {},
+  "39067": {},
+  "39068": {},
+  "39069": {},
+  "39071": {
+    "prerequisites": {
+      "course": "ARCH 4770",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "39072": {},
+  "39073": {},
+  "39074": {},
+  "39075": {},
+  "39076": {},
+  "39077": {},
+  "39078": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39079": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39080": {
+    "cross_list_courses": [
+      "LGHT-4960"
+    ]
+  },
+  "39081": {},
+  "39082": {},
+  "39083": {},
+  "39084": {},
+  "39089": {},
+  "39090": {},
+  "39093": {},
+  "39094": {},
+  "39095": {},
+  "39096": {},
+  "39097": {},
+  "39098": {},
+  "39099": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Junior",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39100": {},
+  "39101": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39102": {},
+  "39103": {},
+  "39105": {},
+  "39107": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Junior",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39108": {},
+  "39109": {},
+  "39110": {},
+  "39111": {},
+  "39112": {},
+  "39113": {},
+  "39114": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39115": {},
+  "39116": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39117": {},
+  "39118": {}
 }

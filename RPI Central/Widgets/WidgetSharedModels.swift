@@ -11,16 +11,11 @@ import UIKit
 #endif
 
 enum RPICentralWidgetShared {
-    // MUST match the App Group in Signing & Capabilities for BOTH targets.
     static let appGroup = "group.phonix.RPI-Central"
-
     static let snapshotKey = "rpiCentral.widget.snapshot.v4"
-
-    // Debug only: lets you confirm both targets are reading same suite.
     static let debugKey = "rpiCentral.widget.debug"
 }
 
-/// Matches your app tint selector
 enum RPICentralWidgetTheme: String, Codable {
     case blue, red, green, purple, orange
 
@@ -35,14 +30,12 @@ enum RPICentralWidgetTheme: String, Codable {
     }
 }
 
-/// Mirrors your AppAppearanceMode
 enum RPICentralWidgetAppearance: String, Codable {
     case system
     case light
     case dark
 }
 
-/// Codable RGBA color so the widget can render identical colors.
 struct RGBAColor: Codable, Equatable, Hashable {
     var r: Double
     var g: Double
@@ -64,13 +57,11 @@ struct RGBAColor: Codable, Equatable, Hashable {
         if ui.getRed(&rr, green: &gg, blue: &bb, alpha: &aa) {
             return RGBAColor(r: Double(rr), g: Double(gg), b: Double(bb), a: Double(aa))
         } else {
-            // fallback
             return RGBAColor(r: 0.2, g: 0.4, b: 0.9, a: 1.0)
         }
     }
     #else
     static func from(_ swiftUIColor: Color) -> RGBAColor {
-        // If UIKit isn’t available, just return a safe fallback.
         return RGBAColor(r: 0.2, g: 0.4, b: 0.9, a: 1.0)
     }
     #endif
@@ -93,7 +84,7 @@ struct WidgetDayEvent: Codable, Identifiable {
     var isAllDay: Bool
     var background: RGBAColor
     var accent: RGBAColor
-    var badge: String? // "exam", "recitation", or nil
+    var badge: String?
 }
 
 struct MonthSnapshot: Codable {
@@ -106,8 +97,6 @@ struct MonthSnapshot: Codable {
     var markers: [DayMarker]
 }
 
-/// Marker for a month cell: dot colors + flags.
-/// IMPORTANT: custom decoding so missing keys don't break decoding (prevents fallbackSnapshot).
 struct DayMarker: Codable {
     var day: Int
     var dotColors: [RGBAColor]
