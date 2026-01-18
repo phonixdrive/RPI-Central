@@ -13,8 +13,10 @@ enum NotificationManager {
     static func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(
             options: [.alert, .sound, .badge]
-        ) { _, _ in
-            // You could handle errors here if you want
+        ) { granted, err in
+            #if DEBUG
+            print("🔔 Notifications permission granted:", granted, "err:", err as Any)
+            #endif
         }
     }
 
@@ -33,7 +35,7 @@ enum NotificationManager {
 
         let content = UNMutableNotificationContent()
         content.title = event.title
-        content.body = "Class starts at \(timeString(event.startDate))"
+        content.body = "Starts at \(timeString(event.startDate))"
         content.sound = .default
 
         let comps = Calendar.current.dateComponents(
@@ -48,7 +50,41 @@ enum NotificationManager {
             trigger: trigger
         )
 
-        center.add(request, withCompletionHandler: nil)
+        center.add(request) { err in
+            #if DEBUG
+            if let err {
+                print("❌ Notification schedule failed:", err)
+            } else {
+                print("✅ Scheduled:", event.title, "at", triggerDate)
+            }
+            #endif
+        }
+    }
+
+    /// ✅ Debug button: schedules a notification 5 seconds from now.
+    static func scheduleTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "RPI Central Test"
+        content.body = "If you see this, notifications work."
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+
+        let request = UNNotificationRequest(
+            identifier: "rpi_central_test_notification",
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { err in
+            #if DEBUG
+            if let err {
+                print("❌ Test notification failed:", err)
+            } else {
+                print("✅ Test notification scheduled (5s)")
+            }
+            #endif
+        }
     }
 
     private static func timeString(_ date: Date) -> String {
