@@ -194,6 +194,13 @@ struct CalendarView: View {
             monthPicker
 
             Spacer()
+            
+            //Add event button(restored)
+            Button(action: { showingAddEvent = true }) {
+                      Image(systemName: "plus.circle.fill")
+                          .font(.title3)
+                  }
+                  .accessibilityLabel("Add event")
 
             // ✅ TODAY button
             Button {
@@ -350,6 +357,10 @@ struct TimelineCalendarView: View {
     @State private var allDaySheetTitle: String = ""
     @State private var allDaySheetEvents: [ClassEvent] = []
 
+    // ✅ LIVE now time (forces re-render)
+    @State private var now: Date = Date()
+    private let nowTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
     private let calendar = Calendar.current
     private let dayStartHour = 7
     private let dayEndHour = 22
@@ -360,7 +371,7 @@ struct TimelineCalendarView: View {
 
     var body: some View {
         let intervalCount = dayEndHour - dayStartHour
-        let today = Date()
+        let today = now   // ✅ use live clock, not frozen Date()
 
         VStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: 0) {
@@ -370,8 +381,6 @@ struct TimelineCalendarView: View {
                     let isToday = calendar.isDate(day, inSameDayAs: today)
 
                     VStack(spacing: 2) {
-                        let isToday = calendar.isDateInToday(day)
-
                         Text(day.formatted("EEE"))
                             .font(.subheadline.bold())
                             .foregroundColor(isToday ? viewModel.themeColor : .white)
@@ -453,6 +462,8 @@ struct TimelineCalendarView: View {
                     let dayWidth = (gridRightX - gridLeftX) / CGFloat(max(days.count, 1))
 
                     ZStack(alignment: .topLeading) {
+
+                        // ✅ grid horizontal lines
                         ForEach(0...intervalCount, id: \.self) { idx in
                             let y = CGFloat(idx) * rowHeight
 
@@ -471,6 +482,7 @@ struct TimelineCalendarView: View {
                             }
                         }
 
+                        // ✅ grid vertical lines (multi-day)
                         if days.count > 1 {
                             ForEach(1..<days.count, id: \.self) { col in
                                 let x = gridLeftX + dayWidth * CGFloat(col)
@@ -479,21 +491,6 @@ struct TimelineCalendarView: View {
                                     path.addLine(to: CGPoint(x: x, y: totalHeight))
                                 }
                                 .stroke(Color.white.opacity(0.7), lineWidth: 1.1)
-                            }
-                        }
-
-                        if displayMode == .day || displayMode == .threeDay || displayMode == .week {
-                            if let nowY = nowLineY(totalHeight: totalHeight) {
-                                Path { path in
-                                    path.move(to: CGPoint(x: gridLeftX, y: nowY))
-                                    path.addLine(to: CGPoint(x: gridRightX, y: nowY))
-                                }
-                                .stroke(Color.red, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-
-                                Text("Now")
-                                    .font(.caption2)
-                                    .foregroundColor(.red)
-                                    .position(x: gridLeftX - 20, y: nowY)
                             }
                         }
 
@@ -529,10 +526,31 @@ struct TimelineCalendarView: View {
                                 }
                             }
                         }
+
+                        // ✅ NOW LINE MUST BE LAST so it draws ON TOP
+                        if displayMode == .day || displayMode == .threeDay || displayMode == .week {
+                            if let nowY = nowLineY(totalHeight: totalHeight, now: now) {
+                                Path { path in
+                                    path.move(to: CGPoint(x: gridLeftX, y: nowY))
+                                    path.addLine(to: CGPoint(x: gridRightX, y: nowY))
+                                }
+                                .stroke(Color.red, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                                .zIndex(999)
+
+                                Text("Now")
+                                    .font(.caption2)
+                                    .foregroundColor(.red)
+                                    .position(x: gridLeftX - 20, y: nowY)
+                                    .zIndex(999)
+                            }
+                        }
                     }
                     .frame(height: totalHeight)
                 }
             }
+        }
+        .onReceive(nowTimer) { t in
+            now = t
         }
         .sheet(item: $selectedEvent) { event in
             ClassEventDetailView(event: event)
@@ -637,7 +655,6 @@ struct TimelineCalendarView: View {
         totalHeight: CGFloat
     ) -> some View {
 
-        // default order: shortest duration first
         let base = group.sorted {
             let d0 = $0.endDate.timeIntervalSince($0.startDate)
             let d1 = $1.endDate.timeIntervalSince($1.startDate)
@@ -670,7 +687,6 @@ struct TimelineCalendarView: View {
                 }
             }
         }
-        // ✅ Only overlap stacks steal swipe → week swipe doesn't break
         .highPriorityGesture(
             DragGesture(minimumDistance: 12)
                 .onEnded { value in
@@ -712,8 +728,7 @@ struct TimelineCalendarView: View {
         return CGRect(x: 0, y: minY, width: 0, height: height)
     }
 
-    private func nowLineY(totalHeight: CGFloat) -> CGFloat? {
-        let now = Date()
+    private func nowLineY(totalHeight: CGFloat, now: Date) -> CGFloat? {
         guard days.contains(where: { calendar.isDate($0, inSameDayAs: now) }) else { return nil }
 
         let comps = calendar.dateComponents([.hour, .minute], from: now)

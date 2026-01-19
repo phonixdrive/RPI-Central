@@ -47,21 +47,30 @@ struct SettingsView: View {
 
                 // NOTIFICATIONS (UI only – wiring to real notifications can come later)
                 Section(header: Text("Notifications")) {
-                    Toggle("Enable class reminders", isOn: $notificationsEnabled)
+                    Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)
 
-                    if notificationsEnabled {
+                    if calendarViewModel.notificationsEnabled {
                         HStack {
                             Text("Remind me")
                             Spacer()
-                            Text("\(Int(minutesBeforeClass)) min before")
+                            Text("\(calendarViewModel.minutesBeforeClass) min before")
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(
-                            value: $minutesBeforeClass,
+                            value: Binding(
+                                get: { Double(calendarViewModel.minutesBeforeClass) },
+                                set: { calendarViewModel.minutesBeforeClass = Int($0) }
+                            ),
                             in: 0...120,
                             step: 5
                         )
+
+                        // ✅ temporary debug button
+                        Button("Test notification (5 seconds)") {
+                            NotificationManager.requestAuthorization()
+                            NotificationManager.scheduleTestNotification()
+                        }
                     }
                 }
 
