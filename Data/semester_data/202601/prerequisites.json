@@ -327,7 +327,11 @@
       "type": "course"
     }
   },
-  "35032": {},
+  "35032": {
+    "cross_list_courses": [
+      "MATH-1010"
+    ]
+  },
   "35033": {},
   "35034": {
     "prerequisites": {
@@ -3181,7 +3185,11 @@
       }
     }
   },
-  "35231": {},
+  "35231": {
+    "cross_list_courses": [
+      "MATH-1010"
+    ]
+  },
   "35232": {
     "cross_list_courses": [
       "MATH-2400"
@@ -6308,7 +6316,7 @@
   },
   "35730": {
     "cross_list_courses": [
-      "MATH-2010"
+      "MATH-2012"
     ],
     "prerequisites": {
       "course": "MATH 1020",
@@ -16930,8 +16938,16 @@
       "type": "and"
     }
   },
-  "36832": {},
-  "36833": {},
+  "36832": {
+    "cross_list_courses": [
+      "MATH-1010"
+    ]
+  },
+  "36833": {
+    "cross_list_courses": [
+      "MATH-1010"
+    ]
+  },
   "36834": {
     "cross_list_courses": [
       "ISYE-4350"
@@ -21437,11 +21453,6 @@
       "CSCI-1100"
     ]
   },
-  "37362": {
-    "cross_list_courses": [
-      "CSCI-1100"
-    ]
-  },
   "37363": {
     "cross_list_courses": [
       "CSCI-1100"
@@ -21954,7 +21965,6 @@
       }
     }
   },
-  "37424": {},
   "37426": {
     "cross_list_courses": [
       "COMM-2660"
@@ -22306,15 +22316,6 @@
       "type": "course"
     }
   },
-  "37483": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "37485": {},
   "37486": {},
   "37487": {
@@ -22593,6 +22594,9 @@
     }
   },
   "37513": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22600,6 +22604,9 @@
     }
   },
   "37514": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22607,6 +22614,9 @@
     }
   },
   "37515": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22614,6 +22624,9 @@
     }
   },
   "37516": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22621,6 +22634,9 @@
     }
   },
   "37517": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22628,6 +22644,9 @@
     }
   },
   "37518": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22635,6 +22654,9 @@
     }
   },
   "37519": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -22642,6 +22664,9 @@
     }
   },
   "37520": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -24002,6 +24027,9 @@
   "38250": {},
   "38251": {},
   "38252": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -24009,6 +24037,9 @@
     }
   },
   "38253": {
+    "cross_list_courses": [
+      "PHYS-1110"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -25794,16 +25825,6 @@
       }
     }
   },
-  "38490": {
-    "corequisites": [
-      "ARCH-4325"
-    ],
-    "prerequisites": {
-      "course": "ARCH 4820",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
   "38491": {
     "prerequisites": {
       "nested": [
@@ -27562,6 +27583,9 @@
     ]
   },
   "39011": {
+    "cross_list_courses": [
+      "MATH-1020"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -27569,6 +27593,9 @@
     }
   },
   "39012": {
+    "cross_list_courses": [
+      "MATH-1020"
+    ],
     "prerequisites": {
       "course": "MATH 1010",
       "min_grade": "D",
@@ -28071,5 +28098,57 @@
     }
   },
   "39117": {},
-  "39118": {}
+  "39118": {},
+  "39119": {},
+  "39120": {},
+  "39121": {},
+  "39122": {},
+  "39126": {},
+  "39127": {},
+  "39128": {},
+  "39129": {},
+  "39130": {},
+  "39131": {},
+  "39132": {},
+  "39133": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39134": {},
+  "39135": {},
+  "39136": {},
+  "39137": {},
+  "39138": {},
+  "39139": {},
+  "39140": {},
+  "39141": {},
+  "39142": {},
+  "39143": {},
+  "39144": {},
+  "39145": {},
+  "39146": {},
+  "39147": {},
+  "39148": {},
+  "39149": {},
+  "39151": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39152": {},
+  "39153": {},
+  "39155": {},
+  "39156": {},
+  "39160": {}
 }
