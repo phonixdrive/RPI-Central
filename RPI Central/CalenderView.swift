@@ -363,7 +363,7 @@ struct TimelineCalendarView: View {
 
     private let calendar = Calendar.current
     private let dayStartHour = 7
-    private let dayEndHour = 22
+    private let dayEndHour = 24
     private let rowHeight: CGFloat = 60
     private let timeColWidth: CGFloat = 56
 
@@ -455,8 +455,11 @@ struct TimelineCalendarView: View {
             }
 
             ScrollView {
+                // ✅ IMPORTANT: compute this OUTSIDE the GeometryReader
+                // so we can give the GeometryReader a real content height (otherwise scrolling bounces back)
+                let totalHeight = CGFloat(intervalCount) * rowHeight
+
                 GeometryReader { geo in
-                    let totalHeight = CGFloat(intervalCount) * rowHeight
                     let gridLeftX = timeColWidth
                     let gridRightX = geo.size.width
                     let dayWidth = (gridRightX - gridLeftX) / CGFloat(max(days.count, 1))
@@ -547,6 +550,8 @@ struct TimelineCalendarView: View {
                     }
                     .frame(height: totalHeight)
                 }
+                // ✅ THIS is the actual fix: GeometryReader must have the full content height
+                .frame(height: totalHeight)
             }
         }
         .onReceive(nowTimer) { t in

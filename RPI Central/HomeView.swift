@@ -37,6 +37,7 @@ struct HomeView: View {
                     Section {
                         ForEach(enrollments, id: \.id) { enrollment in
                             HStack(spacing: 12) {
+                                // LEFT: course info (takes remaining width)
                                 NavigationLink {
                                     CourseDetailView(course: enrollment.course)
                                         .environmentObject(calendarViewModel)
@@ -44,27 +45,35 @@ struct HomeView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("\(enrollment.course.subject) \(enrollment.course.number)")
                                             .font(.headline)
+                                            .lineLimit(1)
+
                                         Text(enrollment.course.title)
                                             .font(.subheadline)
+                                            .lineLimit(1)
 
                                         if let firstMeeting = enrollment.section.meetings.first {
                                             Text(firstMeeting.humanReadableSummary)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
+                                                .lineLimit(1)
                                         }
 
                                         if !enrollment.section.instructor.isEmpty {
                                             Text(enrollment.section.instructor)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
+                                                .lineLimit(1)
                                         }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                .layoutPriority(1)
 
-                                Spacer(minLength: 8)
-
-                                GradeMenu(enrollmentID: enrollment.id)
+                                // RIGHT: grade capsule (guaranteed visible)
+                                GradeBreakdownButton(enrollmentID: enrollment.id)
                                     .environmentObject(calendarViewModel)
+                                    .fixedSize(horizontal: true, vertical: false)
+                                    .layoutPriority(2)
                             }
                         }
                         .onDelete { offsets in
@@ -76,9 +85,7 @@ struct HomeView: View {
                     } header: {
                         HStack {
                             Text(semesterName)
-
                             Spacer()
-
                             let termGPA = calendarViewModel.gpa(for: semCode)
                             Text("GPA \(GPACalculator.format(termGPA))")
                                 .foregroundStyle(.secondary)
@@ -97,60 +104,10 @@ struct HomeView: View {
     }
 }
 
-private struct GradeMenu: View {
-    @EnvironmentObject var calendarViewModel: CalendarViewModel
-    let enrollmentID: String
-
-    var body: some View {
-        let current = calendarViewModel.grade(for: enrollmentID)
-
-        Menu {
-            ForEach(LetterGrade.ordered, id: \.rawValue) { g in
-                Button {
-                    calendarViewModel.setGrade(g, for: enrollmentID)
-                } label: {
-                    if current == g {
-                        Label(g.rawValue, systemImage: "checkmark")
-                    } else {
-                        Text(g.rawValue)
-                    }
-                }
-            }
-
-            if current != nil {
-                Divider()
-
-                Button(role: .destructive) {
-                    calendarViewModel.clearGrade(for: enrollmentID)
-                } label: {
-                    Label("Clear grade", systemImage: "xmark.circle")
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(current?.rawValue ?? "Grade")
-                    .font(.subheadline.weight(.semibold))
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Set grade")
-    }
-}
-
 // MARK: - Meeting helper
 
 extension Meeting {
-    /// Human-readable summary of the first meeting, e.g.
-    /// "M, W, F 10:00–10:50 · DARRIN 330"
     var humanReadableSummary: String {
-        // ✅ Key fix: show actual weekday codes ("M", "R") instead of enum case names ("mon", "thu")
         let daysString = days.map { $0.shortName }.joined(separator: ", ")
 
         if location.isEmpty {

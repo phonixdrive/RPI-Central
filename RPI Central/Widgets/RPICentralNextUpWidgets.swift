@@ -165,15 +165,36 @@ private func subtitleLine(timeText: String, location: String) -> String {
     location.isEmpty ? timeText : "\(timeText) • \(location)"
 }
 
+/// ✅ Filter out Fall 2025 classes (and similar tokens) WITHOUT touching dots/month logic.
+/// This only affects the "Today" list, not your month snapshot markers.
+private func filterOutFall2025(_ events: [WidgetDayEvent]) -> [WidgetDayEvent] {
+    let blockedTokens: [String] = [
+        "202509",       // Fall 2025 QuACS term code
+        "fall2025",     // common
+        "fall 2025"     // common
+    ]
+
+    return events.filter { ev in
+        let key = ev.id.lowercased()
+        for token in blockedTokens {
+            if key.contains(token) { return false }
+        }
+        return true
+    }
+}
+
 /// ✅ "Today’s events" (not "upcoming after now")
 private func todaysEvents(from all: [WidgetDayEvent], now: Date, max: Int) -> [WidgetDayEvent] {
     let cal = Calendar.current
 
-    let allDay = all
+    // ✅ remove Fall 2025 first (doesn't affect dots/month)
+    let cleaned = filterOutFall2025(all)
+
+    let allDay = cleaned
         .filter { $0.isAllDay }
         .filter { cal.isDate($0.startDate, inSameDayAs: now) || cal.isDate($0.endDate, inSameDayAs: now) }
 
-    let timed = all
+    let timed = cleaned
         .filter { !$0.isAllDay }
         .filter { cal.isDate($0.startDate, inSameDayAs: now) }
         .sorted { $0.startDate < $1.startDate }
@@ -262,11 +283,10 @@ struct RPICentralMonthOnlyWidgetView: View {
                 .padding(.horizontal, 4)
 
             todayEventsStrip(maxRows: 3)
-               // .padding(.top, 2)
 
             Spacer(minLength: 0)
         }
-        .padding(.top, 20)  // or 20
+        .padding(.top, 20)
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
     }
@@ -325,7 +345,6 @@ struct RPICentralMonthOnlyWidgetView: View {
         )
 
         return LazyVGrid(columns: cols, spacing: metrics.gridSpacing) {
-            // ✅ IMPORTANT: force Int here so Swift doesn't try to pick the Binding ForEach initializer
             ForEach(0..<totalGridCells, id: \.self) { (idx: Int) in
                 let dayNumber = idx - leadingBlanks + 1
 
@@ -340,7 +359,6 @@ struct RPICentralMonthOnlyWidgetView: View {
 
                     VStack(spacing: 2.5) {
                         if compactDigits {
-                            // ✅ 1x1 only: make sure 10–31 never clips/ellipsis
                             Text("\(dayNumber)")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                                 .monospacedDigit()
@@ -396,7 +414,6 @@ struct RPICentralMonthOnlyWidgetView: View {
         }
     }
 
-    // ✅ detailed strip for 2x2 (title + time/location)
     private func todayEventsStrip(maxRows: Int) -> some View {
         let events = todaysEvents(from: entry.snapshot.todayEvents, now: entry.date, max: maxRows)
 
@@ -574,7 +591,6 @@ private struct MonthGridReuse: View {
         )
 
         return LazyVGrid(columns: cols, spacing: metrics.gridSpacing) {
-            // ✅ IMPORTANT: force Int here as well
             ForEach(0..<totalGridCells, id: \.self) { (idx: Int) in
                 let dayNumber = idx - leadingBlanks + 1
 
