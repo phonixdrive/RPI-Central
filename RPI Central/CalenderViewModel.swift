@@ -103,6 +103,8 @@ final class CalendarViewModel: ObservableObject {
 
     private let themeColorKey = "settings_theme_color_v1"
     private let appearanceModeKey = "settings_appearance_mode_v1"
+    private let notificationsEnabledKey = "settings_notifications_enabled_v1"
+    private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -114,6 +116,19 @@ final class CalendarViewModel: ObservableObject {
     @Published var appearanceMode: AppAppearanceMode = .dark {
         didSet {
             UserDefaults.standard.set(appearanceMode.rawValue, forKey: appearanceModeKey)
+        }
+    }
+    @Published var notificationsEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(notificationsEnabled, forKey: notificationsEnabledKey)
+            applyNotificationScheduling()
+        }
+    }
+
+    @Published var minutesBeforeClass: Int = 10 {
+        didSet {
+            UserDefaults.standard.set(minutesBeforeClass, forKey: minutesBeforeClassKey)
+            applyNotificationScheduling()
         }
     }
 
@@ -128,6 +143,30 @@ final class CalendarViewModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(enforcePrerequisites, forKey: enforcePrereqsKey)
         }
+    }
+    
+    //Notifcation shit
+    private func applyNotificationScheduling() {
+        // if disabled, wipe pending requests
+        if !notificationsEnabled {
+            NotificationManager.clearScheduledNotifications()
+            return
+        }
+
+        NotificationManager.requestAuthorization()
+
+        // reschedule everything
+        NotificationManager.clearScheduledNotifications()
+
+        // schedule reminders for all class meetings you currently have loaded
+        let classMeetings = events.filter { !$0.isAllDay && $0.kind == .classMeeting }
+        for ev in classMeetings {
+            NotificationManager.scheduleNotification(for: ev, minutesBefore: minutesBeforeClass)
+        }
+
+        #if DEBUG
+        print("🔔 Rescheduled notifications:", classMeetings.count, "events", "lead:", minutesBeforeClass)
+        #endif
     }
 
     // MARK: - GPA / Grades (per enrollment)
@@ -232,6 +271,14 @@ final class CalendarViewModel: ObservableObject {
         self.enrolledCourses = []
 
         self.enforcePrerequisites = UserDefaults.standard.bool(forKey: enforcePrereqsKey)
+        // ✅ load persisted notification settings
+        if UserDefaults.standard.object(forKey: notificationsEnabledKey) == nil {
+            UserDefaults.standard.set(true, forKey: notificationsEnabledKey)
+        }
+        self.notificationsEnabled = UserDefaults.standard.bool(forKey: notificationsEnabledKey)
+
+        let savedMinutes = UserDefaults.standard.integer(forKey: minutesBeforeClassKey)
+        self.minutesBeforeClass = savedMinutes == 0 ? 10 : savedMinutes
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -255,6 +302,7 @@ final class CalendarViewModel: ObservableObject {
 
         // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
         publishWidgetSnapshot()
+        applyNotificationScheduling()
     }
 
     // MARK: - Widgets (AppGroup snapshot publishing)
