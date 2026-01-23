@@ -178,11 +178,11 @@ final class CalendarViewModel: ObservableObject {
 
     // meetingKey -> override
     @Published private(set) var meetingOverridesByKey: [String: MeetingOverride] = [:]
-    private let meetingOverridesStorageKey = "meeting_overrides_v1"
+    private let meetingOverridesStorageKey = "meeting_overrides_v2"
 
     // meetingKey -> [timeIntervalSince1970 (startOfDay)]
     @Published private(set) var examDatesByMeetingKey: [String: [Double]] = [:]
-    private let examDatesStorageKey = "exam_dates_by_meeting_key_v1"
+    private let examDatesStorageKey = "exam_dates_by_meeting_key_v2"
 
     private let calendar = Calendar.current
 
@@ -388,6 +388,14 @@ final class CalendarViewModel: ObservableObject {
         )
 
         for base in events {
+            if let k = base.meetingKey {
+                let nk = normalizeMeetingKey(k)
+
+                print("READ event meetingKey RAW:", k)
+                print("READ event meetingKey NORM:", nk)
+                print("READ override exists:", meetingOverridesByKey.keys.contains(nk))
+                print("READ examDates exists:", examDatesByMeetingKey.keys.contains(nk))
+            }
             if base.kind == .classMeeting, let enrollmentID = base.enrollmentID {
                 let baseWeekday = calendar.component(.weekday, from: base.startDate)
                 guard baseWeekday == weekday else { continue }
@@ -450,7 +458,7 @@ final class CalendarViewModel: ObservableObject {
                     seriesID: nil,
                     isAllDay: false,
                     kind: .classMeeting,
-                    meetingKey: base.meetingKey
+                    meetingKey: base.meetingKey.map(normalizeMeetingKey)
                 )
 
                 if hiddenClassOccurrences.contains(copy.interactionKey) { continue }
@@ -608,30 +616,65 @@ final class CalendarViewModel: ObservableObject {
     func meetingOverrideKey(enrollmentID: String, course: Course, section: CourseSection, meeting: Meeting) -> String {
         let days = meeting.days.map { "\($0.calendarWeekday)" }.joined(separator: ",")
         let loc = meeting.location
-        return "\(enrollmentID)|\(days)|\(meeting.start)-\(meeting.end)|\(loc)"
+        return "\(enrollmentID)|\(days)|\(meeting.start)-\(meeting.end)"
     }
 
     func meetingOverride(for key: String) -> MeetingOverride {
-        meetingOverridesByKey[key] ?? MeetingOverride(type: .lecture)
+        let k = normalizeMeetingKey(key)
+        return meetingOverridesByKey[k] ?? MeetingOverride(type: .lecture)
     }
 
     func setMeetingOverrideType(_ newType: MeetingBlockType, for key: String) {
-        meetingOverridesByKey[key] = MeetingOverride(type: newType)
+        let k = normalizeMeetingKey(key)
+
+        meetingOverridesByKey[k] = MeetingOverride(type: newType)
         saveMeetingOverrides()
+
+        // ✅ If user changes away from Exam, wipe stored exam dates for this key.
+        if newType != .exam {
+            examDatesByMeetingKey.removeValue(forKey: k)
+            saveExamDates()
+        }
+
         objectWillChange.send()
         scheduleWidgetSnapshotPublish()
     }
 
     func examDates(for key: String) -> [Date] {
-        let raws = examDatesByMeetingKey[key] ?? []
-        return raws.map { Date(timeIntervalSince1970: $0) }.sorted()
+        let k = normalizeMeetingKey(key)
+        let raws = examDatesByMeetingKey[k] ?? []
+        return raws
+            .map { Date(timeIntervalSince1970: $0) }
+            .sorted()
     }
 
     func setExamDates(_ dates: Set<Date>, for key: String) {
-        // store startOfDay to make matching deterministic
-        let normalized: [Double] = Array(Set(dates.map { calendar.startOfDay(for: $0).timeIntervalSince1970 })).sorted()
-        examDatesByMeetingKey[key] = normalized
-        saveExamDates()
+        let k = normalizeMeetingKey(key)
+
+        // Normalize to startOfDay timestamps
+        let normalized: [Double] = Array(Set(dates.map {
+            calendar.startOfDay(for: $0).timeIntervalSince1970
+        })).sorted()
+
+        if normalized.isEmpty {
+            // ✅ removing all dates = "delete exam"
+            examDatesByMeetingKey.removeValue(forKey: k)
+            saveExamDates()
+
+            // ✅ IMPORTANT: if it's currently an exam block, revert it to normal
+            if meetingOverridesByKey[k]?.type == .exam {
+                meetingOverridesByKey.removeValue(forKey: k) // back to default = lecture
+                saveMeetingOverrides()
+            }
+        } else {
+            examDatesByMeetingKey[k] = normalized
+            saveExamDates()
+
+            // ensure it's marked as exam if dates exist
+            meetingOverridesByKey[k] = MeetingOverride(type: .exam)
+            saveMeetingOverrides()
+        }
+
         objectWillChange.send()
         scheduleWidgetSnapshotPublish()
     }
@@ -947,12 +990,13 @@ final class CalendarViewModel: ObservableObject {
                     }
 
                     if ov.type == .exam {
-                        let allowedDays = Set((examDatesByMeetingKey[key] ?? []).map {
+                        let nk = normalizeMeetingKey(key)
+
+                        let allowedDays = Set((examDatesByMeetingKey[nk] ?? []).map {
                             calendar.startOfDay(for: Date(timeIntervalSince1970: $0))
                         })
-                        if !allowedDays.contains(dayStart) {
-                            continue
-                        }
+
+                        if !allowedDays.contains(dayStart) { continue }
                     }
                 }
 
@@ -993,7 +1037,7 @@ final class CalendarViewModel: ObservableObject {
                     seriesID: nil,
                     isAllDay: false,
                     kind: .classMeeting,
-                    meetingKey: base.meetingKey
+                    meetingKey: base.meetingKey.map(normalizeMeetingKey)
                 )
 
                 if hiddenClassOccurrences.contains(copy.interactionKey) { continue }
@@ -1021,6 +1065,7 @@ final class CalendarViewModel: ObservableObject {
             if $0.isAllDay != $1.isAllDay { return $0.isAllDay && !$1.isAllDay }
             return $0.startDate < $1.startDate
         }
+        
     }
 
     // MARK: - Personal events
@@ -1286,9 +1331,25 @@ final class CalendarViewModel: ObservableObject {
             enrolledCourses.append(enrollment)
 
             for meeting in section.meetings {
+                // ✅ stable meeting key (NO location dependency)
+                let key = meetingOverrideKey(
+                    enrollmentID: id,
+                    course: course,
+                    section: section,
+                    meeting: meeting
+                )
+
                 for day in meeting.days {
                     guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
-                    generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+
+                    generateSingleWeekEvent(
+                        course: course,
+                        section: section,
+                        meeting: meeting,
+                        date: classDate,
+                        enrollmentID: id,
+                        meetingKey: key
+                    )
                 }
             }
 
@@ -1492,7 +1553,8 @@ final class CalendarViewModel: ObservableObject {
         section: CourseSection,
         meeting: Meeting,
         date: Date,
-        enrollmentID: String
+        enrollmentID: String,
+        meetingKey: String           // ✅ NEW
     ) {
         guard
             let startComponents = timeComponents(from: meeting.start),
@@ -1539,7 +1601,7 @@ final class CalendarViewModel: ObservableObject {
             seriesID: nil,
             isAllDay: false,
             kind: .classMeeting,
-            meetingKey: mKey
+            meetingKey: normalizeMeetingKey(meetingKey)
         )
         events.append(event)
     }
@@ -1574,7 +1636,23 @@ final class CalendarViewModel: ObservableObject {
                 for meeting in section.meetings {
                     for day in meeting.days {
                         guard let classDate = firstDate(onOrAfter: weekStartDate, weekday: day.calendarWeekday) else { continue }
-                        generateSingleWeekEvent(course: course, section: section, meeting: meeting, date: classDate, enrollmentID: id)
+
+                        // ✅ CRITICAL: stable meetingKey (NO location)
+                        let key = meetingOverrideKey(
+                            enrollmentID: id,
+                            course: course,
+                            section: section,
+                            meeting: meeting
+                        )
+
+                        generateSingleWeekEvent(
+                            course: course,
+                            section: section,
+                            meeting: meeting,
+                            date: classDate,
+                            enrollmentID: id,
+                            meetingKey: key          // ✅ NEW
+                        )
                     }
                 }
             }
@@ -1692,25 +1770,100 @@ final class CalendarViewModel: ObservableObject {
             meetingOverridesByKey = [:]
             return
         }
+
         let decoder = JSONDecoder()
         if let loaded = try? decoder.decode([String: MeetingOverride].self, from: data) {
-            meetingOverridesByKey = loaded
+            // ✅ migrate keys (old -> new)
+            var migrated: [String: MeetingOverride] = [:]
+            migrated.reserveCapacity(loaded.count)
+
+            for (k, v) in loaded {
+                migrated[normalizeMeetingKey(k)] = v
+            }
+
+            meetingOverridesByKey = migrated
         } else {
             meetingOverridesByKey = [:]
         }
     }
 
+    // MARK: - Exam dates persistence (RELIABLE + MIGRATION)
+
     private func saveExamDates() {
-        UserDefaults.standard.set(examDatesByMeetingKey, forKey: examDatesStorageKey)
+        // Store as Data via JSONEncoder (reliable)
+        do {
+            let data = try JSONEncoder().encode(examDatesByMeetingKey)
+            UserDefaults.standard.set(data, forKey: examDatesStorageKey)
+        } catch {
+            // fallback: best effort
+            UserDefaults.standard.set(examDatesByMeetingKey, forKey: examDatesStorageKey)
+        }
     }
 
     private func loadExamDates() {
-        if let dict = UserDefaults.standard.dictionary(forKey: examDatesStorageKey) as? [String: [Double]] {
-            examDatesByMeetingKey = dict
-        } else {
-            examDatesByMeetingKey = [:]
+        // ✅ New format (Data)
+        if let data = UserDefaults.standard.data(forKey: examDatesStorageKey),
+           let decoded = try? JSONDecoder().decode([String: [Double]].self, from: data) {
+            examDatesByMeetingKey = migrateExamKeysIfNeeded(decoded)
+            return
         }
+
+        // ✅ Old format fallback (Property list dictionary)
+        if let raw = UserDefaults.standard.dictionary(forKey: examDatesStorageKey) {
+            var out: [String: [Double]] = [:]
+            out.reserveCapacity(raw.count)
+
+            for (k, v) in raw {
+                if let arr = v as? [Double] {
+                    out[k] = arr
+                } else if let nsArr = v as? [NSNumber] {
+                    out[k] = nsArr.map { $0.doubleValue }
+                } else if let anyArr = v as? [Any] {
+                    let doubles = anyArr.compactMap { item -> Double? in
+                        if let d = item as? Double { return d }
+                        if let n = item as? NSNumber { return n.doubleValue }
+                        return nil
+                    }
+                    if !doubles.isEmpty { out[k] = doubles }
+                }
+            }
+
+            examDatesByMeetingKey = migrateExamKeysIfNeeded(out)
+            return
+        }
+
+        examDatesByMeetingKey = [:]
     }
+
+    // ✅ Migration: old keys used to be "enrollment|days|time|location"
+    // new keys are "enrollment|days|time"
+    private func migrateExamKeysIfNeeded(_ dict: [String: [Double]]) -> [String: [Double]] {
+        var out: [String: [Double]] = [:]
+        out.reserveCapacity(dict.count)
+
+        for (k, v) in dict {
+            let newKey = normalizeMeetingKey(k)
+
+            // merge in case collisions happen: keep the union (dedup)
+            let merged = Set((out[newKey] ?? []) + v)
+            out[newKey] = Array(merged).sorted()
+        }
+        return out
+    }
+
+    // Accepts either old key or new key and returns new stable key
+    private func normalizeMeetingKey(_ key: String) -> String {
+        let parts = key.components(separatedBy: "|")
+
+        // old: enrollment|days|time|loc   (>=4)
+        if parts.count >= 3 {
+            return "\(parts[0])|\(parts[1])|\(parts[2])"
+        }
+
+        // fallback: if somehow malformed, just return original
+        return key
+    }
+    
 }
 
 // MARK: - Semester helpers (file-local)
