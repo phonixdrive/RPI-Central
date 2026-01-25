@@ -17,7 +17,7 @@ struct CourseDetailView: View {
     @State private var showExamPicker: Bool = false
     @State private var examPickerTitle: String = ""
     @State private var examPickerKey: String = ""
-    @State private var examPickerSelection: Set<DateComponents> = []
+    @State private var examPickerDates: Set<Date> = []   // ✅ replaces Set<DateComponents>
 
     var body: some View {
         ScrollView {
@@ -77,13 +77,16 @@ struct CourseDetailView: View {
         .navigationTitle("\(course.subject) \(course.number)")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showExamPicker) {
-            ExamDatesPickerSheet(
+            ExamDatesEditorSheet(
                 title: examPickerTitle,
-                selection: $examPickerSelection,
-                onSave: { comps in
-                    let cal = Calendar.current
-                    let dates: Set<Date> = Set(comps.compactMap { cal.date(from: $0) })
-                    calendarViewModel.setExamDates(dates, for: examPickerKey)
+                dates: $examPickerDates,
+                onSave: { pickedDates in
+                    // ✅ Normalize to NY start-of-day before saving
+                    var cal = Calendar.current
+                    cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+
+                    let normalized = Set(pickedDates.map { cal.startOfDay(for: $0) })
+                    calendarViewModel.setExamDates(normalized, for: examPickerKey)
                 }
             )
         }
@@ -179,12 +182,22 @@ struct CourseDetailView: View {
 
                     Spacer()
 
+                    Button(role: .destructive) {
+                        calendarViewModel.setExamDates([], for: key)
+                    } label: {
+                        Text("Remove exam")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+
                     Button {
-                        // seed picker selection
+                        // ✅ seed editor with existing dates (normalized)
+                        var cal = Calendar.current
+                        cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+
                         let existingDates = calendarViewModel.examDates(for: key)
-                        examPickerSelection = Set(existingDates.compactMap {
-                            Calendar.current.dateComponents([.year, .month, .day], from: $0)
-                        })
+                        examPickerDates = Set(existingDates.map { cal.startOfDay(for: $0) })
+
                         examPickerTitle = "\(course.subject) \(course.number) • \(meeting.days.map { $0.shortName }.joined()) \(meeting.start)–\(meeting.end)"
                         examPickerKey = key
                         showExamPicker = true
@@ -295,14 +308,20 @@ struct CourseDetailView: View {
     }
 }
 
-// MARK: - Exam dates picker
+// MARK: - Exam dates editor sheet (no MultiDatePicker)
 
-private struct ExamDatesPickerSheet: View {
+private struct ExamDatesEditorSheet: View {
     let title: String
-    @Binding var selection: Set<DateComponents>
-    let onSave: (Set<DateComponents>) -> Void
+    @Binding var dates: Set<Date>
+    let onSave: (Set<Date>) -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    @State private var candidateDate: Date = Date()
+
+    private var sortedDates: [Date] {
+        dates.sorted()
+    }
 
     var body: some View {
         NavigationStack {
@@ -310,7 +329,63 @@ private struct ExamDatesPickerSheet: View {
                 Text("Select exam dates")
                     .font(.headline)
 
-                MultiDatePicker("Exam dates", selection: $selection)
+                // ✅ Graphical date picker (single-day selection)
+                DatePicker(
+                    "Exam date",
+                    selection: $candidateDate,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+
+                HStack {
+                    Button("Add date") {
+                        var cal = Calendar.current
+                        cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+                        dates.insert(cal.startOfDay(for: candidateDate))
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Spacer()
+
+                    if !dates.isEmpty {
+                        Button(role: .destructive) {
+                            dates.removeAll()
+                        } label: {
+                            Text("Clear all")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
+                if dates.isEmpty {
+                    Text("No exam dates selected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected dates")
+                            .font(.subheadline.bold())
+
+                        // ✅ Individually deletable list
+                        List {
+                            ForEach(sortedDates, id: \.self) { d in
+                                HStack {
+                                    Text(d.formatted(date: .abbreviated, time: .omitted))
+                                    Spacer()
+                                    Button(role: .destructive) {
+                                        dates.remove(d)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                        .frame(minHeight: 160)
+                    }
+                }
 
                 Text("Only dates selected here will show the exam block on your calendar.")
                     .font(.caption)
@@ -327,7 +402,7 @@ private struct ExamDatesPickerSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
-                        onSave(selection)
+                        onSave(dates)
                         dismiss()
                     }
                 }
