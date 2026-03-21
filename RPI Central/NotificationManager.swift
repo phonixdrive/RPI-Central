@@ -50,6 +50,7 @@ enum NotificationManager {
     // MARK: - Class reminder notifications
 
     static func scheduleNotification(for event: ClassEvent, minutesBefore: Int) {
+        guard minutesBefore >= 0 else { return }
         // Don’t schedule for academic all-day events / holidays / breaks.
         guard !event.isAllDay else { return }
 
