@@ -66,18 +66,22 @@ enum GPACalculator {
 
     /// Converts a numeric percent grade into a letter grade (typical US scale).
     static func letterGrade(fromPercent p: Double) -> LetterGrade {
+        letterGrade(fromPercent: p, using: .standard)
+    }
+
+    static func letterGrade(fromPercent p: Double, using cutoffs: GradeCutoffs) -> LetterGrade {
         let x = max(0, min(100, p))
 
-        if x >= 97 { return .aPlus }
-        if x >= 93 { return .a }
-        if x >= 90 { return .aMinus }
-        if x >= 87 { return .bPlus }
-        if x >= 83 { return .b }
-        if x >= 80 { return .bMinus }
-        if x >= 77 { return .cPlus }
-        if x >= 73 { return .c }
-        if x >= 70 { return .cMinus }
-        if x >= 60 { return .d }
+        if x >= cutoffs.aPlus { return .aPlus }
+        if x >= cutoffs.a { return .a }
+        if x >= cutoffs.aMinus { return .aMinus }
+        if x >= cutoffs.bPlus { return .bPlus }
+        if x >= cutoffs.b { return .b }
+        if x >= cutoffs.bMinus { return .bMinus }
+        if x >= cutoffs.cPlus { return .cPlus }
+        if x >= cutoffs.c { return .c }
+        if x >= cutoffs.cMinus { return .cMinus }
+        if x >= cutoffs.d { return .d }
         return .f
     }
 
@@ -90,7 +94,7 @@ enum GPACalculator {
 
         let letter: LetterGrade? =
             breakdown?.overrideLetterGrade
-            ?? (pct.map { letterGrade(fromPercent: $0) })
+            ?? (pct.map { letterGrade(fromPercent: $0, using: breakdown?.gradeCutoffs ?? .standard) })
             ?? fallbackLetter
 
         let percentText: String = {
@@ -100,6 +104,54 @@ enum GPACalculator {
 
         let letterText: String = letter?.rawValue ?? "—"
         return (percentText, letterText)
+    }
+}
+
+struct GradeCutoffs: Codable, Equatable {
+    var aPlus: Double = 97
+    var a: Double = 93
+    var aMinus: Double = 90
+    var bPlus: Double = 87
+    var b: Double = 83
+    var bMinus: Double = 80
+    var cPlus: Double = 77
+    var c: Double = 73
+    var cMinus: Double = 70
+    var d: Double = 60
+
+    static let standard = GradeCutoffs()
+
+    func minimum(for grade: LetterGrade) -> Double {
+        switch grade {
+        case .aPlus: return aPlus
+        case .a: return a
+        case .aMinus: return aMinus
+        case .bPlus: return bPlus
+        case .b: return b
+        case .bMinus: return bMinus
+        case .cPlus: return cPlus
+        case .c: return c
+        case .cMinus: return cMinus
+        case .d: return d
+        case .f: return 0
+        }
+    }
+
+    mutating func setMinimum(_ value: Double, for grade: LetterGrade) {
+        let clamped = max(0, min(100, value))
+        switch grade {
+        case .aPlus: aPlus = clamped
+        case .a: a = clamped
+        case .aMinus: aMinus = clamped
+        case .bPlus: bPlus = clamped
+        case .b: b = clamped
+        case .bMinus: bMinus = clamped
+        case .cPlus: cPlus = clamped
+        case .c: c = clamped
+        case .cMinus: cMinus = clamped
+        case .d: d = clamped
+        case .f: break
+        }
     }
 }
 
@@ -277,9 +329,41 @@ struct GradeBreakdown: Codable, Equatable {
     var categories: [GradeCategory] = []
     var overrideLetterGrade: LetterGrade? = nil
     var creditsOverride: Double? = nil
+    var gradeCutoffs: GradeCutoffs = .standard
 
     /// DEFAULT OFF (your request)
     var participationTrackingEnabled: Bool = false
+
+    init(
+        categories: [GradeCategory] = [],
+        overrideLetterGrade: LetterGrade? = nil,
+        creditsOverride: Double? = nil,
+        gradeCutoffs: GradeCutoffs = .standard,
+        participationTrackingEnabled: Bool = false
+    ) {
+        self.categories = categories
+        self.overrideLetterGrade = overrideLetterGrade
+        self.creditsOverride = creditsOverride
+        self.gradeCutoffs = gradeCutoffs
+        self.participationTrackingEnabled = participationTrackingEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case categories
+        case overrideLetterGrade
+        case creditsOverride
+        case gradeCutoffs
+        case participationTrackingEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        categories = try c.decodeIfPresent([GradeCategory].self, forKey: .categories) ?? []
+        overrideLetterGrade = try c.decodeIfPresent(LetterGrade.self, forKey: .overrideLetterGrade)
+        creditsOverride = try c.decodeIfPresent(Double.self, forKey: .creditsOverride)
+        gradeCutoffs = try c.decodeIfPresent(GradeCutoffs.self, forKey: .gradeCutoffs) ?? .standard
+        participationTrackingEnabled = try c.decodeIfPresent(Bool.self, forKey: .participationTrackingEnabled) ?? false
+    }
 
     var totalWeight: Double {
         categories.reduce(0) { partial, c in
@@ -406,6 +490,7 @@ struct GradeBreakdownView: View {
         case percentScore(UUID)
         case earned(UUID)
         case possible(UUID)
+        case cutoff(LetterGrade)
 
         case itemTitle(UUID)
         case itemEarned(UUID)
@@ -424,94 +509,142 @@ struct GradeBreakdownView: View {
     ], participationTrackingEnabled: false)
 
     var body: some View {
-        List {
-            Section {
-                HStack {
-                    Text("Displayed Grade")
-                        .font(.headline)
-                    Spacer()
-                    Text(displayedGradeText())
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let pct = breakdown.currentGradePercent, breakdown.overrideLetterGrade == nil {
+        ScrollViewReader { proxy in
+            List {
+                Section {
                     HStack {
-                        Text("Current Grade")
+                        Text("Displayed Grade")
+                            .font(.headline)
                         Spacer()
-                        Text(String(format: "%.2f%%", pct))
+                        Text(displayedGradeText())
+                            .font(.headline)
                             .foregroundStyle(.secondary)
                     }
+
+                    if let pct = breakdown.currentGradePercent, breakdown.overrideLetterGrade == nil {
+                        HStack {
+                            Text("Current Grade")
+                            Spacer()
+                            Text(String(format: "%.2f%%", pct))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack {
+                        Text("Total Weight (counted)")
+                        Spacer()
+                        Text("\(breakdown.totalWeight, specifier: "%.1f")%")
+                            .foregroundStyle(breakdown.totalWeight == 100 ? Color.secondary : Color.orange)
+                    }
+
+                    if breakdown.totalWeight != 100 {
+                        Text("Weights that are counted should add to 100%.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+
+                    HStack {
+                        Text("Participation tracking")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button {
+                            breakdown.participationTrackingEnabled.toggle()
+                        } label: {
+                            Text(breakdown.participationTrackingEnabled ? "On" : "Off")
+                        }
+                        .buttonStyle(.themedPill())
+                    }
                 }
 
-                HStack {
-                    Text("Total Weight (counted)")
-                    Spacer()
-                    Text("\(breakdown.totalWeight, specifier: "%.1f")%")
-                        .foregroundStyle(breakdown.totalWeight == 100 ? Color.secondary : Color.orange)
+                Section("Credits (GPA weight)") {
+                    HStack {
+                        Text("Credits")
+                        Spacer()
+                        TextField("4.0", value: Binding(
+                            get: { breakdown.creditsOverride ?? 4.0 },
+                            set: { breakdown.creditsOverride = max(0, $0) }
+                        ), format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .focused($focusedField, equals: .credits)
+                        .foregroundStyle(.tint)
+                        .id(Field.credits)
+                    }
                 }
 
-                if breakdown.totalWeight != 100 {
-                    Text("Weights that are counted should add to 100%.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                Section("Override (for GPA)") {
+                    Picker("Override Grade", selection: Binding(
+                        get: { breakdown.overrideLetterGrade },
+                        set: { newValue in
+                            breakdown.overrideLetterGrade = newValue
+                            applyOverrideToCalendarVM()
+                        }
+                    )) {
+                        Text("Auto (use breakdown)").tag(LetterGrade?.none)
+                        ForEach(LetterGrade.ordered) { g in
+                            Text(g.rawValue).tag(Optional(g))
+                        }
+                    }
                 }
 
-                HStack {
-                    Text("Participation tracking")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                Section("Letter Grade Cutoffs") {
+                    ForEach(LetterGrade.ordered.filter { $0 != .f }, id: \.self) { grade in
+                        HStack {
+                            Text(grade.rawValue)
+                                .font(.subheadline.weight(.semibold))
+                                Spacer()
 
-                    Spacer()
+                            Text("Min")
+                                .foregroundStyle(.secondary)
 
-                    Button {
-                        breakdown.participationTrackingEnabled.toggle()
-                    } label: {
-                        Text(breakdown.participationTrackingEnabled ? "On" : "Off")
+                            TextField(
+                                "0",
+                                value: Binding(
+                                    get: { breakdown.gradeCutoffs.minimum(for: grade) },
+                                    set: { breakdown.gradeCutoffs.setMinimum($0, for: grade) }
+                                ),
+                                format: .number
+                            )
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 72)
+                                .focused($focusedField, equals: .cutoff(grade))
+                                .foregroundStyle(.tint)
+                                .id(Field.cutoff(grade))
+
+                            Text("%")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Button("Reset to standard cutoffs") {
+                        breakdown.gradeCutoffs = .standard
                     }
                     .buttonStyle(.themedPill())
+
+                    Text("Cutoffs are minimum percentages for each letter grade.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            }
 
-            Section("Credits (GPA weight)") {
-                HStack {
-                    Text("Credits")
-                    Spacer()
-                    TextField("4.0", value: Binding(
-                        get: { breakdown.creditsOverride ?? 4.0 },
-                        set: { breakdown.creditsOverride = max(0, $0) }
-                    ), format: .number)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 80)
-                    .focused($focusedField, equals: .credits)
-                    .foregroundStyle(.tint)
-                }
-            }
+                Section("Categories") {
+                    ForEach($breakdown.categories) { category in
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                TextField("Category", text: category.name)
+                                    .font(.title3.weight(.bold))
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
+                                    .submitLabel(.done)
+                                    .onSubmit { focusedField = nil }
+                                    .foregroundStyle(.tint)
+                                    .id(Field.categoryTitle(category.wrappedValue.id))
 
-            Section("Override (for GPA)") {
-                Picker("Override Grade", selection: Binding(
-                    get: { breakdown.overrideLetterGrade },
-                    set: { newValue in
-                        breakdown.overrideLetterGrade = newValue
-                        applyOverrideToCalendarVM()
-                    }
-                )) {
-                    Text("Auto (use breakdown)").tag(LetterGrade?.none)
-                    ForEach(LetterGrade.ordered) { g in
-                        Text(g.rawValue).tag(Optional(g))
-                    }
-                }
-            }
-
-            Section("Categories") {
-                ForEach($breakdown.categories) { category in
-                    VStack(alignment: .leading, spacing: 12) {
-
-                        // Centered, theme-colored editable category title
-                        ZStack {
-                            HStack {
-                                Spacer()
                                 Button(role: .destructive) {
                                     if let idx = breakdown.categories.firstIndex(where: { $0.id == category.wrappedValue.id }) {
                                         breakdown.categories.remove(at: idx)
