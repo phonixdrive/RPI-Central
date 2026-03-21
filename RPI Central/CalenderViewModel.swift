@@ -52,6 +52,22 @@ struct MeetingOverride: Codable, Equatable {
     var type: MeetingBlockType
 }
 
+enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
+    case upcoming
+    case mealSwipes
+    case studyTimer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .upcoming: return "Upcoming Assignments"
+        case .mealSwipes: return "Meal Swipes"
+        case .studyTimer: return "Study Timer"
+        }
+    }
+}
+
 final class CalendarViewModel: ObservableObject {
     @Published var displayedMonthStart: Date
     @Published var selectedDate: Date
@@ -105,6 +121,8 @@ final class CalendarViewModel: ObservableObject {
     private let appearanceModeKey = "settings_appearance_mode_v1"
     private let notificationsEnabledKey = "settings_notifications_enabled_v1"
     private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
+    private let homeSectionOrderKey = "settings_home_section_order_v1"
+    private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -130,6 +148,14 @@ final class CalendarViewModel: ObservableObject {
             UserDefaults.standard.set(minutesBeforeClass, forKey: minutesBeforeClassKey)
             applyNotificationScheduling()
         }
+    }
+
+    @Published var homeSectionOrder: [HomeDashboardSection] = HomeDashboardSection.allCases {
+        didSet { saveHomeSectionPreferences() }
+    }
+
+    @Published var hiddenHomeSections: Set<HomeDashboardSection> = [] {
+        didSet { saveHomeSectionPreferences() }
     }
 
     @Published private(set) var academicEventsLoaded: Bool = false
@@ -304,6 +330,8 @@ final class CalendarViewModel: ObservableObject {
 
         let savedMinutes = UserDefaults.standard.integer(forKey: minutesBeforeClassKey)
         self.minutesBeforeClass = savedMinutes == 0 ? 10 : savedMinutes
+        self.homeSectionOrder = Self.loadHomeSectionOrder()
+        self.hiddenHomeSections = Self.loadHiddenHomeSections()
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -328,6 +356,43 @@ final class CalendarViewModel: ObservableObject {
         // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
         publishWidgetSnapshot()
         applyNotificationScheduling()
+    }
+
+    func isHomeSectionEnabled(_ section: HomeDashboardSection) -> Bool {
+        !hiddenHomeSections.contains(section)
+    }
+
+    func setHomeSection(_ section: HomeDashboardSection, enabled: Bool) {
+        if enabled {
+            hiddenHomeSections.remove(section)
+        } else {
+            hiddenHomeSections.insert(section)
+        }
+    }
+
+    func moveHomeSections(from source: IndexSet, to destination: Int) {
+        homeSectionOrder.move(fromOffsets: source, toOffset: destination)
+    }
+
+    private func saveHomeSectionPreferences() {
+        let order = homeSectionOrder.map(\.rawValue)
+        UserDefaults.standard.set(order, forKey: homeSectionOrderKey)
+
+        let hidden = hiddenHomeSections.map(\.rawValue)
+        UserDefaults.standard.set(hidden, forKey: hiddenHomeSectionsKey)
+    }
+
+    private static func loadHomeSectionOrder() -> [HomeDashboardSection] {
+        let rawOrder = UserDefaults.standard.stringArray(forKey: "settings_home_section_order_v1") ?? []
+        let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
+        let missing = HomeDashboardSection.allCases.filter { !saved.contains($0) }
+        let merged = saved + missing
+        return merged.isEmpty ? HomeDashboardSection.allCases : merged
+    }
+
+    private static func loadHiddenHomeSections() -> Set<HomeDashboardSection> {
+        let rawHidden = UserDefaults.standard.stringArray(forKey: "settings_hidden_home_sections_v1") ?? []
+        return Set(rawHidden.compactMap(HomeDashboardSection.init(rawValue:)))
     }
 
     // MARK: - Widgets (AppGroup snapshot publishing)

@@ -332,165 +332,10 @@ struct HomeView: View {
                     }
                 }
 
-                // UPCOMING (Assignments + Exam blocks)
-                Section {
-                    let upcoming = Array(combinedUpcomingItems(days: 14).prefix(4))
-
-                    if upcoming.isEmpty {
-                        Text("No upcoming items. Add an assignment or exam.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(upcoming, id: \.id) { item in
-                            UpcomingRow(
-                                item: item,
-                                themeColor: calendarViewModel.themeColor,
-                                onEditTask: { t in
-                                    editingTask = t
-                                    showTaskEditor = true
-                                },
-                                onDeleteTask: { t in
-                                    tasksManager.delete(t)
-                                },
-                                onImportExamReminder: { examTitle, examDate in
-                                    let prefill = CourseTask(
-                                        id: UUID(),
-                                        enrollmentID: nil,
-                                        title: examTitle,
-                                        kind: .exam,
-                                        dueDate: examDate,
-                                        reminderOffsetsMinutes: [10080, 1440, 60],
-                                        notes: "Imported from meeting block exam."
-                                    )
-                                    editingTask = prefill
-                                    showTaskEditor = true
-                                }
-                            )
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                if case .task(let t) = item.source {
-                                    Button(role: .destructive) {
-                                        tasksManager.delete(t)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                            }
-                        }
+                ForEach(calendarViewModel.homeSectionOrder) { section in
+                    if calendarViewModel.isHomeSectionEnabled(section) {
+                        homeDashboardSection(section)
                     }
-
-                    HStack {
-                        Button {
-                            editingTask = nil
-                            showTaskEditor = true
-                        } label: {
-                            Label("Add", systemImage: "plus.circle.fill")
-                        }
-
-                        Spacer()
-
-                        Button {
-                            showAllTasks = true
-                        } label: {
-                            Text("View all")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                    }
-                    .tint(calendarViewModel.themeColor)
-                } header: {
-                    Text("Upcoming (Assignments + Exams)")
-                }
-                .id(upcomingRefreshToken)
-
-                // MEAL PLAN
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Remaining")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(mealPlanManager.remaining)")
-                                .font(.title3.weight(.bold))
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("Used")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(mealPlanManager.state.usedThisWeek)/\(mealPlanManager.state.swipesPerWeek)")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    HStack(spacing: 10) {
-                        Button {
-                            mealPlanManager.logSwipe()
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "fork.knife")
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(Color.white.opacity(0.95)) // ✅ visible icon
-                                Text("Use swipe")
-                                    .foregroundStyle(Color.white)
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(calendarViewModel.themeColor)
-
-                        Button {
-                            mealPlanManager.undoSwipe()
-                        } label: {
-                            Label("Undo", systemImage: "arrow.uturn.backward")
-                                .symbolRenderingMode(.hierarchical)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Spacer()
-
-                        Button {
-                            showMealSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .symbolRenderingMode(.hierarchical)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("Meal Swipes")
-                }
-                .onAppear {
-                    mealPlanManager.refreshIfNeeded()
-                }
-
-                // STUDY TIMER
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Pomodoro")
-                                .font(.subheadline.weight(.semibold))
-                            Text("\(pomodoroSettings.preset.focusMinutes)m focus • \(pomodoroSettings.preset.breakMinutes)m break")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Button {
-                            showTimer = true
-                        } label: {
-                            Text("Start")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color(.secondarySystemBackground))
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } header: {
-                    Text("Study Timer")
                 }
 
                 // Your existing per-semester enrollment list
@@ -622,6 +467,182 @@ struct HomeView: View {
                     )
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func homeDashboardSection(_ section: HomeDashboardSection) -> some View {
+        switch section {
+        case .upcoming:
+            upcomingSection
+        case .mealSwipes:
+            mealSwipesSection
+        case .studyTimer:
+            studyTimerSection
+        }
+    }
+
+    private var upcomingSection: some View {
+        Section {
+            let upcoming = Array(combinedUpcomingItems(days: 14).prefix(4))
+
+            if upcoming.isEmpty {
+                Text("No upcoming items. Add an assignment or exam.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(upcoming, id: \.id) { item in
+                    UpcomingRow(
+                        item: item,
+                        themeColor: calendarViewModel.themeColor,
+                        onEditTask: { t in
+                            editingTask = t
+                            showTaskEditor = true
+                        },
+                        onDeleteTask: { t in
+                            tasksManager.delete(t)
+                        },
+                        onImportExamReminder: { examTitle, examDate in
+                            let prefill = CourseTask(
+                                id: UUID(),
+                                enrollmentID: nil,
+                                title: examTitle,
+                                kind: .exam,
+                                dueDate: examDate,
+                                reminderOffsetsMinutes: [10080, 1440, 60],
+                                notes: "Imported from meeting block exam."
+                            )
+                            editingTask = prefill
+                            showTaskEditor = true
+                        }
+                    )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if case .task(let t) = item.source {
+                            Button(role: .destructive) {
+                                tasksManager.delete(t)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+
+            HStack {
+                Button {
+                    editingTask = nil
+                    showTaskEditor = true
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                }
+
+                Spacer()
+
+                Button {
+                    showAllTasks = true
+                } label: {
+                    Text("View all")
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .tint(calendarViewModel.themeColor)
+        } header: {
+            Text("Upcoming (Assignments + Exams)")
+        }
+        .id(upcomingRefreshToken)
+    }
+
+    private var mealSwipesSection: some View {
+        Section {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Remaining")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(mealPlanManager.remaining)")
+                        .font(.title3.weight(.bold))
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Used")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(mealPlanManager.state.usedThisWeek)/\(mealPlanManager.state.swipesPerWeek)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    mealPlanManager.logSwipe()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "fork.knife")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(Color.white.opacity(0.95))
+                        Text("Use swipe")
+                            .foregroundStyle(Color.white)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(calendarViewModel.themeColor)
+
+                Button {
+                    mealPlanManager.undoSwipe()
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button {
+                    showMealSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Meal Swipes")
+        }
+        .onAppear {
+            mealPlanManager.refreshIfNeeded()
+        }
+    }
+
+    private var studyTimerSection: some View {
+        Section {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pomodoro")
+                        .font(.subheadline.weight(.semibold))
+                    Text("\(pomodoroSettings.preset.focusMinutes)m focus • \(pomodoroSettings.preset.breakMinutes)m break")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    showTimer = true
+                } label: {
+                    Text("Start")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        } header: {
+            Text("Study Timer")
         }
     }
 
