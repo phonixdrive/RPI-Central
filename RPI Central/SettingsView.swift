@@ -44,6 +44,14 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section(header: Text("Academic History")) {
+                    Picker("Started college", selection: $calendarViewModel.academicHistoryStartSemester) {
+                        ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                            Text(semester.displayName).tag(semester)
+                        }
+                    }
+                }
+
                 // NOTIFICATIONS (UI only – wiring to real notifications can come later)
                 Section(header: Text("Notifications")) {
                     Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)
@@ -115,11 +123,11 @@ struct SettingsView: View {
             selectedTheme = AppThemeColor.from(color: calendarViewModel.themeColor)
             selectedAppearance = calendarViewModel.appearanceMode
         }
-        .onChange(of: selectedTheme) { newTheme in
-            calendarViewModel.themeColor = newTheme.color
+        .onChange(of: selectedTheme) {
+            calendarViewModel.themeColor = selectedTheme.color
         }
-        .onChange(of: selectedAppearance) { newMode in
-            calendarViewModel.appearanceMode = newMode
+        .onChange(of: selectedAppearance) {
+            calendarViewModel.appearanceMode = selectedAppearance
         }
     }
 }

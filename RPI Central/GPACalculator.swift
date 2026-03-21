@@ -9,6 +9,8 @@ import SwiftUI
 // MARK: - Standard 4.0 GPA scale with +/-.
 
 enum LetterGrade: String, CaseIterable, Identifiable, Codable {
+    case pass   = "P"
+    case noPass = "NP"
     case aPlus  = "A+"
     case a      = "A"
     case aMinus = "A-"
@@ -25,6 +27,8 @@ enum LetterGrade: String, CaseIterable, Identifiable, Codable {
 
     var points: Double {
         switch self {
+        case .pass:   return 4.00
+        case .noPass: return 0.00
         case .aPlus:  return 4.00
         case .a:      return 4.00
         case .aMinus: return 3.67
@@ -39,7 +43,9 @@ enum LetterGrade: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    static var ordered: [LetterGrade] { Self.allCases }
+    static var ordered: [LetterGrade] {
+        [.pass, .noPass, .aPlus, .a, .aMinus, .bPlus, .b, .bMinus, .cPlus, .c, .cMinus, .d, .f]
+    }
 }
 
 enum GPACalculator {
@@ -92,10 +98,7 @@ enum GPACalculator {
         let breakdown = GradeBreakdownStore.load(enrollmentID: enrollmentID)
         let pct = breakdown?.currentGradePercent
 
-        let letter: LetterGrade? =
-            breakdown?.overrideLetterGrade
-            ?? (pct.map { letterGrade(fromPercent: $0, using: breakdown?.gradeCutoffs ?? .standard) })
-            ?? fallbackLetter
+        let letter = resolvedLetter(enrollmentID: enrollmentID, fallbackLetter: fallbackLetter)
 
         let percentText: String = {
             guard let pct else { return "—%" }
@@ -104,6 +107,11 @@ enum GPACalculator {
 
         let letterText: String = letter?.rawValue ?? "—"
         return (percentText, letterText)
+    }
+
+    static func resolvedLetter(enrollmentID: String, fallbackLetter: LetterGrade?) -> LetterGrade? {
+        let breakdown = GradeBreakdownStore.load(enrollmentID: enrollmentID)
+        return breakdown?.resolvedLetterGrade() ?? fallbackLetter
     }
 }
 
@@ -118,8 +126,47 @@ struct GradeCutoffs: Codable, Equatable {
     var c: Double = 73
     var cMinus: Double = 70
     var d: Double = 60
+    var linearShiftPercent: Double = 0
 
     static let standard = GradeCutoffs()
+
+    private enum CodingKeys: String, CodingKey {
+        case aPlus, a, aMinus, bPlus, b, bMinus, cPlus, c, cMinus, d, linearShiftPercent
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        aPlus = try container.decodeIfPresent(Double.self, forKey: .aPlus) ?? 97
+        a = try container.decodeIfPresent(Double.self, forKey: .a) ?? 93
+        aMinus = try container.decodeIfPresent(Double.self, forKey: .aMinus) ?? 90
+        bPlus = try container.decodeIfPresent(Double.self, forKey: .bPlus) ?? 87
+        b = try container.decodeIfPresent(Double.self, forKey: .b) ?? 83
+        bMinus = try container.decodeIfPresent(Double.self, forKey: .bMinus) ?? 80
+        cPlus = try container.decodeIfPresent(Double.self, forKey: .cPlus) ?? 77
+        c = try container.decodeIfPresent(Double.self, forKey: .c) ?? 73
+        cMinus = try container.decodeIfPresent(Double.self, forKey: .cMinus) ?? 70
+        d = try container.decodeIfPresent(Double.self, forKey: .d) ?? 60
+        linearShiftPercent = try container.decodeIfPresent(Double.self, forKey: .linearShiftPercent) ?? 0
+    }
+
+    var shifted: GradeCutoffs {
+        var out = self
+        let shift = max(0, linearShiftPercent)
+        out.aPlus = max(0, aPlus - shift)
+        out.a = max(0, a - shift)
+        out.aMinus = max(0, aMinus - shift)
+        out.bPlus = max(0, bPlus - shift)
+        out.b = max(0, b - shift)
+        out.bMinus = max(0, bMinus - shift)
+        out.cPlus = max(0, cPlus - shift)
+        out.c = max(0, c - shift)
+        out.cMinus = max(0, cMinus - shift)
+        out.d = max(0, d - shift)
+        out.linearShiftPercent = shift
+        return out
+    }
 
     func minimum(for grade: LetterGrade) -> Double {
         switch grade {
@@ -133,7 +180,7 @@ struct GradeCutoffs: Codable, Equatable {
         case .c: return c
         case .cMinus: return cMinus
         case .d: return d
-        case .f: return 0
+        case .f, .pass, .noPass: return 0
         }
     }
 
@@ -150,7 +197,7 @@ struct GradeCutoffs: Codable, Equatable {
         case .c: c = clamped
         case .cMinus: cMinus = clamped
         case .d: d = clamped
-        case .f: break
+        case .f, .pass, .noPass: break
         }
     }
 }
@@ -177,6 +224,13 @@ enum CategoryInputMode: String, Codable, CaseIterable, Identifiable {
         case .subItems: return "Sub-items"
         }
     }
+}
+
+enum SimpleGradeInputMode: String, Codable, CaseIterable, Identifiable {
+    case percent
+    case letter
+
+    var id: String { rawValue }
 }
 
 struct GradeSubItem: Identifiable, Codable, Equatable {
@@ -208,35 +262,6 @@ struct GradeSubItem: Identifiable, Codable, Equatable {
     }
 }
 
-struct AttendanceTracker: Codable, Equatable {
-    var totalClasses: Int
-    var attendedClasses: Int
-
-    init(totalClasses: Int = 0, attendedClasses: Int = 0) {
-        self.totalClasses = totalClasses
-        self.attendedClasses = attendedClasses
-    }
-
-    var percent: Double {
-        guard totalClasses > 0 else { return 0 }
-        return max(0, min(100, (Double(attendedClasses) / Double(totalClasses)) * 100.0))
-    }
-
-    mutating func attended() {
-        totalClasses += 1
-        attendedClasses += 1
-    }
-
-    mutating func missed() {
-        totalClasses += 1
-    }
-
-    mutating func reset() {
-        totalClasses = 0
-        attendedClasses = 0
-    }
-}
-
 struct GradeCategory: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var name: String
@@ -253,10 +278,6 @@ struct GradeCategory: Identifiable, Codable, Equatable {
     // Sub-items
     var usesSubItems: Bool
     var items: [GradeSubItem]
-
-    // Attendance tracking
-    var attendance: AttendanceTracker
-
     init(
         id: UUID = UUID(),
         name: String,
@@ -266,8 +287,7 @@ struct GradeCategory: Identifiable, Codable, Equatable {
         earnedPoints: Double = 0,
         possiblePoints: Double = 0,
         usesSubItems: Bool = false,
-        items: [GradeSubItem] = [],
-        attendance: AttendanceTracker = AttendanceTracker()
+        items: [GradeSubItem] = []
     ) {
         self.id = id
         self.name = name
@@ -280,13 +300,6 @@ struct GradeCategory: Identifiable, Codable, Equatable {
 
         self.usesSubItems = usesSubItems
         self.items = items
-
-        self.attendance = attendance
-    }
-
-    var isParticipationName: Bool {
-        let n = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return n == "participation" || n.contains("participation") || n.contains("attendance")
     }
 
     var inputMode: CategoryInputMode {
@@ -330,22 +343,29 @@ struct GradeBreakdown: Codable, Equatable {
     var overrideLetterGrade: LetterGrade? = nil
     var creditsOverride: Double? = nil
     var gradeCutoffs: GradeCutoffs = .standard
-
-    /// DEFAULT OFF (your request)
-    var participationTrackingEnabled: Bool = false
+    var isAdvancedMode: Bool = true
+    var simpleScorePercent: Double? = nil
+    var simpleInputMode: SimpleGradeInputMode = .percent
+    var simpleLetterGrade: LetterGrade? = nil
 
     init(
         categories: [GradeCategory] = [],
         overrideLetterGrade: LetterGrade? = nil,
         creditsOverride: Double? = nil,
         gradeCutoffs: GradeCutoffs = .standard,
-        participationTrackingEnabled: Bool = false
+        isAdvancedMode: Bool = true,
+        simpleScorePercent: Double? = nil,
+        simpleInputMode: SimpleGradeInputMode = .percent,
+        simpleLetterGrade: LetterGrade? = nil
     ) {
         self.categories = categories
         self.overrideLetterGrade = overrideLetterGrade
         self.creditsOverride = creditsOverride
         self.gradeCutoffs = gradeCutoffs
-        self.participationTrackingEnabled = participationTrackingEnabled
+        self.isAdvancedMode = isAdvancedMode
+        self.simpleScorePercent = simpleScorePercent
+        self.simpleInputMode = simpleInputMode
+        self.simpleLetterGrade = simpleLetterGrade
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -353,6 +373,10 @@ struct GradeBreakdown: Codable, Equatable {
         case overrideLetterGrade
         case creditsOverride
         case gradeCutoffs
+        case isAdvancedMode
+        case simpleScorePercent
+        case simpleInputMode
+        case simpleLetterGrade
         case participationTrackingEnabled
     }
 
@@ -362,26 +386,74 @@ struct GradeBreakdown: Codable, Equatable {
         overrideLetterGrade = try c.decodeIfPresent(LetterGrade.self, forKey: .overrideLetterGrade)
         creditsOverride = try c.decodeIfPresent(Double.self, forKey: .creditsOverride)
         gradeCutoffs = try c.decodeIfPresent(GradeCutoffs.self, forKey: .gradeCutoffs) ?? .standard
-        participationTrackingEnabled = try c.decodeIfPresent(Bool.self, forKey: .participationTrackingEnabled) ?? false
-    }
+        simpleScorePercent = try c.decodeIfPresent(Double.self, forKey: .simpleScorePercent)
+        simpleInputMode = try c.decodeIfPresent(SimpleGradeInputMode.self, forKey: .simpleInputMode) ?? .percent
+        simpleLetterGrade = try c.decodeIfPresent(LetterGrade.self, forKey: .simpleLetterGrade)
 
-    var totalWeight: Double {
-        categories.reduce(0) { partial, c in
-            if participationTrackingEnabled && c.isParticipationName { return partial }
-            return partial + c.weightPercent
+        if let advanced = try c.decodeIfPresent(Bool.self, forKey: .isAdvancedMode) {
+            isAdvancedMode = advanced
+        } else {
+            isAdvancedMode = true
         }
     }
 
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(categories, forKey: .categories)
+        try container.encodeIfPresent(overrideLetterGrade, forKey: .overrideLetterGrade)
+        try container.encodeIfPresent(creditsOverride, forKey: .creditsOverride)
+        try container.encode(gradeCutoffs, forKey: .gradeCutoffs)
+        try container.encode(isAdvancedMode, forKey: .isAdvancedMode)
+        try container.encodeIfPresent(simpleScorePercent, forKey: .simpleScorePercent)
+        try container.encode(simpleInputMode, forKey: .simpleInputMode)
+        try container.encodeIfPresent(simpleLetterGrade, forKey: .simpleLetterGrade)
+    }
+
+    var totalWeight: Double {
+        isAdvancedMode ? categories.reduce(0) { $0 + $1.weightPercent } : 100
+    }
+
     var currentGradePercent: Double? {
+        if !isAdvancedMode {
+            if simpleInputMode == .letter { return nil }
+            guard let simpleScorePercent else { return nil }
+            return max(0, min(100, simpleScorePercent))
+        }
+
         let w = totalWeight
         guard w > 0 else { return nil }
 
         let weightedSum = categories.reduce(0.0) { partial, c in
-            if participationTrackingEnabled && c.isParticipationName { return partial }
             return partial + (c.weightPercent * c.normalizedScorePercent() / 100.0)
         }
 
         return (weightedSum / w) * 100.0
+    }
+
+    func effectiveCutoffs() -> GradeCutoffs {
+        gradeCutoffs.shifted
+    }
+
+    func categoryDisplayPercent(_ category: GradeCategory) -> Double? {
+        return category.normalizedScorePercent()
+    }
+
+    func categoryWeightedPercent(_ category: GradeCategory) -> Double? {
+        guard let pct = categoryDisplayPercent(category) else { return nil }
+        return (category.weightPercent * pct) / 100.0
+    }
+
+    func resolvedLetterGrade() -> LetterGrade? {
+        if let overrideLetterGrade {
+            return overrideLetterGrade
+        }
+
+        if !isAdvancedMode && simpleInputMode == .letter {
+            return simpleLetterGrade
+        }
+
+        guard let pct = currentGradePercent else { return nil }
+        return GPACalculator.letterGrade(fromPercent: pct, using: effectiveCutoffs())
     }
 }
 
@@ -497,8 +569,8 @@ struct GradeBreakdownView: View {
         case itemPossible(UUID)
 
         case credits
-        case attended(UUID)
-        case total(UUID)
+        case simpleScore
+        case simpleLetter
     }
 
     @State private var breakdown: GradeBreakdown = GradeBreakdown(categories: [
@@ -506,7 +578,7 @@ struct GradeBreakdownView: View {
         GradeCategory(name: "Final", weightPercent: 35),
         GradeCategory(name: "Homework", weightPercent: 30),
         GradeCategory(name: "Participation", weightPercent: 10)
-    ], participationTrackingEnabled: false)
+    ], isAdvancedMode: true)
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -531,31 +603,50 @@ struct GradeBreakdownView: View {
                     }
 
                     HStack {
-                        Text("Total Weight (counted)")
+                        Text("Total Weight")
                         Spacer()
                         Text("\(breakdown.totalWeight, specifier: "%.1f")%")
                             .foregroundStyle(breakdown.totalWeight == 100 ? Color.secondary : Color.orange)
                     }
 
                     if breakdown.totalWeight != 100 {
-                        Text("Weights that are counted should add to 100%.")
+                        Text("Configured category weights should add to 100%.")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
 
                     HStack {
-                        Text("Participation tracking")
+                        Text("Calculator Mode")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
                         Button {
-                            breakdown.participationTrackingEnabled.toggle()
+                            breakdown.isAdvancedMode.toggle()
                         } label: {
-                            Text(breakdown.participationTrackingEnabled ? "On" : "Off")
+                            Text(breakdown.isAdvancedMode ? "Advanced" : "Simple")
                         }
                         .buttonStyle(.themedPill())
+                    }
+                }
+
+                if breakdown.isAdvancedMode {
+                    Section("Category Summary") {
+                        ForEach(breakdown.categories) { category in
+                            HStack {
+                                Text(category.name.isEmpty ? "Category" : category.name)
+                                Spacer()
+                                if let pct = breakdown.categoryDisplayPercent(category),
+                                   let weighted = breakdown.categoryWeightedPercent(category) {
+                                    Text("\(pct, specifier: "%.1f")% • \(weighted, specifier: "%.1f")% weighted")
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("—")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -592,7 +683,28 @@ struct GradeBreakdownView: View {
                 }
 
                 Section("Letter Grade Cutoffs") {
-                    ForEach(LetterGrade.ordered.filter { $0 != .f }, id: \.self) { grade in
+                    HStack {
+                        Text("Shift all letters")
+                        Spacer()
+
+                        TextField(
+                            "0",
+                            value: Binding(
+                                get: { breakdown.gradeCutoffs.linearShiftPercent },
+                                set: { breakdown.gradeCutoffs.linearShiftPercent = max(0, min(100, $0)) }
+                            ),
+                            format: .number
+                        )
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 72)
+                        .foregroundStyle(.tint)
+
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(LetterGrade.ordered.filter { ![.pass, .noPass, .f].contains($0) }, id: \.self) { grade in
                         HStack {
                             Text(grade.rawValue)
                                 .font(.subheadline.weight(.semibold))
@@ -604,8 +716,11 @@ struct GradeBreakdownView: View {
                             TextField(
                                 "0",
                                 value: Binding(
-                                    get: { breakdown.gradeCutoffs.minimum(for: grade) },
-                                    set: { breakdown.gradeCutoffs.setMinimum($0, for: grade) }
+                                    get: { breakdown.effectiveCutoffs().minimum(for: grade) },
+                                    set: { newValue in
+                                        let adjusted = newValue + breakdown.gradeCutoffs.linearShiftPercent
+                                        breakdown.gradeCutoffs.setMinimum(adjusted, for: grade)
+                                    }
                                 ),
                                 format: .number
                             )
@@ -631,44 +746,84 @@ struct GradeBreakdownView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Categories") {
-                    ForEach($breakdown.categories) { category in
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 12) {
-                                TextField("Category", text: category.name)
-                                    .font(.title3.weight(.bold))
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
-                                    .submitLabel(.done)
-                                    .onSubmit { focusedField = nil }
-                                    .foregroundStyle(.tint)
-                                    .id(Field.categoryTitle(category.wrappedValue.id))
+                if breakdown.isAdvancedMode {
+                    Section("Categories") {
+                        ForEach($breakdown.categories) { category in
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 12) {
+                                    TextField("Category", text: category.name)
+                                        .font(.title3.weight(.bold))
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
+                                        .submitLabel(.done)
+                                        .onSubmit { focusedField = nil }
+                                        .foregroundStyle(.tint)
+                                        .id(Field.categoryTitle(category.wrappedValue.id))
 
-                                Button(role: .destructive) {
-                                    if let idx = breakdown.categories.firstIndex(where: { $0.id == category.wrappedValue.id }) {
-                                        breakdown.categories.remove(at: idx)
+                                    Button(role: .destructive) {
+                                        if let idx = breakdown.categories.firstIndex(where: { $0.id == category.wrappedValue.id }) {
+                                            breakdown.categories.remove(at: idx)
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .padding(8)
                                     }
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .padding(8)
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
-                            }
 
-                            if breakdown.participationTrackingEnabled && category.wrappedValue.isParticipationName {
-                                participationPanel(category: category)
-                            } else {
                                 standardPanel(category: category)
                             }
+                            .padding(.vertical, 10)
                         }
-                        .padding(.vertical, 10)
-                    }
 
-                    Button {
-                        breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
-                    } label: {
-                        Label("Add Category", systemImage: "plus.circle.fill")
+                        Button {
+                            breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
+                        } label: {
+                            Label("Add Category", systemImage: "plus.circle.fill")
+                        }
+                    }
+                } else {
+                    Section("Simple Grade") {
+                        Picker("Input", selection: $breakdown.simpleInputMode) {
+                            Text("%").tag(SimpleGradeInputMode.percent)
+                            Text("Letter").tag(SimpleGradeInputMode.letter)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if breakdown.simpleInputMode == .percent {
+                        HStack {
+                            Text("Overall Grade")
+                            Spacer()
+                            TextField(
+                                "0",
+                                value: Binding(
+                                    get: { breakdown.simpleScorePercent ?? 0 },
+                                    set: { breakdown.simpleScorePercent = max(0, min(100, $0)) }
+                                ),
+                                format: .number
+                            )
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                            .focused($focusedField, equals: .simpleScore)
+                            .foregroundStyle(.tint)
+                            .id(Field.simpleScore)
+                            Text("%")
+                                .foregroundStyle(.secondary)
+                        }
+                        } else {
+                            Picker("Overall Grade", selection: Binding(
+                                get: { breakdown.simpleLetterGrade },
+                                set: { breakdown.simpleLetterGrade = $0 }
+                            )) {
+                                Text("Select grade").tag(LetterGrade?.none)
+                                ForEach(LetterGrade.ordered) { grade in
+                                    Text(grade.rawValue).tag(Optional(grade))
+                                }
+                            }
+                            .id(Field.simpleLetter)
+                        }
                     }
                 }
 
@@ -679,6 +834,10 @@ struct GradeBreakdownView: View {
                         breakdown.overrideLetterGrade = nil
                         breakdown.creditsOverride = nil
                         breakdown.gradeCutoffs = .standard
+                        breakdown.isAdvancedMode = true
+                        breakdown.simpleScorePercent = nil
+                        breakdown.simpleInputMode = .percent
+                        breakdown.simpleLetterGrade = nil
                         applyOverrideToCalendarVM()
                     } label: {
                         Label("Clear All", systemImage: "trash")
@@ -709,11 +868,12 @@ struct GradeBreakdownView: View {
                 }
                 applyOverrideToCalendarVM()
             }
-            .onChange(of: breakdown) { _ in
+            .onChange(of: breakdown) {
                 GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
                 applyOverrideToCalendarVM()
             }
-            .onChange(of: focusedField) { field in
+            .onChange(of: focusedField) {
+                let field = focusedField
                 guard let field else { return }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     proxy.scrollTo(field, anchor: .center)
@@ -728,6 +888,22 @@ struct GradeBreakdownView: View {
         let id = category.wrappedValue.id
 
         return VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("\(displayCategoryName(category.wrappedValue)) Total")
+                    Spacer()
+                    Text("\(category.wrappedValue.normalizedScorePercent(), specifier: "%.2f")%")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Weighted Total")
+                    Spacer()
+                    Text("\(breakdown.categoryWeightedPercent(category.wrappedValue) ?? 0, specifier: "%.2f")%")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             HStack {
                 Text("Weight")
                 Spacer()
@@ -752,13 +928,6 @@ struct GradeBreakdownView: View {
             .pickerStyle(.segmented)
 
             if category.wrappedValue.inputMode == .subItems {
-                HStack {
-                    Text("Category Total")
-                    Spacer()
-                    Text("\(category.wrappedValue.normalizedScorePercent(), specifier: "%.2f")%")
-                        .foregroundStyle(.secondary)
-                }
-
                 ForEach(category.items) { item in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
@@ -814,8 +983,9 @@ struct GradeBreakdownView: View {
 
                 HStack {
                     Button {
-                        let n = category.wrappedValue.items.count + 1
-                        category.wrappedValue.items.append(GradeSubItem(title: "Item \(n)"))
+                        category.wrappedValue.items.append(
+                            GradeSubItem(title: nextSubItemTitle(for: category.wrappedValue))
+                        )
                     } label: {
                         Label("Add item", systemImage: "plus")
                     }
@@ -869,84 +1039,26 @@ struct GradeBreakdownView: View {
         }
     }
 
-    private func participationPanel(category: Binding<GradeCategory>) -> some View {
-        let id = category.wrappedValue.id
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Attendance tracking (does not affect grade).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Text("Attended")
-                Spacer()
-
-                TextField("0", value: Binding(
-                    get: { category.wrappedValue.attendance.attendedClasses },
-                    set: { category.wrappedValue.attendance.attendedClasses = max(0, $0) }
-                ), format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 64)
-                .focused($focusedField, equals: .attended(id))
-                .foregroundStyle(.tint)
-                .id(Field.attended(id))
-
-                Text("/").foregroundStyle(.secondary)
-
-                TextField("0", value: Binding(
-                    get: { category.wrappedValue.attendance.totalClasses },
-                    set: { category.wrappedValue.attendance.totalClasses = max(0, $0) }
-                ), format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 64)
-                .focused($focusedField, equals: .total(id))
-                .foregroundStyle(.tint)
-                .id(Field.total(id))
-            }
-
-            HStack {
-                Text("Rate")
-                Spacer()
-                Text("\(category.wrappedValue.attendance.percent, specifier: "%.1f")%")
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    category.wrappedValue.attendance.attended()
-                } label: {
-                    Label("Attended (+1)", systemImage: "checkmark.circle.fill")
-                }
-                .buttonStyle(.themedPill(prominent: true))
-
-                Button {
-                    category.wrappedValue.attendance.missed()
-                } label: {
-                    Label("Missed (+1)", systemImage: "xmark.circle.fill")
-                }
-                .buttonStyle(.themedPill())
-            }
-            .padding(.top, 4)
-
-            Button(role: .destructive) {
-                category.wrappedValue.attendance.reset()
-            } label: {
-                Label("Reset attendance", systemImage: "arrow.counterclockwise")
-            }
-            .padding(.top, 4)
-        }
-    }
-
     // MARK: Helpers
 
+    private func displayCategoryName(_ category: GradeCategory) -> String {
+        let trimmed = category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Category" : trimmed
+    }
+
+    private func nextSubItemTitle(for category: GradeCategory) -> String {
+        "\(displayCategoryName(category)) \(category.items.count + 1)"
+    }
+
     private func displayedGradeText() -> String {
-        if let g = breakdown.overrideLetterGrade {
-            return g.rawValue
+        if let resolved = breakdown.resolvedLetterGrade() {
+            if let pct = breakdown.currentGradePercent {
+                return "\(String(format: "%.0f%%", pct)) • \(resolved.rawValue)"
+            }
+            return resolved.rawValue
         }
         if let pct = breakdown.currentGradePercent {
-            let letter = GPACalculator.letterGrade(fromPercent: pct, using: breakdown.gradeCutoffs)
+            let letter = GPACalculator.letterGrade(fromPercent: pct, using: breakdown.effectiveCutoffs())
             return "\(String(format: "%.0f%%", pct)) • \(letter.rawValue)"
         }
         return "—"
