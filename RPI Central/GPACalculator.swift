@@ -569,8 +569,8 @@ struct GradeBreakdownView: View {
         case itemPossible(UUID)
 
         case credits
-        case attended(UUID)
-        case total(UUID)
+        case simpleScore
+        case simpleLetter
     }
 
     @State private var breakdown: GradeBreakdown = GradeBreakdown(categories: [
@@ -578,7 +578,7 @@ struct GradeBreakdownView: View {
         GradeCategory(name: "Final", weightPercent: 35),
         GradeCategory(name: "Homework", weightPercent: 30),
         GradeCategory(name: "Participation", weightPercent: 10)
-    ], participationTrackingEnabled: false)
+    ], isAdvancedMode: true)
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -603,31 +603,50 @@ struct GradeBreakdownView: View {
                     }
 
                     HStack {
-                        Text("Total Weight (counted)")
+                        Text("Total Weight")
                         Spacer()
                         Text("\(breakdown.totalWeight, specifier: "%.1f")%")
                             .foregroundStyle(breakdown.totalWeight == 100 ? Color.secondary : Color.orange)
                     }
 
                     if breakdown.totalWeight != 100 {
-                        Text("Weights that are counted should add to 100%.")
+                        Text("Configured category weights should add to 100%.")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
 
                     HStack {
-                        Text("Participation tracking")
+                        Text("Calculator Mode")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
                         Button {
-                            breakdown.participationTrackingEnabled.toggle()
+                            breakdown.isAdvancedMode.toggle()
                         } label: {
-                            Text(breakdown.participationTrackingEnabled ? "On" : "Off")
+                            Text(breakdown.isAdvancedMode ? "Advanced" : "Simple")
                         }
                         .buttonStyle(.themedPill())
+                    }
+                }
+
+                if breakdown.isAdvancedMode {
+                    Section("Category Summary") {
+                        ForEach(breakdown.categories) { category in
+                            HStack {
+                                Text(category.name.isEmpty ? "Category" : category.name)
+                                Spacer()
+                                if let pct = breakdown.categoryDisplayPercent(category),
+                                   let weighted = breakdown.categoryWeightedPercent(category) {
+                                    Text("\(pct, specifier: "%.1f")% • \(weighted, specifier: "%.1f")% weighted")
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("—")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -664,7 +683,28 @@ struct GradeBreakdownView: View {
                 }
 
                 Section("Letter Grade Cutoffs") {
-                    ForEach(LetterGrade.ordered.filter { $0 != .f }, id: \.self) { grade in
+                    HStack {
+                        Text("Shift all letters")
+                        Spacer()
+
+                        TextField(
+                            "0",
+                            value: Binding(
+                                get: { breakdown.gradeCutoffs.linearShiftPercent },
+                                set: { breakdown.gradeCutoffs.linearShiftPercent = max(0, min(100, $0)) }
+                            ),
+                            format: .number
+                        )
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 72)
+                        .foregroundStyle(.tint)
+
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(LetterGrade.ordered.filter { ![.pass, .noPass, .f].contains($0) }, id: \.self) { grade in
                         HStack {
                             Text(grade.rawValue)
                                 .font(.subheadline.weight(.semibold))
@@ -676,8 +716,11 @@ struct GradeBreakdownView: View {
                             TextField(
                                 "0",
                                 value: Binding(
-                                    get: { breakdown.gradeCutoffs.minimum(for: grade) },
-                                    set: { breakdown.gradeCutoffs.setMinimum($0, for: grade) }
+                                    get: { breakdown.effectiveCutoffs().minimum(for: grade) },
+                                    set: { newValue in
+                                        let adjusted = newValue + breakdown.gradeCutoffs.linearShiftPercent
+                                        breakdown.gradeCutoffs.setMinimum(adjusted, for: grade)
+                                    }
                                 ),
                                 format: .number
                             )
@@ -703,44 +746,84 @@ struct GradeBreakdownView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Categories") {
-                    ForEach($breakdown.categories) { category in
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 12) {
-                                TextField("Category", text: category.name)
-                                    .font(.title3.weight(.bold))
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
-                                    .submitLabel(.done)
-                                    .onSubmit { focusedField = nil }
-                                    .foregroundStyle(.tint)
-                                    .id(Field.categoryTitle(category.wrappedValue.id))
+                if breakdown.isAdvancedMode {
+                    Section("Categories") {
+                        ForEach($breakdown.categories) { category in
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 12) {
+                                    TextField("Category", text: category.name)
+                                        .font(.title3.weight(.bold))
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
+                                        .submitLabel(.done)
+                                        .onSubmit { focusedField = nil }
+                                        .foregroundStyle(.tint)
+                                        .id(Field.categoryTitle(category.wrappedValue.id))
 
-                                Button(role: .destructive) {
-                                    if let idx = breakdown.categories.firstIndex(where: { $0.id == category.wrappedValue.id }) {
-                                        breakdown.categories.remove(at: idx)
+                                    Button(role: .destructive) {
+                                        if let idx = breakdown.categories.firstIndex(where: { $0.id == category.wrappedValue.id }) {
+                                            breakdown.categories.remove(at: idx)
+                                        }
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .padding(8)
                                     }
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .padding(8)
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
-                            }
 
-                            if breakdown.participationTrackingEnabled && category.wrappedValue.isParticipationName {
-                                participationPanel(category: category)
-                            } else {
                                 standardPanel(category: category)
                             }
+                            .padding(.vertical, 10)
                         }
-                        .padding(.vertical, 10)
-                    }
 
-                    Button {
-                        breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
-                    } label: {
-                        Label("Add Category", systemImage: "plus.circle.fill")
+                        Button {
+                            breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
+                        } label: {
+                            Label("Add Category", systemImage: "plus.circle.fill")
+                        }
+                    }
+                } else {
+                    Section("Simple Grade") {
+                        Picker("Input", selection: $breakdown.simpleInputMode) {
+                            Text("%").tag(SimpleGradeInputMode.percent)
+                            Text("Letter").tag(SimpleGradeInputMode.letter)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if breakdown.simpleInputMode == .percent {
+                        HStack {
+                            Text("Overall Grade")
+                            Spacer()
+                            TextField(
+                                "0",
+                                value: Binding(
+                                    get: { breakdown.simpleScorePercent ?? 0 },
+                                    set: { breakdown.simpleScorePercent = max(0, min(100, $0)) }
+                                ),
+                                format: .number
+                            )
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                            .focused($focusedField, equals: .simpleScore)
+                            .foregroundStyle(.tint)
+                            .id(Field.simpleScore)
+                            Text("%")
+                                .foregroundStyle(.secondary)
+                        }
+                        } else {
+                            Picker("Overall Grade", selection: Binding(
+                                get: { breakdown.simpleLetterGrade },
+                                set: { breakdown.simpleLetterGrade = $0 }
+                            )) {
+                                Text("Select grade").tag(LetterGrade?.none)
+                                ForEach(LetterGrade.ordered) { grade in
+                                    Text(grade.rawValue).tag(Optional(grade))
+                                }
+                            }
+                            .id(Field.simpleLetter)
+                        }
                     }
                 }
 
@@ -751,6 +834,10 @@ struct GradeBreakdownView: View {
                         breakdown.overrideLetterGrade = nil
                         breakdown.creditsOverride = nil
                         breakdown.gradeCutoffs = .standard
+                        breakdown.isAdvancedMode = true
+                        breakdown.simpleScorePercent = nil
+                        breakdown.simpleInputMode = .percent
+                        breakdown.simpleLetterGrade = nil
                         applyOverrideToCalendarVM()
                     } label: {
                         Label("Clear All", systemImage: "trash")
@@ -781,11 +868,12 @@ struct GradeBreakdownView: View {
                 }
                 applyOverrideToCalendarVM()
             }
-            .onChange(of: breakdown) { _ in
+            .onChange(of: breakdown) {
                 GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
                 applyOverrideToCalendarVM()
             }
-            .onChange(of: focusedField) { field in
+            .onChange(of: focusedField) {
+                let field = focusedField
                 guard let field else { return }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     proxy.scrollTo(field, anchor: .center)
@@ -800,6 +888,22 @@ struct GradeBreakdownView: View {
         let id = category.wrappedValue.id
 
         return VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("\(displayCategoryName(category.wrappedValue)) Total")
+                    Spacer()
+                    Text("\(category.wrappedValue.normalizedScorePercent(), specifier: "%.2f")%")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Weighted Total")
+                    Spacer()
+                    Text("\(breakdown.categoryWeightedPercent(category.wrappedValue) ?? 0, specifier: "%.2f")%")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             HStack {
                 Text("Weight")
                 Spacer()
@@ -824,13 +928,6 @@ struct GradeBreakdownView: View {
             .pickerStyle(.segmented)
 
             if category.wrappedValue.inputMode == .subItems {
-                HStack {
-                    Text("Category Total")
-                    Spacer()
-                    Text("\(category.wrappedValue.normalizedScorePercent(), specifier: "%.2f")%")
-                        .foregroundStyle(.secondary)
-                }
-
                 ForEach(category.items) { item in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
@@ -886,8 +983,9 @@ struct GradeBreakdownView: View {
 
                 HStack {
                     Button {
-                        let n = category.wrappedValue.items.count + 1
-                        category.wrappedValue.items.append(GradeSubItem(title: "Item \(n)"))
+                        category.wrappedValue.items.append(
+                            GradeSubItem(title: nextSubItemTitle(for: category.wrappedValue))
+                        )
                     } label: {
                         Label("Add item", systemImage: "plus")
                     }
@@ -941,84 +1039,26 @@ struct GradeBreakdownView: View {
         }
     }
 
-    private func participationPanel(category: Binding<GradeCategory>) -> some View {
-        let id = category.wrappedValue.id
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Attendance tracking (does not affect grade).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                Text("Attended")
-                Spacer()
-
-                TextField("0", value: Binding(
-                    get: { category.wrappedValue.attendance.attendedClasses },
-                    set: { category.wrappedValue.attendance.attendedClasses = max(0, $0) }
-                ), format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 64)
-                .focused($focusedField, equals: .attended(id))
-                .foregroundStyle(.tint)
-                .id(Field.attended(id))
-
-                Text("/").foregroundStyle(.secondary)
-
-                TextField("0", value: Binding(
-                    get: { category.wrappedValue.attendance.totalClasses },
-                    set: { category.wrappedValue.attendance.totalClasses = max(0, $0) }
-                ), format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 64)
-                .focused($focusedField, equals: .total(id))
-                .foregroundStyle(.tint)
-                .id(Field.total(id))
-            }
-
-            HStack {
-                Text("Rate")
-                Spacer()
-                Text("\(category.wrappedValue.attendance.percent, specifier: "%.1f")%")
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    category.wrappedValue.attendance.attended()
-                } label: {
-                    Label("Attended (+1)", systemImage: "checkmark.circle.fill")
-                }
-                .buttonStyle(.themedPill(prominent: true))
-
-                Button {
-                    category.wrappedValue.attendance.missed()
-                } label: {
-                    Label("Missed (+1)", systemImage: "xmark.circle.fill")
-                }
-                .buttonStyle(.themedPill())
-            }
-            .padding(.top, 4)
-
-            Button(role: .destructive) {
-                category.wrappedValue.attendance.reset()
-            } label: {
-                Label("Reset attendance", systemImage: "arrow.counterclockwise")
-            }
-            .padding(.top, 4)
-        }
-    }
-
     // MARK: Helpers
 
+    private func displayCategoryName(_ category: GradeCategory) -> String {
+        let trimmed = category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Category" : trimmed
+    }
+
+    private func nextSubItemTitle(for category: GradeCategory) -> String {
+        "\(displayCategoryName(category)) \(category.items.count + 1)"
+    }
+
     private func displayedGradeText() -> String {
-        if let g = breakdown.overrideLetterGrade {
-            return g.rawValue
+        if let resolved = breakdown.resolvedLetterGrade() {
+            if let pct = breakdown.currentGradePercent {
+                return "\(String(format: "%.0f%%", pct)) • \(resolved.rawValue)"
+            }
+            return resolved.rawValue
         }
         if let pct = breakdown.currentGradePercent {
-            let letter = GPACalculator.letterGrade(fromPercent: pct, using: breakdown.gradeCutoffs)
+            let letter = GPACalculator.letterGrade(fromPercent: pct, using: breakdown.effectiveCutoffs())
             return "\(String(format: "%.0f%%", pct)) • \(letter.rawValue)"
         }
         return "—"
