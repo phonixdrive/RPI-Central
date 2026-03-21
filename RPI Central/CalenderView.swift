@@ -1146,7 +1146,7 @@ struct ClassEventDetailView: View {
                                 Label("Remove event", systemImage: "trash")
                             }
 
-                            if let sid = event.seriesID {
+                            if event.seriesID != nil {
                                 Button(role: .destructive) { confirmRemoveSeries = true } label: {
                                     Label("Remove recurrence", systemImage: "trash.slash")
                                 }

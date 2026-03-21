@@ -52,6 +52,11 @@ struct MeetingOverride: Codable, Equatable {
     var type: MeetingBlockType
 }
 
+struct SemesterGPAOverride: Codable, Equatable {
+    var gpa: Double
+    var credits: Double
+}
+
 enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
     case upcoming
     case mealSwipes
@@ -123,6 +128,8 @@ final class CalendarViewModel: ObservableObject {
     private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
     private let homeSectionOrderKey = "settings_home_section_order_v1"
     private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
+    private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
+    private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -156,6 +163,16 @@ final class CalendarViewModel: ObservableObject {
 
     @Published var hiddenHomeSections: Set<HomeDashboardSection> = [] {
         didSet { saveHomeSectionPreferences() }
+    }
+
+    @Published var academicHistoryStartSemester: Semester = .fall2024 {
+        didSet {
+            UserDefaults.standard.set(academicHistoryStartSemester.rawValue, forKey: academicHistoryStartSemesterKey)
+        }
+    }
+
+    @Published var semesterGPAOverrides: [String: SemesterGPAOverride] = [:] {
+        didSet { saveSemesterGPAOverrides() }
     }
 
     @Published private(set) var academicEventsLoaded: Bool = false
@@ -332,6 +349,13 @@ final class CalendarViewModel: ObservableObject {
         self.minutesBeforeClass = savedMinutes == 0 ? 10 : savedMinutes
         self.homeSectionOrder = Self.loadHomeSectionOrder()
         self.hiddenHomeSections = Self.loadHiddenHomeSections()
+        if let raw = UserDefaults.standard.string(forKey: academicHistoryStartSemesterKey),
+           let semester = Semester(rawValue: raw) {
+            self.academicHistoryStartSemester = semester
+        } else {
+            self.academicHistoryStartSemester = .fall2024
+        }
+        self.semesterGPAOverrides = Self.loadSemesterGPAOverrides()
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -382,6 +406,11 @@ final class CalendarViewModel: ObservableObject {
         UserDefaults.standard.set(hidden, forKey: hiddenHomeSectionsKey)
     }
 
+    private func saveSemesterGPAOverrides() {
+        guard let data = try? JSONEncoder().encode(semesterGPAOverrides) else { return }
+        UserDefaults.standard.set(data, forKey: semesterGPAOverridesKey)
+    }
+
     private static func loadHomeSectionOrder() -> [HomeDashboardSection] {
         let rawOrder = UserDefaults.standard.stringArray(forKey: "settings_home_section_order_v1") ?? []
         let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
@@ -393,6 +422,36 @@ final class CalendarViewModel: ObservableObject {
     private static func loadHiddenHomeSections() -> Set<HomeDashboardSection> {
         let rawHidden = UserDefaults.standard.stringArray(forKey: "settings_hidden_home_sections_v1") ?? []
         return Set(rawHidden.compactMap(HomeDashboardSection.init(rawValue:)))
+    }
+
+    private static func loadSemesterGPAOverrides() -> [String: SemesterGPAOverride] {
+        guard let data = UserDefaults.standard.data(forKey: "settings_semester_gpa_overrides_v1"),
+              let decoded = try? JSONDecoder().decode([String: SemesterGPAOverride].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    func displayedAcademicSemesters() -> [Semester] {
+        let startCode = academicHistoryStartSemester.rawValue
+        let currentCode = currentSemester.rawValue
+
+        let semesters = Semester.allCases.filter { semester in
+            semester.rawValue >= startCode && semester.rawValue <= currentCode
+        }
+        return semesters.sorted { $0.rawValue > $1.rawValue }
+    }
+
+    func semesterGPAOverride(for semesterCode: String) -> SemesterGPAOverride? {
+        semesterGPAOverrides[semesterCode]
+    }
+
+    func setSemesterGPAOverride(for semesterCode: String, gpa: Double, credits: Double) {
+        semesterGPAOverrides[semesterCode] = SemesterGPAOverride(gpa: gpa, credits: credits)
+    }
+
+    func clearSemesterGPAOverride(for semesterCode: String) {
+        semesterGPAOverrides.removeValue(forKey: semesterCode)
     }
 
     // MARK: - Widgets (AppGroup snapshot publishing)
@@ -705,7 +764,6 @@ final class CalendarViewModel: ObservableObject {
 
     func meetingOverrideKey(enrollmentID: String, course: Course, section: CourseSection, meeting: Meeting) -> String {
         let days = meeting.days.map { "\($0.calendarWeekday)" }.joined(separator: ",")
-        let loc = meeting.location
         return "\(enrollmentID)|\(days)|\(meeting.start)-\(meeting.end)"
     }
 
@@ -1046,10 +1104,6 @@ final class CalendarViewModel: ObservableObject {
         var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
         let dayStart = calendar.startOfDay(for: date)
-
-        let enrollmentByID: [String: EnrolledCourse] = Dictionary(
-            uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0) }
-        )
 
         let enrollmentSemesterByID: [String: String] = Dictionary(
             uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
@@ -1487,21 +1541,41 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func gpa(for semesterCode: String) -> Double? {
+        if let override = semesterGPAOverride(for: semesterCode) {
+            return override.gpa
+        }
+
         let entries = enrolledCourses
             .filter { $0.semesterCode == semesterCode }
             .compactMap { e -> (LetterGrade, Double)? in
-                guard let g = grade(for: e.id) else { return nil }
+                guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)) else { return nil }
                 return (g, e.section.credits)
             }
         return GPACalculator.weightedGPA(entries)
     }
 
     func overallGPA() -> Double? {
-        let entries = enrolledCourses.compactMap { e -> (LetterGrade, Double)? in
-            guard let g = grade(for: e.id) else { return nil }
-            return (g, e.section.credits)
+        let overriddenSemesterCodes = Set(semesterGPAOverrides.keys)
+
+        let courseEntries = enrolledCourses.compactMap { e -> (points: Double, credits: Double)? in
+            guard !overriddenSemesterCodes.contains(e.semesterCode) else { return nil }
+            guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)) else { return nil }
+            return (g.points, e.section.credits)
         }
-        return GPACalculator.weightedGPA(entries)
+
+        let overrideEntries = semesterGPAOverrides.values.filter { $0.credits > 0 }
+
+        let totalOverridePoints = overrideEntries.reduce(0.0) { $0 + ($1.gpa * $1.credits) }
+        let totalOverrideCredits = overrideEntries.reduce(0.0) { $0 + $1.credits }
+
+        let totalCoursePoints = courseEntries.reduce(0.0) { $0 + ($1.points * $1.credits) }
+        let totalCourseCredits = courseEntries.reduce(0.0) { $0 + $1.credits }
+
+        let totalPoints = totalOverridePoints + totalCoursePoints
+        let totalCredits = totalOverrideCredits + totalCourseCredits
+
+        guard totalCredits > 0 else { return nil }
+        return totalPoints / totalCredits
     }
 
     private func saveGrades() {
@@ -1671,13 +1745,6 @@ final class CalendarViewModel: ObservableObject {
         let location = meeting.location.isEmpty ? "" : meeting.location
 
         // ✅ attach stable meeting key so overrides/exam dates work
-        let mKey = meetingOverrideKey(
-            enrollmentID: enrollmentID,
-            course: course,
-            section: section,
-            meeting: meeting
-        )
-
         let bg = lightPalette[0]
         let accent = darkPalette[0]
 

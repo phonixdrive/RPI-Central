@@ -287,6 +287,7 @@ struct HomeView: View {
 
     @State private var showMealSettings = false
     @State private var showTimer = false
+    @State private var editingSemesterGPA: Semester? = nil
 
     // ✅ force refresh when meeting-block exam dates change (CalendarViewModel sends objectWillChange)
     @State private var upcomingRefreshToken = UUID()
@@ -295,8 +296,8 @@ struct HomeView: View {
         Dictionary(grouping: calendarViewModel.enrolledCourses, by: { $0.semesterCode })
     }
 
-    private var sortedSemesterCodes: [String] {
-        groupedBySemester.keys.sorted(by: >)
+    private var sortedSemesters: [Semester] {
+        calendarViewModel.displayedAcademicSemesters()
     }
     // MARK: - Current semester filtering for Upcoming + Task Editor
 
@@ -339,9 +340,10 @@ struct HomeView: View {
                 }
 
                 // Your existing per-semester enrollment list
-                ForEach(sortedSemesterCodes, id: \.self) { semCode in
+                ForEach(sortedSemesters) { semester in
+                    let semCode = semester.rawValue
                     let enrollments = groupedBySemester[semCode] ?? []
-                    let semesterName = Semester(rawValue: semCode)?.displayName ?? semCode
+                    let semesterName = semester.displayName
 
                     Section {
                         ForEach(enrollments, id: \.id) { enrollment in
@@ -389,6 +391,20 @@ struct HomeView: View {
                                 calendarViewModel.removeEnrollment(e)
                             }
                         }
+
+                        if enrollments.isEmpty {
+                            Text("No courses recorded for this semester.")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            editingSemesterGPA = semester
+                        } label: {
+                            Label(
+                                calendarViewModel.semesterGPAOverride(for: semCode) == nil ? "Set Semester GPA" : "Edit Semester GPA",
+                                systemImage: "slider.horizontal.3"
+                            )
+                        }
                     } header: {
                         HStack {
                             Text(semesterName)
@@ -414,7 +430,8 @@ struct HomeView: View {
             }
 
             // Prevent “View all” closing from auto-opening the task editor
-            .onChange(of: showAllTasks) { isShowing in
+            .onChange(of: showAllTasks) {
+                let isShowing = showAllTasks
                 if !isShowing {
                     showTaskEditor = false
                     editingTask = nil
@@ -465,6 +482,13 @@ struct HomeView: View {
                         themeColor: calendarViewModel.themeColor,
                         settings: pomodoroSettings
                     )
+                }
+            }
+
+            .sheet(item: $editingSemesterGPA) { semester in
+                NavigationStack {
+                    SemesterGPAOverrideEditorView(semester: semester)
+                        .environmentObject(calendarViewModel)
                 }
             }
         }
@@ -534,6 +558,7 @@ struct HomeView: View {
                 } label: {
                     Label("Add", systemImage: "plus.circle.fill")
                 }
+                .buttonStyle(.borderless)
 
                 Spacer()
 
@@ -543,6 +568,7 @@ struct HomeView: View {
                     Text("View all")
                         .font(.subheadline.weight(.semibold))
                 }
+                .buttonStyle(.borderless)
             }
             .tint(calendarViewModel.themeColor)
         } header: {
@@ -1073,6 +1099,73 @@ private struct TasksListView: View {
 private struct ReminderEditItem: Identifiable, Equatable {
     let minutes: Int
     var id: Int { minutes }
+}
+
+private struct SemesterGPAOverrideEditorView: View {
+    @EnvironmentObject var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    let semester: Semester
+
+    @State private var gpa: Double = 0
+    @State private var credits: Double = 16
+
+    var body: some View {
+        Form {
+            Section(semester.displayName) {
+                HStack {
+                    Text("Semester GPA")
+                    Spacer()
+                    TextField("0.00", value: $gpa, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+                }
+
+                HStack {
+                    Text("Credits")
+                    Spacer()
+                    TextField("0", value: $credits, format: .number)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 90)
+                }
+            }
+
+            Section {
+                Button("Save") {
+                    calendarViewModel.setSemesterGPAOverride(
+                        for: semester.rawValue,
+                        gpa: max(0, min(4, gpa)),
+                        credits: max(0, credits)
+                    )
+                    dismiss()
+                }
+
+                if calendarViewModel.semesterGPAOverride(for: semester.rawValue) != nil {
+                    Button(role: .destructive) {
+                        calendarViewModel.clearSemesterGPAOverride(for: semester.rawValue)
+                        dismiss()
+                    } label: {
+                        Text("Clear Override")
+                    }
+                }
+            }
+        }
+        .navigationTitle("Semester GPA")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close") { dismiss() }
+            }
+        }
+        .onAppear {
+            if let override = calendarViewModel.semesterGPAOverride(for: semester.rawValue) {
+                gpa = override.gpa
+                credits = override.credits
+            }
+        }
+    }
 }
 
 // MARK: - Task Editor
