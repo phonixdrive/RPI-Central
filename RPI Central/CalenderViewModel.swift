@@ -158,14 +158,39 @@ final class CalendarViewModel: ObservableObject {
         // reschedule everything
         NotificationManager.clearScheduledNotifications()
 
-        // schedule reminders for all class meetings you currently have loaded
-        let classMeetings = events.filter { !$0.isAllDay && $0.kind == .classMeeting }
+        // --- ✅ Only schedule current-semester class notifications ---
+        // Determine current semester code
+        let currentCode: String? = currentSemester.rawValue
+
+        // Build a fast lookup: enrollmentID -> semesterCode
+        let enrollmentSemesterByID: [String: String] = Dictionary(
+            uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
+        )
+
+        // Filter to current-semester class meetings only
+        let classMeetings = events.filter { ev in
+            guard !ev.isAllDay, ev.kind == .classMeeting else { return false }
+
+            // If we don't have a current semester, fall back to scheduling everything (safe fallback)
+            guard let currentCode else { return true }
+
+            // If event isn't tied to an enrollment (manual event), keep it (or change to false if you want)
+            guard let eid = ev.enrollmentID else { return true }
+
+            // Only schedule if the enrollment's semester matches current semester
+            return enrollmentSemesterByID[eid] == currentCode
+        }
+
         for ev in classMeetings {
             NotificationManager.scheduleNotification(for: ev, minutesBefore: minutesBeforeClass)
         }
 
         #if DEBUG
-        print("🔔 Rescheduled notifications:", classMeetings.count, "events", "lead:", minutesBeforeClass)
+        if let currentCode {
+            print("🔔 Rescheduled notifications (current semester only):", classMeetings.count, "semester:", currentCode, "lead:", minutesBeforeClass)
+        } else {
+            print("🔔 Rescheduled notifications (no current semester set):", classMeetings.count, "events", "lead:", minutesBeforeClass)
+        }
         #endif
     }
 
@@ -1131,6 +1156,7 @@ final class CalendarViewModel: ObservableObject {
         ensureTermBoundsLoaded(for: newSemester)
         ensureAcademicEventsLoaded(for: newSemester)
         rebuildEventsFromEnrollment()
+        applyNotificationScheduling()
         updateBootLoadingStatus()
         refreshSemesterWindow(anchorPreferred: newSemester)
         scheduleWidgetSnapshotPublish()
