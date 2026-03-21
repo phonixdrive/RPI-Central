@@ -121,6 +121,38 @@ final class TasksManager: ObservableObject {
     }
 }
 
+private func taskRelativeDueText(to due: Date, now: Date = Date()) -> String {
+    let delta = due.timeIntervalSince(now)
+    if delta > 0 {
+        let minutes = max(1, Int(delta / 60))
+        if minutes < 60 { return "\(minutes)m" }
+
+        let hours = Int(delta / 3600)
+        if hours < 24 { return "\(hours)h" }
+
+        let days = Int(delta / 86400)
+        if days == 1 { return "Tomorrow" }
+        if days < 14 { return "\(days)d" }
+
+        let weeks = max(2, Int(Double(days) / 7.0))
+        return "\(weeks)w"
+    }
+
+    let overdue = abs(delta)
+    let minutes = max(1, Int(overdue / 60))
+    if minutes < 60 { return "\(minutes)m ago" }
+
+    let hours = Int(overdue / 3600)
+    if hours < 24 { return "\(hours)h ago" }
+
+    let days = Int(overdue / 86400)
+    if days == 1 { return "Yesterday" }
+    if days < 14 { return "\(days)d ago" }
+
+    let weeks = max(2, Int(Double(days) / 7.0))
+    return "\(weeks)w ago"
+}
+
 // MARK: - Meal plan (swipe tracker)
 
 struct MealPlanState: Codable, Equatable {
@@ -624,22 +656,7 @@ struct HomeView: View {
         }
 
         var relativeText: String {
-            let now = Date()
-            let delta = due.timeIntervalSince(now)
-            if delta <= 0 { return "Now" }
-
-            let minutes = Int(delta / 60)
-            if minutes < 60 { return "\(minutes)m" }
-
-            let hours = Int(delta / 3600)
-            if hours < 24 { return "\(hours)h" }
-
-            let days = Int(delta / 86400)
-            if days == 1 { return "Tomorrow" }
-            if days < 14 { return "\(days)d" }
-
-            let weeks = max(2, Int(Double(days) / 7.0))
-            return "\(weeks)w"
+            taskRelativeDueText(to: due)
         }
     }
 
@@ -829,48 +846,50 @@ private struct TasksListView: View {
     @State private var showTaskEditor = false
     @State private var editingTask: CourseTask? = nil
 
+    private var upcomingTasks: [CourseTask] {
+        tasksManager.tasks
+            .filter { $0.dueDate >= Date() }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
+
+    private var oldTasks: [CourseTask] {
+        tasksManager.tasks
+            .filter { $0.dueDate < Date() }
+            .sorted { $0.dueDate > $1.dueDate }
+    }
+
     var body: some View {
         List {
             Section("Assignments / Custom Items") {
-                if tasksManager.tasks.isEmpty {
+                if upcomingTasks.isEmpty {
                     Text("No tasks yet.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(tasksManager.tasks.sorted(by: { $0.dueDate < $1.dueDate })) { t in
-                        Button {
-                            editingTask = t
-                            showTaskEditor = true
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: t.kind.systemImage)
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(themeColor.opacity(0.95))
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(t.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .lineLimit(1)
-
-                                    Text(taskSubtitle(t))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                    ForEach(upcomingTasks) { t in
+                        taskRow(t)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    tasksManager.delete(t)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
-
-                                Spacer()
-
-                                Text(relativeText(to: t.dueDate))
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-
-                                Text(dateText(t.dueDate))
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
                             }
-                        }
-                        .buttonStyle(.plain)
                     }
-                    .onDelete(perform: tasksManager.delete)
+                }
+            }
+
+            if !oldTasks.isEmpty {
+                Section("Old Assignments / Items") {
+                    ForEach(oldTasks) { t in
+                        taskRow(t)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    tasksManager.delete(t)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                    }
                 }
             }
 
@@ -991,23 +1010,40 @@ private struct TasksListView: View {
         return df.string(from: d)
     }
 
-    private func relativeText(to due: Date) -> String {
-        let now = Date()
-        let delta = due.timeIntervalSince(now)
-        if delta <= 0 { return "Now" }
+    @ViewBuilder
+    private func taskRow(_ t: CourseTask) -> some View {
+        Button {
+            editingTask = t
+            showTaskEditor = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: t.kind.systemImage)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(themeColor.opacity(0.95))
 
-        let minutes = Int(delta / 60)
-        if minutes < 60 { return "\(minutes)m" }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(t.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
 
-        let hours = Int(delta / 3600)
-        if hours < 24 { return "\(hours)h" }
+                    Text(taskSubtitle(t))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
 
-        let days = Int(delta / 86400)
-        if days == 1 { return "Tomorrow" }
-        if days < 14 { return "\(days)d" }
+                Spacer()
 
-        let weeks = max(2, Int(Double(days) / 7.0))
-        return "\(weeks)w"
+                Text(taskRelativeDueText(to: t.dueDate))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(dateText(t.dueDate))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
