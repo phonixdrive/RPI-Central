@@ -8,10 +8,9 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
 
-    @State private var notificationsEnabled: Bool = true
-    @State private var minutesBeforeClass: Double = 10
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         NavigationStack {
@@ -74,11 +73,43 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(
+                    header: Text("Home Dashboard"),
+                    footer: Text("Toggle sections on or off, then use Edit to rearrange them.")
+                ) {
+                    ForEach(calendarViewModel.homeSectionOrder) { section in
+                        HStack {
+                            Toggle(
+                                section.title,
+                                isOn: Binding(
+                                    get: { calendarViewModel.isHomeSectionEnabled(section) },
+                                    set: { calendarViewModel.setHomeSection(section, enabled: $0) }
+                                )
+                            )
+                            .toggleStyle(.switch)
+
+                            if editMode == .active {
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .onMove { source, destination in
+                        calendarViewModel.moveHomeSections(from: source, to: destination)
+                    }
+                }
+
                 Section(footer: Text("More settings can go here later (AI integration, academic calendar sync, etc.).")) {
                     EmptyView()
                 }
             }
             .navigationTitle("Settings")
+            .environment(\.editMode, $editMode)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    EditButton()
+                }
+            }
         }
         .onAppear {
             selectedTheme = AppThemeColor.from(color: calendarViewModel.themeColor)
