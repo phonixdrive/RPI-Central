@@ -656,70 +656,69 @@ struct GradeBreakdownView: View {
                                 .buttonStyle(.plain)
                             }
 
-                            TextField("Category", text: category.name)
-                                .font(.title3.weight(.bold))
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                                .focused($focusedField, equals: .categoryTitle(category.wrappedValue.id))
-                                .submitLabel(.done)
-                                .onSubmit { focusedField = nil }
-                                .foregroundStyle(.tint)
+                            if breakdown.participationTrackingEnabled && category.wrappedValue.isParticipationName {
+                                participationPanel(category: category)
+                            } else {
+                                standardPanel(category: category)
+                            }
                         }
-
-                        if breakdown.participationTrackingEnabled && category.wrappedValue.isParticipationName {
-                            participationPanel(category: category)
-                        } else {
-                            standardPanel(category: category)
-                        }
+                        .padding(.vertical, 10)
                     }
-                    .padding(.vertical, 10)
+
+                    Button {
+                        breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
+                    } label: {
+                        Label("Add Category", systemImage: "plus.circle.fill")
+                    }
                 }
 
-                Button {
-                    breakdown.categories.append(GradeCategory(name: "New Category", weightPercent: 0))
-                } label: {
-                    Label("Add Category", systemImage: "plus.circle.fill")
+                Section {
+                    Button(role: .destructive) {
+                        breakdown = GradeBreakdown(categories: [])
+                        GradeBreakdownStore.clear(enrollmentID: enrollmentID)
+                        breakdown.overrideLetterGrade = nil
+                        breakdown.creditsOverride = nil
+                        breakdown.gradeCutoffs = .standard
+                        applyOverrideToCalendarVM()
+                    } label: {
+                        Label("Clear All", systemImage: "trash")
+                    }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Grade Breakdown")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        focusedField = nil
+                        dismiss()
+                    }
+                }
 
-            Section {
-                Button(role: .destructive) {
-                    breakdown = GradeBreakdown(categories: [])
-                    GradeBreakdownStore.clear(enrollmentID: enrollmentID)
-                    breakdown.overrideLetterGrade = nil
-                    breakdown.creditsOverride = nil
-                    applyOverrideToCalendarVM()
-                } label: {
-                    Label("Clear All", systemImage: "trash")
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
                 }
             }
-        }
-        .navigationTitle("Grade Breakdown")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Done") {
-                    focusedField = nil
-                    dismiss()
+            .onAppear {
+                if let saved = GradeBreakdownStore.load(enrollmentID: enrollmentID) {
+                    breakdown = saved
+                } else {
+                    if breakdown.creditsOverride == nil { breakdown.creditsOverride = 4.0 }
+                }
+                applyOverrideToCalendarVM()
+            }
+            .onChange(of: breakdown) { _ in
+                GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
+                applyOverrideToCalendarVM()
+            }
+            .onChange(of: focusedField) { field in
+                guard let field else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    proxy.scrollTo(field, anchor: .center)
                 }
             }
-
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { focusedField = nil }
-            }
-        }
-        .onAppear {
-            if let saved = GradeBreakdownStore.load(enrollmentID: enrollmentID) {
-                breakdown = saved
-            } else {
-                if breakdown.creditsOverride == nil { breakdown.creditsOverride = 4.0 }
-            }
-            applyOverrideToCalendarVM()
-        }
-        .onChange(of: breakdown) { _ in
-            GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
-            applyOverrideToCalendarVM()
         }
     }
 
@@ -738,6 +737,7 @@ struct GradeBreakdownView: View {
                     .frame(width: 80)
                     .focused($focusedField, equals: .weight(id))
                     .foregroundStyle(.tint)
+                    .id(Field.weight(id))
                 Text("%").foregroundStyle(.secondary)
             }
 
@@ -768,6 +768,7 @@ struct GradeBreakdownView: View {
                                 .submitLabel(.done)
                                 .onSubmit { focusedField = nil }
                                 .foregroundStyle(.tint)
+                                .id(Field.itemTitle(item.wrappedValue.id))
 
                             Spacer(minLength: 0)
 
@@ -791,6 +792,7 @@ struct GradeBreakdownView: View {
                                 .frame(width: 70)
                                 .focused($focusedField, equals: .itemEarned(item.wrappedValue.id))
                                 .foregroundStyle(.tint)
+                                .id(Field.itemEarned(item.wrappedValue.id))
 
                             Text("/").foregroundStyle(.secondary)
 
@@ -800,6 +802,7 @@ struct GradeBreakdownView: View {
                                 .frame(width: 70)
                                 .focused($focusedField, equals: .itemPossible(item.wrappedValue.id))
                                 .foregroundStyle(.tint)
+                                .id(Field.itemPossible(item.wrappedValue.id))
 
                             Text("(\(item.wrappedValue.percent, specifier: "%.1f")%)")
                                 .font(.caption)
@@ -832,6 +835,7 @@ struct GradeBreakdownView: View {
                         .frame(width: 80)
                         .focused($focusedField, equals: .percentScore(id))
                         .foregroundStyle(.tint)
+                        .id(Field.percentScore(id))
                     Text("%").foregroundStyle(.secondary)
                 }
             } else {
@@ -845,6 +849,7 @@ struct GradeBreakdownView: View {
                         .frame(width: 70)
                         .focused($focusedField, equals: .earned(id))
                         .foregroundStyle(.tint)
+                        .id(Field.earned(id))
 
                     Text("/").foregroundStyle(.secondary)
 
@@ -854,6 +859,7 @@ struct GradeBreakdownView: View {
                         .frame(width: 70)
                         .focused($focusedField, equals: .possible(id))
                         .foregroundStyle(.tint)
+                        .id(Field.possible(id))
 
                     Text("(\(category.wrappedValue.normalizedScorePercent(), specifier: "%.1f")%)")
                         .font(.caption)
@@ -884,6 +890,7 @@ struct GradeBreakdownView: View {
                 .frame(width: 64)
                 .focused($focusedField, equals: .attended(id))
                 .foregroundStyle(.tint)
+                .id(Field.attended(id))
 
                 Text("/").foregroundStyle(.secondary)
 
@@ -896,6 +903,7 @@ struct GradeBreakdownView: View {
                 .frame(width: 64)
                 .focused($focusedField, equals: .total(id))
                 .foregroundStyle(.tint)
+                .id(Field.total(id))
             }
 
             HStack {
@@ -938,7 +946,8 @@ struct GradeBreakdownView: View {
             return g.rawValue
         }
         if let pct = breakdown.currentGradePercent {
-            return String(format: "%.0f%%", pct)
+            let letter = GPACalculator.letterGrade(fromPercent: pct, using: breakdown.gradeCutoffs)
+            return "\(String(format: "%.0f%%", pct)) • \(letter.rawValue)"
         }
         return "—"
     }
