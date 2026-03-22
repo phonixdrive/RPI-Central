@@ -11,6 +11,7 @@ struct SocialHubView: View {
     @State private var profileDisplayName: String = ""
     @State private var searchQuery: String = ""
     @State private var selectedFriendSchedule: FriendScheduleResponse?
+    @FocusState private var searchFieldFocused: Bool
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
@@ -60,6 +61,13 @@ struct SocialHubView: View {
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
+                    }
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        searchFieldFocused = false
                     }
                 }
             }
@@ -367,9 +375,18 @@ struct SocialHubView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
+                        .focused($searchFieldFocused)
+                        .submitLabel(.search)
+                        .onSubmit {
+                            Task {
+                                searchFieldFocused = false
+                                await socialManager.searchUsers(query: searchQuery)
+                            }
+                        }
 
                     Button("Search") {
                         Task {
+                            searchFieldFocused = false
                             await socialManager.searchUsers(query: searchQuery)
                         }
                     }
@@ -719,20 +736,13 @@ private struct FriendScheduleView: View {
     let response: FriendScheduleResponse
     @EnvironmentObject private var calendarViewModel: CalendarViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedDate: Date
-    @State private var displayedMonth: Date
-
-    private var parsedItems: [ParsedScheduleItem] {
-        response.schedule.items.compactMap { item in
-            ParsedScheduleItem(item: item)
-        }
-        .sorted { $0.startDate < $1.startDate }
-    }
+    @State private var preparedData: FriendSchedulePreparedData?
+    @State private var isPreparing = false
+    @State private var selectedDate: Date = Date()
+    @State private var displayedMonth: Date = FriendScheduleCalendar.startOfMonth(for: Date())
 
     private var selectedDateItems: [ParsedScheduleItem] {
-        parsedItems.filter { item in
-            Calendar.current.isDate(item.startDate, inSameDayAs: selectedDate)
-        }
+        preparedData?.cache.items(on: selectedDate) ?? []
     }
 
     private var monthTitle: String {
@@ -743,16 +753,6 @@ private struct FriendScheduleView: View {
         guard let generatedAt = response.schedule.generatedAt,
               let date = FriendScheduleFormatters.iso.date(from: generatedAt) else { return nil }
         return FriendScheduleFormatters.generatedAt.string(from: date)
-    }
-
-    init(response: FriendScheduleResponse) {
-        self.response = response
-        let anchorDate = response.schedule.items
-            .compactMap { FriendScheduleFormatters.iso.date(from: $0.startDate) }
-            .sorted()
-            .first ?? Date()
-        _selectedDate = State(initialValue: anchorDate)
-        _displayedMonth = State(initialValue: FriendScheduleCalendar.startOfMonth(for: anchorDate))
     }
 
     var body: some View {
@@ -789,72 +789,81 @@ private struct FriendScheduleView: View {
                         }
                     }
 
-                    SocialCard {
-                        VStack(spacing: 14) {
-                            HStack {
-                                Button {
-                                    shiftMonth(by: -1)
-                                } label: {
-                                    Image(systemName: "chevron.left")
-                                }
-                                .buttonStyle(.bordered)
-
-                                Spacer()
-
-                                Text(monthTitle)
-                                    .font(.headline)
-
-                                Spacer()
-
-                                Button {
-                                    shiftMonth(by: 1)
-                                } label: {
-                                    Image(systemName: "chevron.right")
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
-                                ForEach(FriendScheduleCalendar.shortWeekdaySymbols, id: \.self) { symbol in
-                                    Text(symbol)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .frame(maxWidth: .infinity)
-                                }
-
-                                ForEach(FriendScheduleCalendar.gridDates(for: displayedMonth), id: \.self) { day in
+                    if let preparedData {
+                        SocialCard(
+                            background: Color.black.opacity(0.88),
+                            stroke: calendarViewModel.themeColor.opacity(0.22)
+                        ) {
+                            VStack(spacing: 14) {
+                                HStack {
                                     Button {
-                                        selectedDate = day
+                                        shiftMonth(by: -1)
                                     } label: {
-                                        FriendScheduleDayCell(
-                                            date: day,
-                                            monthStart: displayedMonth,
-                                            isSelected: Calendar.current.isDate(day, inSameDayAs: selectedDate),
-                                            itemCount: items(on: day).count,
-                                            hasExam: items(on: day).contains(where: \.isExam),
-                                            accent: calendarViewModel.themeColor
-                                        )
+                                        Image(systemName: "chevron.left")
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.bordered)
+
+                                    Spacer()
+
+                                    Text(monthTitle)
+                                        .font(.headline)
+                                        .foregroundStyle(.white)
+
+                                    Spacer()
+
+                                    Button {
+                                        shiftMonth(by: 1)
+                                    } label: {
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+
+                                FriendScheduleMonthGrid(
+                                    displayedMonth: displayedMonth,
+                                    selectedDate: selectedDate,
+                                    cache: preparedData.cache,
+                                    accent: calendarViewModel.themeColor
+                                ) { day in
+                                    selectedDate = day
                                 }
                             }
                         }
-                    }
 
-                    SocialCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(FriendScheduleFormatters.selectedDayHeader.string(from: selectedDate))
-                                .font(.headline)
+                        SocialCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(FriendScheduleFormatters.selectedDayHeader.string(from: selectedDate))
+                                    .font(.headline)
 
-                            if selectedDateItems.isEmpty {
-                                Text("No shared items on this day.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                ForEach(selectedDateItems) { item in
-                                    FriendScheduleEventRow(item: item, accent: calendarViewModel.themeColor)
+                                if selectedDateItems.isEmpty {
+                                    Text("No shared items on this day.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    LazyVStack(spacing: 10) {
+                                        ForEach(selectedDateItems) { item in
+                                            FriendScheduleEventRow(item: item, accent: calendarViewModel.themeColor)
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    } else {
+                        SocialCard {
+                            HStack(spacing: 12) {
+                                ProgressView()
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Loading shared schedule")
+                                        .font(.headline)
+                                    Text("Optimizing the calendar for this device.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+                            }
+                            .padding(.vertical, 6)
                         }
                     }
                 }
@@ -862,17 +871,14 @@ private struct FriendScheduleView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(response.owner.displayName)
+            .task(id: response.owner.id) {
+                await prepareScheduleIfNeeded()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }
-        }
-    }
-
-    private func items(on day: Date) -> [ParsedScheduleItem] {
-        parsedItems.filter { item in
-            Calendar.current.isDate(item.startDate, inSameDayAs: day)
         }
     }
 
@@ -889,6 +895,36 @@ private struct FriendScheduleView: View {
             .background(Capsule().fill(calendarViewModel.themeColor.opacity(0.14)))
             .foregroundStyle(calendarViewModel.themeColor)
     }
+
+    private func prepareScheduleIfNeeded() async {
+        guard preparedData == nil, !isPreparing else { return }
+        isPreparing = true
+
+        let schedule = response.schedule
+        let prepared = await withCheckedContinuation { (continuation: CheckedContinuation<FriendSchedulePreparedData, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: FriendSchedulePreparedData(schedule: schedule))
+            }
+        }
+
+        preparedData = prepared
+        selectedDate = prepared.anchorDate
+        displayedMonth = FriendScheduleCalendar.startOfMonth(for: prepared.anchorDate)
+        isPreparing = false
+    }
+}
+
+private struct FriendSchedulePreparedData {
+    let cache: FriendScheduleCache
+    let anchorDate: Date
+
+    init(schedule: SharedScheduleSnapshot) {
+        let items = schedule.items
+            .compactMap { ParsedScheduleItem(item: $0) }
+            .sorted { $0.startDate < $1.startDate }
+        self.cache = FriendScheduleCache(items: items)
+        self.anchorDate = items.first?.startDate ?? Date()
+    }
 }
 
 private struct ParsedScheduleItem: Identifiable {
@@ -900,6 +936,7 @@ private struct ParsedScheduleItem: Identifiable {
     let isAllDay: Bool
     let kind: String
     let badge: String?
+    let markerStyle: FriendScheduleMarkerStyle
 
     var isExam: Bool {
         badge?.lowercased() == "exam"
@@ -928,6 +965,71 @@ private struct ParsedScheduleItem: Identifiable {
         self.isAllDay = item.isAllDay
         self.kind = item.kind
         self.badge = item.badge
+        self.markerStyle = FriendScheduleMarkerStyle(kind: item.kind)
+    }
+}
+
+private struct FriendScheduleMonthGrid: View {
+    let displayedMonth: Date
+    let selectedDate: Date
+    let cache: FriendScheduleCache
+    let accent: Color
+    let onSelectDay: (Date) -> Void
+
+    var body: some View {
+        let calendar = FriendScheduleCalendar.calendar
+        let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth) ?? DateInterval()
+        let start = monthInterval.start
+        let range: Range<Int> = calendar.range(of: .day, in: .month, for: start) ?? (1..<32)
+        let leadingBlanks = FriendScheduleCalendar.leadingBlankCount(for: start)
+        let totalCells = leadingBlanks + range.count
+        let rows = Int(ceil(Double(totalCells) / 7.0))
+        let today = Date()
+
+        VStack(spacing: 4) {
+            HStack {
+                ForEach(FriendScheduleCalendar.shortWeekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+
+            ForEach(0..<rows, id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(0..<7, id: \.self) { col in
+                        let index = row * 7 + col
+                        let dayNumber = index - leadingBlanks + 1
+
+                        if dayNumber < 1 || dayNumber > range.count {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 40)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: start) ?? start
+                            let summary = cache.summary(on: date)
+                            FriendScheduleDayCell(
+                                date: date,
+                                monthStart: displayedMonth,
+                                isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                                isToday: calendar.isDate(date, inSameDayAs: today),
+                                summary: summary,
+                                accent: accent
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                onSelectDay(date)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
     }
 }
 
