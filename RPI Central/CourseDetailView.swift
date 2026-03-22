@@ -306,6 +306,7 @@ struct CourseDetailView: View {
                 .fill(Color(.secondarySystemBackground))
         )
     }
+
 }
 
 // MARK: - Exam dates editor sheet (no MultiDatePicker)
