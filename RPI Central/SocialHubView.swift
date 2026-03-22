@@ -1037,50 +1037,124 @@ private struct FriendScheduleDayCell: View {
     let date: Date
     let monthStart: Date
     let isSelected: Bool
-    let itemCount: Int
-    let hasExam: Bool
+    let isToday: Bool
+    let summary: FriendScheduleDaySummary
     let accent: Color
 
     var body: some View {
-        let inMonth = Calendar.current.isDate(date, equalTo: monthStart, toGranularity: .month)
+        let calendar = Calendar.current
+        let inMonth = calendar.isDate(date, equalTo: monthStart, toGranularity: .month)
+        let hasAcademicDay = summary.markerStyles.contains(.academic)
 
-        VStack(spacing: 6) {
-            Text("\(Calendar.current.component(.day, from: date))")
-                .font(.subheadline.weight(isSelected ? .bold : .medium))
-                .foregroundStyle(
-                    isSelected
-                        ? Color.white
-                        : (inMonth ? Color.primary : Color.secondary.opacity(0.55))
-                )
+        VStack(spacing: 3) {
+            HStack(spacing: 3) {
+                Text("\(calendar.component(.day, from: date))")
+                    .font(.caption.weight(isSelected ? .bold : .medium))
+                    .foregroundStyle(
+                        isSelected
+                            ? Color.black
+                            : (inMonth ? Color.white : Color.white.opacity(0.38))
+                    )
 
-            HStack(spacing: 4) {
-                if hasExam {
+                if summary.hasExam {
                     Image(systemName: "star.fill")
                         .font(.system(size: 8))
-                }
-
-                if itemCount > 0 {
-                    Circle()
-                        .frame(width: 6, height: 6)
-                    if itemCount > 1 {
-                        Text("\(min(itemCount, 9))")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
+                        .foregroundStyle(isSelected ? Color.black : Color.yellow)
                 }
             }
-            .foregroundStyle(isSelected ? Color.white.opacity(0.92) : accent)
-            .frame(height: 10)
+            .frame(maxWidth: .infinity)
+
+            if summary.markerStyles.isEmpty {
+                Circle()
+                    .fill(Color.clear)
+                    .frame(width: 5, height: 5)
+            } else {
+                HStack(spacing: 3) {
+                    ForEach(Array(summary.markerStyles.prefix(3).enumerated()), id: \.offset) { pair in
+                        Circle()
+                            .fill(pair.element.color(accent: accent))
+                            .frame(width: 5, height: 5)
+                    }
+
+                    if summary.itemCount > summary.markerStyles.count {
+                        Text("+")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(isSelected ? Color.black : Color.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 52)
-        .padding(.vertical, 8)
+        .padding(5)
+        .frame(height: 40)
+        .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
+            Group {
+                if isSelected {
+                    Color.white
+                } else if hasAcademicDay {
+                    Color.orange.opacity(0.22)
+                } else {
+                    Color.clear
+                }
+            }
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
                     isSelected
-                        ? accent
-                        : (inMonth ? Color(.secondarySystemBackground) : Color(.systemGray6))
+                        ? Color.clear
+                        : (isToday ? Color.white.opacity(0.9) : Color.clear),
+                    lineWidth: 1.6
                 )
         )
+        .cornerRadius(7)
+    }
+}
+
+private enum FriendScheduleMarkerStyle: Hashable {
+    case classMeeting
+    case assignment
+    case academic
+    case personal
+
+    init(kind: String) {
+        switch kind {
+        case "classMeeting":
+            self = .classMeeting
+        case "assignment":
+            self = .assignment
+        case "academic":
+            self = .academic
+        default:
+            self = .personal
+        }
+    }
+
+    func color(accent: Color) -> Color {
+        switch self {
+        case .classMeeting:
+            return accent
+        case .assignment:
+            return .blue
+        case .academic:
+            return .orange
+        case .personal:
+            return accent.opacity(0.7)
+        }
+    }
+
+    func labelText(isExam: Bool) -> String {
+        switch self {
+        case .classMeeting:
+            return isExam ? "Class + Exam" : "Class"
+        case .assignment:
+            return "Assignment"
+        case .academic:
+            return "Academic"
+        case .personal:
+            return "Personal"
+        }
     }
 }
 
@@ -1088,27 +1162,18 @@ private struct FriendScheduleEventRow: View {
     let item: ParsedScheduleItem
     let accent: Color
 
-    private var kindLabel: String {
-        switch item.kind {
-        case "classMeeting":
-            return item.isExam ? "Class + Exam" : "Class"
-        case "assignment":
-            return "Assignment"
-        case "academic":
-            return "Academic"
-        default:
-            return "Personal"
-        }
+    private var indicatorColor: Color {
+        item.markerStyle.color(accent: accent)
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(accent.opacity(0.18))
+                .fill(indicatorColor.opacity(0.18))
                 .frame(width: 10)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(accent)
+                        .fill(indicatorColor)
                         .frame(width: 4)
                 )
 
@@ -1134,9 +1199,9 @@ private struct FriendScheduleEventRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(kindLabel)
+                Text(item.markerStyle.labelText(isExam: item.isExam))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(accent)
+                    .foregroundStyle(indicatorColor)
             }
         }
         .padding(14)
@@ -1145,36 +1210,83 @@ private struct FriendScheduleEventRow: View {
     }
 }
 
+private struct FriendScheduleCache {
+    let items: [ParsedScheduleItem]
+    private let itemsByDayKey: [String: [ParsedScheduleItem]]
+    private let summaryByDayKey: [String: FriendScheduleDaySummary]
+
+    init(items: [ParsedScheduleItem]) {
+        self.items = items
+
+        var grouped: [String: [ParsedScheduleItem]] = [:]
+        var summaries: [String: FriendScheduleDaySummary] = [:]
+
+        for item in items {
+            let key = FriendScheduleFormatters.dayKey.string(
+                from: FriendScheduleCalendar.calendar.startOfDay(for: item.startDate)
+            )
+            grouped[key, default: []].append(item)
+
+            var summary = summaries[key] ?? FriendScheduleDaySummary(itemCount: 0, hasExam: false, markerStyles: [])
+            summary.itemCount += 1
+            summary.hasExam = summary.hasExam || item.isExam
+            if !summary.markerStyles.contains(item.markerStyle) {
+                summary.markerStyles.append(item.markerStyle)
+            }
+            summaries[key] = summary
+        }
+
+        self.itemsByDayKey = grouped
+        self.summaryByDayKey = summaries
+    }
+
+    func items(on date: Date) -> [ParsedScheduleItem] {
+        itemsByDayKey[dayKey(for: date)] ?? []
+    }
+
+    func summary(on date: Date) -> FriendScheduleDaySummary {
+        summaryByDayKey[dayKey(for: date)] ?? FriendScheduleDaySummary(itemCount: 0, hasExam: false, markerStyles: [])
+    }
+
+    private func dayKey(for date: Date) -> String {
+        FriendScheduleFormatters.dayKey.string(from: FriendScheduleCalendar.calendar.startOfDay(for: date))
+    }
+}
+
+private struct FriendScheduleDaySummary {
+    var itemCount: Int
+    var hasExam: Bool
+    var markerStyles: [FriendScheduleMarkerStyle]
+}
+
 private enum FriendScheduleCalendar {
     static let calendar = Calendar.current
 
     static var shortWeekdaySymbols: [String] {
-        var symbols = calendar.veryShortStandaloneWeekdaySymbols
-        if calendar.firstWeekday > 1 {
-            let prefix = symbols.prefix(calendar.firstWeekday - 1)
-            symbols.removeFirst(calendar.firstWeekday - 1)
-            symbols.append(contentsOf: prefix)
-        }
-        return symbols
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     }
 
     static func startOfMonth(for date: Date) -> Date {
         calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
     }
 
-    static func gridDates(for monthStart: Date) -> [Date] {
-        let start = startOfMonth(for: monthStart)
-        let weekday = calendar.component(.weekday, from: start)
-        let offset = (weekday - calendar.firstWeekday + 7) % 7
-        let gridStart = calendar.date(byAdding: .day, value: -offset, to: start) ?? start
-        return (0..<42).compactMap { index in
-            calendar.date(byAdding: .day, value: index, to: gridStart)
-        }
+    static func leadingBlankCount(for monthStart: Date) -> Int {
+        let weekday = calendar.component(.weekday, from: monthStart)
+        return (weekday - 2 + 7) % 7
     }
 }
 
 private enum FriendScheduleFormatters {
     static let iso = ISO8601DateFormatter()
+
+    static let dayKey: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = Calendar.current.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     static let month: DateFormatter = {
         let formatter = DateFormatter()
