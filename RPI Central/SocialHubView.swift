@@ -1207,6 +1207,430 @@ struct SocialHubView: View {
     private func syncProfileDisplayName() {
         profileDisplayName = socialManager.currentUser?.displayName ?? ""
     }
+
+    private func runFeedRefreshLoop() async {
+        guard socialManager.isAuthenticated, selectedSection == .feed else { return }
+        guard feedRefreshIntervalSeconds > 0 else { return }
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(feedRefreshIntervalSeconds) * 1_000_000_000)
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled,
+                  socialManager.isAuthenticated,
+                  selectedSection == .feed,
+                  feedRefreshIntervalSeconds > 0 else { return }
+
+            await socialManager.refreshOverview()
+        }
+    }
+
+    private func groupSummary(for group: SocialFriendGroup, namesByID: [String: String]) -> String {
+        let names = group.memberIDs.compactMap { namesByID[$0] }
+        if names.isEmpty {
+            return "Members unavailable"
+        }
+        if names.count <= 3 {
+            return names.joined(separator: ", ")
+        }
+        return "\(names.prefix(3).joined(separator: ", ")) +\(names.count - 3)"
+    }
+
+    private func feedStateText(for item: SocialFeedItem) -> String {
+        if feedIsEnded(item) {
+            return "Ended"
+        }
+        return feedIsUpcoming(item) ? "Upcoming" : "Ongoing"
+    }
+
+    private func feedStateColor(for item: SocialFeedItem) -> Color {
+        switch feedStateText(for: item) {
+        case "Upcoming":
+            return .blue
+        case "Ongoing":
+            return .green
+        default:
+            return .secondary
+        }
+    }
+
+    private func feedVisibilityText(for post: SocialFeedPost) -> String {
+        switch post.visibility {
+        case .friends:
+            return "Friends"
+        case .everyone:
+            return "Everybody"
+        case .groups:
+            return "Groups"
+        }
+    }
+
+    private func feedTimingText(for item: SocialFeedItem) -> String {
+        let now = Date()
+        if let endedAt = feedDate(item.post.endedAt) {
+            return "Ended \(FeedFormatters.relative.localizedString(for: endedAt, relativeTo: now))"
+        }
+        if let startsAt = feedDate(item.post.startsAt) {
+            if startsAt > now {
+                return "Starts \(FeedFormatters.shortDateTime.string(from: startsAt))"
+            }
+            return "Started \(FeedFormatters.relative.localizedString(for: startsAt, relativeTo: now))"
+        }
+        return "Recently posted"
+    }
+
+    private func feedDate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        return FeedFormatters.iso.date(from: value)
+    }
+
+    private func feedIsEnded(_ item: SocialFeedItem) -> Bool {
+        feedDate(item.post.endedAt) != nil
+    }
+
+    private func feedIsUpcoming(_ item: SocialFeedItem) -> Bool {
+        guard let startsAt = feedDate(item.post.startsAt), !feedIsEnded(item) else { return false }
+        return startsAt > Date()
+    }
+}
+
+private enum SocialHubSection: String {
+    case friends
+    case feed
+    case profile
+}
+
+private enum FeedRefreshOption: Int, CaseIterable, Identifiable {
+    case off = 0
+    case fifteen = 15
+    case thirty = 30
+    case sixty = 60
+
+    var id: Int { rawValue }
+    var seconds: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return "Refresh off"
+        case .fifteen: return "15s"
+        case .thirty: return "30s"
+        case .sixty: return "60s"
+        }
+    }
+
+    init(seconds: Int) {
+        self = FeedRefreshOption(rawValue: seconds) ?? .thirty
+    }
+}
+
+private struct FeedComposerView: View {
+    let groups: [SocialFriendGroup]
+    let accent: Color
+    let onSave: (
+        _ title: String,
+        _ location: String,
+        _ details: String,
+        _ startsAt: Date,
+        _ visibility: SocialFeedVisibility,
+        _ groupIDs: [String]
+    ) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: FeedComposerField?
+    @State private var title = ""
+    @State private var location = ""
+    @State private var details = ""
+    @State private var startsAt = Date()
+    @State private var visibility: SocialFeedVisibility = .friends
+    @State private var selectedGroupIDs: Set<String> = []
+    @State private var isSaving = false
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            (visibility != .groups || !selectedGroupIDs.isEmpty) &&
+            !isSaving
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    SocialCard(
+                        background: Color(red: 0.16, green: 0.18, blue: 0.23),
+                        stroke: Color.white.opacity(0.08)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Create Activity")
+                                .font(.title3.bold())
+                                .foregroundStyle(.white)
+                            Text("Post something people can join, keep it ongoing, and end it when you are done.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.white.opacity(0.72))
+                        }
+                    }
+
+                    SocialCard {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Activity")
+                                    .font(.subheadline.weight(.semibold))
+
+                                TextField("Studying at Union", text: $title)
+                                    .textInputAutocapitalization(.sentences)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .title)
+
+                                TextField("Location", text: $location)
+                                    .textInputAutocapitalization(.words)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .location)
+
+                                TextField("Optional details", text: $details, axis: .vertical)
+                                    .textInputAutocapitalization(.sentences)
+                                    .lineLimit(2...5)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .details)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Starts")
+                                    .font(.subheadline.weight(.semibold))
+
+                                DatePicker(
+                                    "Start time",
+                                    selection: $startsAt,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .datePickerStyle(.compact)
+                                .tint(accent)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Visibility")
+                                    .font(.subheadline.weight(.semibold))
+
+                                Picker("Visibility", selection: $visibility) {
+                                    ForEach(SocialFeedVisibility.allCases) { option in
+                                        Text(option.title).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                if visibility == .groups {
+                                    if groups.isEmpty {
+                                        Text("Create a friend group first before posting a group-only activity.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        VStack(spacing: 10) {
+                                            ForEach(groups) { group in
+                                                Button {
+                                                    toggle(group.id)
+                                                } label: {
+                                                    HStack(spacing: 10) {
+                                                        Image(systemName: selectedGroupIDs.contains(group.id) ? "checkmark.circle.fill" : "circle")
+                                                            .foregroundStyle(selectedGroupIDs.contains(group.id) ? accent : .secondary)
+                                                        VStack(alignment: .leading, spacing: 2) {
+                                                            Text(group.name)
+                                                                .foregroundStyle(.primary)
+                                                            Text("\(group.memberIDs.count) member\(group.memberIDs.count == 1 ? "" : "s")")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        Spacer()
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        accent.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .navigationTitle("New Activity")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Post") {
+                        isSaving = true
+                        let selectedIDs = Array(selectedGroupIDs).sorted()
+                        Task {
+                            let didSave = await onSave(
+                                title.trimmingCharacters(in: .whitespacesAndNewlines),
+                                location.trimmingCharacters(in: .whitespacesAndNewlines),
+                                details.trimmingCharacters(in: .whitespacesAndNewlines),
+                                startsAt,
+                                visibility,
+                                selectedIDs
+                            )
+                            await MainActor.run {
+                                isSaving = false
+                                if didSave {
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                    .disabled(!canSave)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ groupID: String) {
+        if selectedGroupIDs.contains(groupID) {
+            selectedGroupIDs.remove(groupID)
+        } else {
+            selectedGroupIDs.insert(groupID)
+        }
+    }
+}
+
+private enum FeedComposerField: Hashable {
+    case title
+    case location
+    case details
+}
+
+private struct FriendGroupEditorView: View {
+    let friends: [SocialFriend]
+    let accent: Color
+    let onSave: (_ name: String, _ memberIDs: [String]) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var groupName = ""
+    @State private var selectedMemberIDs: Set<String> = []
+    @State private var isSaving = false
+
+    private var sortedFriends: [SocialFriend] {
+        friends.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private var canSave: Bool {
+        !groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !selectedMemberIDs.isEmpty && !isSaving
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Group") {
+                    TextField("Group name", text: $groupName)
+                        .textInputAutocapitalization(.words)
+                }
+
+                Section("Members") {
+                    if sortedFriends.isEmpty {
+                        Text("No friends available yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(sortedFriends) { friend in
+                            Button {
+                                toggle(friend.id)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: selectedMemberIDs.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(selectedMemberIDs.contains(friend.id) ? accent : .secondary)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(friend.displayName)
+                                            .foregroundStyle(.primary)
+                                        Text("@\(friend.username)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        accent.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .navigationTitle("New Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        let trimmed = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let members = Array(selectedMemberIDs).sorted()
+                        isSaving = true
+                        Task {
+                            let didSave = await onSave(trimmed, members)
+                            await MainActor.run {
+                                isSaving = false
+                                if didSave {
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                    .disabled(!canSave)
+                }
+            }
+        }
+    }
+
+    private func toggle(_ friendID: String) {
+        if selectedMemberIDs.contains(friendID) {
+            selectedMemberIDs.remove(friendID)
+        } else {
+            selectedMemberIDs.insert(friendID)
+        }
+    }
 }
 
 private struct SocialCard<Content: View>: View {
@@ -1299,6 +1723,23 @@ private enum AuthMode: String, CaseIterable, Identifiable {
             return !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
+}
+
+private enum FeedFormatters {
+    static let iso = ISO8601DateFormatter()
+
+    static let shortDateTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static let relative: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
 }
 
 private struct FriendScheduleView: View {
@@ -1613,7 +2054,7 @@ private struct FriendScheduleDayCell: View {
     var body: some View {
         let calendar = Calendar.current
         let inMonth = calendar.isDate(date, equalTo: monthStart, toGranularity: .month)
-        let hasAcademicDay = summary.markerStyles.contains(.academic)
+        let hasBreakDay = summary.markerStyles.contains(.breakDay)
 
         VStack(spacing: 3) {
             HStack(spacing: 3) {
@@ -1661,7 +2102,7 @@ private struct FriendScheduleDayCell: View {
             Group {
                 if isSelected {
                     Color.white
-                } else if hasAcademicDay {
+                } else if hasBreakDay {
                     Color.orange.opacity(0.22)
                 } else {
                     Color.clear
@@ -1684,7 +2125,13 @@ private struct FriendScheduleDayCell: View {
 private enum FriendScheduleMarkerStyle: Hashable {
     case classMeeting
     case assignment
-    case academic
+    case holiday
+    case breakDay
+    case readingDays
+    case finals
+    case noClasses
+    case followDay
+    case academicOther
     case personal
 
     init(kind: String) {
@@ -1693,8 +2140,20 @@ private enum FriendScheduleMarkerStyle: Hashable {
             self = .classMeeting
         case "assignment":
             self = .assignment
-        case "academic":
-            self = .academic
+        case "holiday":
+            self = .holiday
+        case "break":
+            self = .breakDay
+        case "readingDays":
+            self = .readingDays
+        case "finals":
+            self = .finals
+        case "noClasses":
+            self = .noClasses
+        case "followDay":
+            self = .followDay
+        case "academicOther", "academic":
+            self = .academicOther
         default:
             self = .personal
         }
@@ -1706,8 +2165,20 @@ private enum FriendScheduleMarkerStyle: Hashable {
             return accent
         case .assignment:
             return .blue
-        case .academic:
+        case .holiday:
+            return .red
+        case .breakDay:
             return .orange
+        case .readingDays:
+            return .blue
+        case .finals:
+            return .purple
+        case .noClasses:
+            return .gray
+        case .followDay:
+            return .teal
+        case .academicOther:
+            return .yellow
         case .personal:
             return accent.opacity(0.7)
         }
@@ -1719,7 +2190,19 @@ private enum FriendScheduleMarkerStyle: Hashable {
             return isExam ? "Class + Exam" : "Class"
         case .assignment:
             return "Assignment"
-        case .academic:
+        case .holiday:
+            return "Holiday"
+        case .breakDay:
+            return "Break"
+        case .readingDays:
+            return "Reading Days"
+        case .finals:
+            return "Finals"
+        case .noClasses:
+            return "No Classes"
+        case .followDay:
+            return "Follow Day"
+        case .academicOther:
             return "Academic"
         case .personal:
             return "Personal"
