@@ -686,16 +686,46 @@ final class SocialManager: ObservableObject {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
             let now = nowISO()
-            let snapshot = makeScheduleSnapshot(from: calendarViewModel)
+            let friendshipsSnapshot = try await getDocuments(
+                firestore.collection("friendships").whereField("members", arrayContains: viewer.id)
+            )
+            let friendIDs = friendshipsSnapshot.documents.compactMap { snapshot -> String? in
+                let members = snapshot.data()["members"] as? [String] ?? []
+                return members.first(where: { $0 != viewer.id })
+            }
+            let groups = try await loadFriendGroups(ownerID: viewer.id)
+            let groupMembersByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, Set($0.memberIDs)) })
+            let rootRef = firestore.collection("sharedSchedules").document(viewer.id)
+            let legacyItems = makeLegacyScheduleSnapshot(from: calendarViewModel)
+
             try await setData([
                 "ownerID": viewer.id,
                 "semesterCode": calendarViewModel.currentSemester.rawValue,
                 "generatedAt": now,
-                "items": snapshot.map(sharedScheduleItemData),
-            ], at: firestore.collection("sharedSchedules").document(viewer.id))
+                "items": legacyItems.map(sharedScheduleItemData),
+            ], at: rootRef)
+
+            for friendID in friendIDs {
+                let visibleItems = makeScheduleSnapshot(
+                    from: calendarViewModel,
+                    visibleToFriendID: friendID,
+                    groupMembersByID: groupMembersByID
+                )
+                try await writeFriendViewSchedule(
+                    ownerID: viewer.id,
+                    viewerID: friendID,
+                    semesterCode: calendarViewModel.currentSemester.rawValue,
+                    generatedAt: now,
+                    items: visibleItems
+                )
+            }
 
             try await updateData([
                 "lastScheduleAt": now,
+                "sharedScheduleItemCount": legacyItems.count,
+                "sharedScheduleLegacySemesterCode": calendarViewModel.currentSemester.rawValue,
+                "sharedScheduleLegacyGeneratedAt": now,
+                "sharedScheduleLegacyItems": legacyItems.map(sharedScheduleItemData),
             ], at: firestore.collection("users").document(viewer.id))
 
             if var current = currentUser {
@@ -735,12 +765,7 @@ final class SocialManager: ObservableObject {
                 throw SocialError.api("That user is not sharing their schedule.")
             }
 
-            let scheduleDoc = try await getDocument(firestore.collection("sharedSchedules").document(friendID))
-            let schedule = makeScheduleSnapshot(from: scheduleDoc.data()) ?? SharedScheduleSnapshot(
-                semesterCode: "",
-                generatedAt: nil,
-                items: []
-            )
+            let schedule = try await loadScheduleSnapshot(ownerID: friendID, viewerID: viewer.id)
             loadedFriendSchedule = FriendScheduleResponse(owner: owner, schedule: schedule)
 #else
             throw SocialError.firebaseNotLinked
@@ -784,6 +809,8 @@ final class SocialManager: ObservableObject {
                     self.detachRealtimeListeners()
                     self.currentUser = nil
                     self.overview = nil
+                    self.friendGroups = []
+                    self.feedItems = []
                     self.searchResults = []
                     self.loadedFriendSchedule = nil
                     return
@@ -861,6 +888,26 @@ final class SocialManager: ObservableObject {
 
         let incoming = try await makeRequestSummaries(from: incomingSnapshot.documents)
         let outgoing = try await makeRequestSummaries(from: outgoingSnapshot.documents)
+
+        do {
+            friendGroups = try await loadFriendGroups(ownerID: viewer.id)
+        } catch {
+            if isPermissionDenied(error) {
+                friendGroups = []
+            } else {
+                throw error
+            }
+        }
+
+        do {
+            feedItems = try await loadFeedItems(friendOwnerIDs: friendIDs)
+        } catch {
+            if isPermissionDenied(error) {
+                feedItems = []
+            } else {
+                throw error
+            }
+        }
 
         overview = SocialOverviewResponse(
             viewer: viewer,
@@ -940,6 +987,10 @@ final class SocialManager: ObservableObject {
         detachRealtimeListeners()
         permissionRecoveryInFlight = true
         defer { permissionRecoveryInFlight = false }
+        let preservedUser = currentUser
+        let preservedOverview = overview
+        let preservedGroups = friendGroups
+        let preservedFeed = feedItems
 
         do {
             try await refreshAuthTokenIfNeeded(forceRefresh: true)
@@ -947,11 +998,11 @@ final class SocialManager: ObservableObject {
             errorMessage = nil
             statusMessage = "Social connection restored."
         } catch {
-            currentUser = nil
-            overview = nil
-            searchResults = []
-            loadedFriendSchedule = nil
-            errorMessage = "Social access was denied. Sign in again to refresh your phone's session."
+            currentUser = preservedUser ?? currentUser
+            overview = preservedOverview
+            friendGroups = preservedGroups
+            feedItems = preservedFeed
+            errorMessage = "Social access was denied. Pull to retry. If it keeps happening, refresh Firestore rules or sign in again."
         }
         return true
     }
@@ -1099,7 +1150,7 @@ final class SocialManager: ObservableObject {
             lastScheduleAt: shareSchedule ? createdAt : nil
         )
 
-        try await setData([
+        var profileData: [String: Any] = [
             "displayName": user.displayName,
             "displayNameLower": user.displayName.lowercased(),
             "username": user.username,
@@ -1110,7 +1161,16 @@ final class SocialManager: ObservableObject {
             "shareLocation": user.shareLocation,
             "createdAt": user.createdAt,
             "lastScheduleAt": user.lastScheduleAt ?? "",
-        ], at: context.firestore.collection("users").document(user.id))
+        ]
+
+        if shareSchedule {
+            profileData["sharedScheduleItemCount"] = scheduleItems.count
+            profileData["sharedScheduleLegacySemesterCode"] = semesterCode ?? ""
+            profileData["sharedScheduleLegacyGeneratedAt"] = user.lastScheduleAt ?? createdAt
+            profileData["sharedScheduleLegacyItems"] = scheduleItems.map(sharedScheduleItemData)
+        }
+
+        try await setData(profileData, at: context.firestore.collection("users").document(user.id))
 
         if shareSchedule {
             try await setData([
@@ -1164,17 +1224,51 @@ final class SocialManager: ObservableObject {
 
     private func fetchScheduleCounts(for users: [SocialUser]) async -> [String: Int] {
         var counts: [String: Int] = [:]
+        guard let viewerID = currentUser?.id else { return counts }
         for user in users where user.shareSchedule {
             do {
-                let snapshot = try await getDocument(firestore.collection("sharedSchedules").document(user.id))
-                let items = snapshot.data()?["items"] as? [[String: Any]] ?? []
-                counts[user.id] = items.count
+                if let legacySnapshot = try await loadUserDocLegacyScheduleSnapshot(ownerID: user.id),
+                   !legacySnapshot.items.isEmpty {
+                    counts[user.id] = legacySnapshot.items.count
+                    continue
+                }
+                let schedule = try await loadScheduleSnapshot(ownerID: user.id, viewerID: viewerID)
+                counts[user.id] = schedule.items.count
             } catch {
                 // Preview counts are cosmetic. A missing or denied schedule should not break the entire social hub.
                 counts[user.id] = 0
             }
         }
         return counts
+    }
+
+    private func loadFriendGroups(ownerID: String) async throws -> [SocialFriendGroup] {
+        let userSnapshot = try await getDocument(firestore.collection("users").document(ownerID))
+        if let data = userSnapshot.data(), data["friendGroups"] != nil {
+            return decodeFriendGroups(from: data)
+        }
+
+        do {
+            let snapshot = try await getDocuments(
+                firestore.collection("friendGroups")
+                    .whereField("ownerID", isEqualTo: ownerID)
+            )
+
+            return snapshot.documents
+                .compactMap(makeFriendGroup)
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        } catch {
+            if isPermissionDenied(error) {
+                return []
+            }
+            throw error
+        }
+    }
+
+    private func saveFriendGroups(_ groups: [SocialFriendGroup], ownerID: String) async throws {
+        try await updateData([
+            "friendGroups": groups.map(friendGroupData)
+        ], at: firestore.collection("users").document(ownerID))
     }
 
     private func pendingRequestExists(from fromUserID: String, to toUserID: String) async throws -> Bool {
@@ -1201,6 +1295,29 @@ final class SocialManager: ObservableObject {
 
     private func canonicalFriendshipID(_ userA: String, _ userB: String) -> String {
         [userA, userB].sorted().joined(separator: "_")
+    }
+
+    private func friendViewReference(ownerID: String, viewerID: String) -> DocumentReference {
+        firestore.collection("sharedSchedules")
+            .document(ownerID)
+            .collection("friendViews")
+            .document(viewerID)
+    }
+
+    private func writeFriendViewSchedule(
+        ownerID: String,
+        viewerID: String,
+        semesterCode: String,
+        generatedAt: String,
+        items: [SharedScheduleItem]
+    ) async throws {
+        try await setData([
+            "ownerID": ownerID,
+            "viewerID": viewerID,
+            "semesterCode": semesterCode,
+            "generatedAt": generatedAt,
+            "items": items.map(sharedScheduleItemData),
+        ], at: friendViewReference(ownerID: ownerID, viewerID: viewerID))
     }
 
     private func nextAvailableUsername(base: String, firestore: Firestore? = nil) async throws -> String {
@@ -1277,6 +1394,236 @@ final class SocialManager: ObservableObject {
             createdAt: data["createdAt"] as? String ?? "",
             lastScheduleAt: emptyToNil(data["lastScheduleAt"] as? String)
         )
+    }
+
+    private func makeFriendGroup(from snapshot: DocumentSnapshot) -> SocialFriendGroup? {
+        guard snapshot.exists, let data = snapshot.data() else { return nil }
+        return SocialFriendGroup(
+            id: snapshot.documentID,
+            ownerID: data["ownerID"] as? String ?? "",
+            name: data["name"] as? String ?? "",
+            createdAt: data["createdAt"] as? String ?? "",
+            memberIDs: (data["memberIDs"] as? [String] ?? []).sorted()
+        )
+    }
+
+    private func decodeFriendGroups(from data: [String: Any]) -> [SocialFriendGroup] {
+        let rawGroups = data["friendGroups"] as? [[String: Any]] ?? []
+        return rawGroups.compactMap { item in
+            guard let id = item["id"] as? String,
+                  let ownerID = item["ownerID"] as? String,
+                  let name = item["name"] as? String,
+                  let createdAt = item["createdAt"] as? String else {
+                return nil
+            }
+
+            return SocialFriendGroup(
+                id: id,
+                ownerID: ownerID,
+                name: name,
+                createdAt: createdAt,
+                memberIDs: (item["memberIDs"] as? [String] ?? []).sorted()
+            )
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func friendGroupData(_ group: SocialFriendGroup) -> [String: Any] {
+        [
+            "id": group.id,
+            "ownerID": group.ownerID,
+            "name": group.name,
+            "createdAt": group.createdAt,
+            "memberIDs": group.memberIDs.sorted(),
+        ]
+    }
+
+    private func loadFeedItems(friendOwnerIDs: [String]) async throws -> [SocialFeedItem] {
+        guard let viewer = currentUser else { return [] }
+        let friendOwnerIDSet = Set(friendOwnerIDs)
+        var ownerIDs = friendOwnerIDSet
+        ownerIDs.insert(viewer.id)
+
+        do {
+            let publicUsersSnapshot = try await getDocuments(
+                firestore.collection("users")
+                    .order(by: "lastFeedPostAt", descending: true)
+                    .limit(to: 60)
+            )
+            for document in publicUsersSnapshot.documents {
+                ownerIDs.insert(document.documentID)
+            }
+        } catch {
+            if !isPermissionDenied(error) {
+                throw error
+            }
+        }
+
+        var posts: [SocialFeedPost] = []
+        var responsesByPostID: [String: [SocialFeedPresence]] = [:]
+
+        for ownerID in ownerIDs {
+            let snapshot: DocumentSnapshot
+            do {
+                snapshot = try await getDocument(firestore.collection("users").document(ownerID))
+            } catch {
+                if isPermissionDenied(error) {
+                    continue
+                }
+                throw error
+            }
+            let data = snapshot.data() ?? [:]
+            let ownerGroups = decodeFriendGroups(from: data)
+
+            posts.append(
+                contentsOf: decodeFeedPosts(from: data).filter { post in
+                    canViewerSeeFeedPost(
+                        post,
+                        ownerID: ownerID,
+                        viewerID: viewer.id,
+                        friendOwnerIDs: friendOwnerIDSet,
+                        ownerGroups: ownerGroups
+                    )
+                }
+            )
+            for response in decodeFeedResponses(from: data) {
+                responsesByPostID[response.postID, default: []].append(response)
+            }
+        }
+
+        let now = Date()
+        return posts
+            .filter { shouldIncludeFeedPost($0, now: now) }
+            .sorted { lhs, rhs in
+                (isoDate(lhs.createdAt) ?? .distantPast) > (isoDate(rhs.createdAt) ?? .distantPast)
+            }
+            .map { post in
+                let responses = (responsesByPostID[post.id] ?? [])
+                    .sorted { lhs, rhs in
+                        (isoDate(lhs.respondedAt) ?? .distantPast) > (isoDate(rhs.respondedAt) ?? .distantPast)
+                    }
+                return SocialFeedItem(post: post, responses: responses)
+            }
+    }
+
+    private func shouldIncludeFeedPost(_ post: SocialFeedPost, now: Date) -> Bool {
+        if let endedAt = isoDate(post.endedAt) {
+            return endedAt >= now.addingTimeInterval(-12 * 60 * 60)
+        }
+
+        return true
+    }
+
+    private func canViewerSeeFeedPost(
+        _ post: SocialFeedPost,
+        ownerID: String,
+        viewerID: String,
+        friendOwnerIDs: Set<String>,
+        ownerGroups: [SocialFriendGroup]
+    ) -> Bool {
+        if ownerID == viewerID {
+            return true
+        }
+
+        switch post.visibility {
+        case .everyone:
+            return true
+        case .friends:
+            return friendOwnerIDs.contains(ownerID)
+        case .groups:
+            guard friendOwnerIDs.contains(ownerID) else { return false }
+            let visibleGroupIDs = Set(post.visibleGroupIDs)
+            return ownerGroups.contains { group in
+                visibleGroupIDs.contains(group.id) && group.memberIDs.contains(viewerID)
+            }
+        }
+    }
+
+    private func decodeFeedPosts(from data: [String: Any]) -> [SocialFeedPost] {
+        let rawPosts = data["feedPosts"] as? [[String: Any]] ?? []
+        return rawPosts.compactMap { item in
+            guard let id = item["id"] as? String,
+                  let ownerID = item["ownerID"] as? String,
+                  let ownerUsername = item["ownerUsername"] as? String,
+                  let ownerDisplayName = item["ownerDisplayName"] as? String,
+                  let title = item["title"] as? String,
+                  let location = item["location"] as? String,
+                  let details = item["details"] as? String,
+                  let createdAt = item["createdAt"] as? String else {
+                return nil
+            }
+
+            let visibility = SocialFeedVisibility(rawValue: item["visibility"] as? String ?? "") ?? .friends
+            let startsAt = item["startsAt"] as? String ?? createdAt
+            let endedAt = emptyToNil(item["endedAt"] as? String) ?? emptyToNil(item["endsAt"] as? String)
+
+            return SocialFeedPost(
+                id: id,
+                ownerID: ownerID,
+                ownerUsername: ownerUsername,
+                ownerDisplayName: ownerDisplayName,
+                title: title,
+                location: location,
+                details: details,
+                createdAt: createdAt,
+                startsAt: startsAt,
+                endedAt: endedAt,
+                visibility: visibility,
+                visibleGroupIDs: (item["visibleGroupIDs"] as? [String] ?? []).sorted()
+            )
+        }
+    }
+
+    private func feedPostData(_ post: SocialFeedPost) -> [String: Any] {
+        [
+            "id": post.id,
+            "ownerID": post.ownerID,
+            "ownerUsername": post.ownerUsername,
+            "ownerDisplayName": post.ownerDisplayName,
+            "title": post.title,
+            "location": post.location,
+            "details": post.details,
+            "createdAt": post.createdAt,
+            "startsAt": post.startsAt,
+            "endedAt": post.endedAt ?? "",
+            "visibility": post.visibility.rawValue,
+            "visibleGroupIDs": post.visibleGroupIDs.sorted(),
+        ]
+    }
+
+    private func decodeFeedResponses(from data: [String: Any]) -> [SocialFeedPresence] {
+        let rawResponses = data["feedResponses"] as? [[String: Any]] ?? []
+        return rawResponses.compactMap { item in
+            guard let postID = item["postID"] as? String,
+                  let userID = item["userID"] as? String,
+                  let username = item["username"] as? String,
+                  let displayName = item["displayName"] as? String,
+                  let rawStatus = item["status"] as? String,
+                  let status = SocialFeedPresenceStatus(rawValue: rawStatus),
+                  let respondedAt = item["respondedAt"] as? String else {
+                return nil
+            }
+
+            return SocialFeedPresence(
+                postID: postID,
+                userID: userID,
+                username: username,
+                displayName: displayName,
+                status: status,
+                respondedAt: respondedAt
+            )
+        }
+    }
+
+    private func feedResponseData(_ response: SocialFeedPresence) -> [String: Any] {
+        [
+            "postID": response.postID,
+            "userID": response.userID,
+            "username": response.username,
+            "displayName": response.displayName,
+            "status": response.status.rawValue,
+            "respondedAt": response.respondedAt,
+        ]
     }
 
     private func makeScheduleSnapshot(from data: [String: Any]?) -> SharedScheduleSnapshot? {
