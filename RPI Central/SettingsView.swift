@@ -14,109 +14,123 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                // APPEARANCE
-                Section(header: Text("Appearance")) {
-                    Picker("Mode", selection: $selectedAppearance) {
-                        ForEach(AppAppearanceMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    Picker("Theme color", selection: $selectedTheme) {
-                        ForEach(AppThemeColor.allCases) { theme in
-                            HStack {
-                                Circle()
-                                    .fill(theme.color)
-                                    .frame(width: 16, height: 16)
-                                Text(theme.displayName)
+                Form {
+                    // APPEARANCE
+                    Section(header: Text("Appearance")) {
+                        Picker("Mode", selection: $selectedAppearance) {
+                            ForEach(AppAppearanceMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
                             }
-                            .tag(theme)
+                        }
+
+                        Picker("Theme color", selection: $selectedTheme) {
+                            ForEach(AppThemeColor.allCases) { theme in
+                                HStack {
+                                    Circle()
+                                        .fill(theme.color)
+                                        .frame(width: 16, height: 16)
+                                    Text(theme.displayName)
+                                }
+                                .tag(theme)
+                            }
                         }
                     }
-                }
 
-                // PREREQS
-                Section(header: Text("Courses")) {
-                    Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
-                    Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    // PREREQS
+                    Section(header: Text("Courses")) {
+                        Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
+                        Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                Section(header: Text("Academic History")) {
-                    Picker("Started college", selection: $calendarViewModel.academicHistoryStartSemester) {
-                        ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
-                            Text(semester.displayName).tag(semester)
+                    Section(header: Text("Academic History")) {
+                        Picker("Started college", selection: $calendarViewModel.academicHistoryStartSemester) {
+                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                                Text(semester.displayName).tag(semester)
+                            }
                         }
                     }
-                }
 
-                Section(
-                    header: Text("Social"),
-                    footer: Text("Demo social tools add seeded test users and requests to help you test the Firebase social features.")
-                ) {
-                    Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
-                }
-
-                // NOTIFICATIONS (UI only – wiring to real notifications can come later)
-                Section(header: Text("Notifications")) {
-                    Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)
-
-                    if calendarViewModel.notificationsEnabled {
-                        HStack {
-                            Text("Remind me")
-                            Spacer()
-                            Text("\(calendarViewModel.minutesBeforeClass) min before")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Slider(
-                            value: Binding(
-                                get: { Double(calendarViewModel.minutesBeforeClass) },
-                                set: { calendarViewModel.minutesBeforeClass = Int($0) }
-                            ),
-                            in: 0...120,
-                            step: 5
-                        )
-
-                        // ✅ temporary debug button
-                        Button("Test notification (5 seconds)") {
-                            NotificationManager.requestAuthorization()
-                            NotificationManager.scheduleTestNotification()
-                        }
+                    Section(
+                        header: Text("Social"),
+                        footer: Text("Demo social tools add seeded test users and requests to help you test the Firebase social features.")
+                    ) {
+                        Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
                     }
-                }
 
-                Section(
-                    header: Text("Home Dashboard"),
-                    footer: Text("Toggle sections on or off, then use Edit to rearrange them.")
-                ) {
-                    ForEach(calendarViewModel.homeSectionOrder) { section in
-                        HStack {
-                            Toggle(
-                                section.title,
-                                isOn: Binding(
-                                    get: { calendarViewModel.isHomeSectionEnabled(section) },
-                                    set: { calendarViewModel.setHomeSection(section, enabled: $0) }
-                                )
-                            )
-                            .toggleStyle(.switch)
+                    // NOTIFICATIONS (UI only – wiring to real notifications can come later)
+                    Section(header: Text("Notifications")) {
+                        Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)
 
-                            if editMode == .active {
-                                Image(systemName: "line.3.horizontal")
+                        if calendarViewModel.notificationsEnabled {
+                            HStack {
+                                Text("Remind me")
+                                Spacer()
+                                Text("\(calendarViewModel.minutesBeforeClass) min before")
                                     .foregroundStyle(.secondary)
                             }
+
+                            Slider(
+                                value: Binding(
+                                    get: { Double(calendarViewModel.minutesBeforeClass) },
+                                    set: { calendarViewModel.minutesBeforeClass = Int($0) }
+                                ),
+                                in: 0...120,
+                                step: 5
+                            )
+
+                            // ✅ temporary debug button
+                            Button("Test notification (5 seconds)") {
+                                NotificationManager.requestAuthorization()
+                                NotificationManager.scheduleTestNotification()
+                            }
                         }
                     }
-                    .onMove { source, destination in
-                        calendarViewModel.moveHomeSections(from: source, to: destination)
+
+                    Section(
+                        header: Text("Home Dashboard"),
+                        footer: Text("Toggle sections on or off, then use Edit to rearrange them.")
+                    ) {
+                        ForEach(calendarViewModel.homeSectionOrder) { section in
+                            HStack {
+                                Toggle(
+                                    section.title,
+                                    isOn: Binding(
+                                        get: { calendarViewModel.isHomeSectionEnabled(section) },
+                                        set: { calendarViewModel.setHomeSection(section, enabled: $0) }
+                                    )
+                                )
+                                .toggleStyle(.switch)
+
+                                if editMode == .active {
+                                    Image(systemName: "line.3.horizontal")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .onMove { source, destination in
+                            calendarViewModel.moveHomeSections(from: source, to: destination)
+                        }
+                    }
+
+                    Section(footer: Text("You can move the order by pressing and holding the section by the way")) {
+                        EmptyView()
                     }
                 }
-
-                Section(footer: Text("You can move the order by pressing and holding the section by the way")) {
-                    EmptyView()
-                }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Settings")
             .environment(\.editMode, $editMode)
