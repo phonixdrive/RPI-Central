@@ -82,6 +82,7 @@ final class CalendarViewModel: ObservableObject {
         didSet {
             guard !suppressWidgetPublishes else { return }
             scheduleWidgetSnapshotPublish()
+            applyNotificationScheduling()
         }
     }
 
@@ -90,6 +91,7 @@ final class CalendarViewModel: ObservableObject {
         didSet {
             guard !suppressWidgetPublishes else { return }
             scheduleWidgetSnapshotPublish()
+            applyNotificationScheduling()
         }
     }
 
@@ -241,6 +243,8 @@ final class CalendarViewModel: ObservableObject {
 
     @Published private(set) var gradesByEnrollmentID: [String: String] = [:]
     private let gradesStorageKey = "enrollment_grades_v1"
+    @Published private(set) var notesByEnrollmentID: [String: String] = [:]
+    private let notesStorageKey = "enrollment_notes_v1"
 
     // MARK: - Meeting overrides + exam dates storage
 
@@ -364,6 +368,7 @@ final class CalendarViewModel: ObservableObject {
             loadAssumedPrereqs()
             loadEnrollment()
             loadGrades()
+            loadNotes()
 
             // NEW: load meeting overrides + exam dates
             loadMeetingOverrides()
@@ -525,29 +530,43 @@ final class CalendarViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
+    private func storedTasks() -> [CourseTask] {
+        guard let data = UserDefaults.standard.data(forKey: "courseTasks.v1"),
+              let decoded = try? JSONDecoder().decode([CourseTask].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private func hasExamTask(for enrollmentID: String?, on date: Date, tasks: [CourseTask]? = nil) -> Bool {
+        guard let enrollmentID else { return false }
+        let dayStart = calendar.startOfDay(for: date)
+        let sourceTasks = tasks ?? storedTasks()
+        return sourceTasks.contains { task in
+            task.kind == .exam &&
+            task.enrollmentID == enrollmentID &&
+            calendar.isDate(calendar.startOfDay(for: task.dueDate), inSameDayAs: dayStart)
+        }
+    }
+
     /// Widget-safe variant: DO NOT require term bounds to exist.
     /// (If bounds exist, we still respect them; if not, we allow events so dots show.)
     private func eventsForWidget(on date: Date) -> [ClassEvent] {
         var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
         let dayStart = calendar.startOfDay(for: date)
+        let currentCode = currentSemester.rawValue
+        let tasks = storedTasks()
 
         let enrollmentSemesterByID: [String: String] = Dictionary(
             uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
         )
 
         for base in events {
-            if let k = base.meetingKey {
-                let nk = normalizeMeetingKey(k)
-
-                print("READ event meetingKey RAW:", k)
-                print("READ event meetingKey NORM:", nk)
-                print("READ override exists:", meetingOverridesByKey.keys.contains(nk))
-                print("READ examDates exists:", examDatesByMeetingKey.keys.contains(nk))
-            }
             if base.kind == .classMeeting, let enrollmentID = base.enrollmentID {
                 let baseWeekday = calendar.component(.weekday, from: base.startDate)
                 guard baseWeekday == weekday else { continue }
+                guard enrollmentSemesterByID[enrollmentID] == currentCode else { continue }
 
                 // ✅ If term bounds exist, respect them; if missing, allow (so widget gets dots immediately)
                 if let semCode = enrollmentSemesterByID[enrollmentID],
@@ -589,11 +608,14 @@ final class CalendarViewModel: ObservableObject {
                       let newEnd   = calendar.date(from: endComps)
                 else { continue }
 
+                let hasExamBadge = {
+                    if let key = base.meetingKey, meetingOverride(for: key).type == .exam { return true }
+                    return hasExamTask(for: base.enrollmentID, on: date, tasks: tasks)
+                }()
+
                 var title = base.title
-                if let key = base.meetingKey {
-                    if meetingOverride(for: key).type == .exam {
-                        title = "★ \(title)"
-                    }
+                if hasExamBadge {
+                    title = "★ \(title)"
                 }
 
                 let copy = ClassEvent(
@@ -607,6 +629,7 @@ final class CalendarViewModel: ObservableObject {
                     seriesID: nil,
                     isAllDay: false,
                     kind: .classMeeting,
+                    badge: hasExamBadge ? .exam : base.badge,
                     meetingKey: base.meetingKey.map(normalizeMeetingKey)
                 )
 
@@ -665,7 +688,9 @@ final class CalendarViewModel: ObservableObject {
 
         let todayEvents: [WidgetDayEvent] = todayEventsApp.map { e in
             var badge: String? = nil
-            if e.kind == .classMeeting, let key = e.meetingKey {
+            if let eventBadge = e.badge {
+                badge = eventBadge.rawValue
+            } else if e.kind == .classMeeting, let key = e.meetingKey {
                 switch meetingOverride(for: key).type {
                 case .exam: badge = "exam"
                 case .recitation: badge = "recitation"
@@ -707,6 +732,9 @@ final class CalendarViewModel: ObservableObject {
             let isBreakDay = dayEvents.contains { $0.isAllDay && $0.kind == .break }
 
             let hasExam = dayEvents.contains(where: { ev in
+                if ev.badge == .exam {
+                    return true
+                }
                 if ev.kind == .classMeeting, let key = ev.meetingKey {
                     return meetingOverride(for: key).type == .exam
                 }
@@ -1104,6 +1132,7 @@ final class CalendarViewModel: ObservableObject {
         var result: [ClassEvent] = []
         let weekday = calendar.component(.weekday, from: date)
         let dayStart = calendar.startOfDay(for: date)
+        let tasks = storedTasks()
 
         let enrollmentSemesterByID: [String: String] = Dictionary(
             uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
@@ -1162,12 +1191,25 @@ final class CalendarViewModel: ObservableObject {
                       let newEnd   = calendar.date(from: endComps)
                 else { continue }
 
+                let hasExamBadge = {
+                    if let key {
+                        let ov = meetingOverride(for: key)
+                        if ov.type == .exam { return true }
+                    }
+                    return hasExamTask(for: base.enrollmentID, on: date, tasks: tasks)
+                }()
+
                 var title = base.title
                 if let key {
                     let ov = meetingOverride(for: key)
                     if ov.type == .exam {
                         title = "★ \(title)"
                     }
+                } else if hasExamBadge {
+                    title = "★ \(title)"
+                }
+                if hasExamBadge && !title.hasPrefix("★") {
+                    title = "★ \(title)"
                 }
 
                 let copy = ClassEvent(
@@ -1181,6 +1223,7 @@ final class CalendarViewModel: ObservableObject {
                     seriesID: nil,
                     isAllDay: false,
                     kind: .classMeeting,
+                    badge: hasExamBadge ? .exam : base.badge,
                     meetingKey: base.meetingKey.map(normalizeMeetingKey)
                 )
 
@@ -1540,6 +1583,21 @@ final class CalendarViewModel: ObservableObject {
         objectWillChange.send()
     }
 
+    func notes(for enrollmentID: String) -> String {
+        notesByEnrollmentID[enrollmentID] ?? ""
+    }
+
+    func setNotes(_ notes: String, for enrollmentID: String) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            notesByEnrollmentID.removeValue(forKey: enrollmentID)
+        } else {
+            notesByEnrollmentID[enrollmentID] = notes
+        }
+        saveNotes()
+        objectWillChange.send()
+    }
+
     func gpa(for semesterCode: String) -> Double? {
         if let override = semesterGPAOverride(for: semesterCode) {
             return override.gpa
@@ -1582,6 +1640,10 @@ final class CalendarViewModel: ObservableObject {
         UserDefaults.standard.set(gradesByEnrollmentID, forKey: gradesStorageKey)
     }
 
+    private func saveNotes() {
+        UserDefaults.standard.set(notesByEnrollmentID, forKey: notesStorageKey)
+    }
+
     private func loadGrades() {
         if let dict = UserDefaults.standard.dictionary(forKey: gradesStorageKey) as? [String: String] {
             gradesByEnrollmentID = dict
@@ -1590,6 +1652,16 @@ final class CalendarViewModel: ObservableObject {
         }
         let validIDs = Set(enrolledCourses.map { $0.id })
         gradesByEnrollmentID = gradesByEnrollmentID.filter { validIDs.contains($0.key) }
+    }
+
+    private func loadNotes() {
+        if let dict = UserDefaults.standard.dictionary(forKey: notesStorageKey) as? [String: String] {
+            notesByEnrollmentID = dict
+        } else {
+            notesByEnrollmentID = [:]
+        }
+        let validIDs = Set(enrolledCourses.map { $0.id })
+        notesByEnrollmentID = notesByEnrollmentID.filter { validIDs.contains($0.key) }
     }
 
     // MARK: - Assumed prereqs (unchanged)

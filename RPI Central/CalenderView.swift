@@ -770,9 +770,17 @@ struct TimelineCalendarView: View {
                     .cornerRadius(2, corners: [.topLeft, .bottomLeft])
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(event.title)
-                        .font(.caption2.bold())
-                        .foregroundColor(.black)
+                    HStack(spacing: 4) {
+                        Text(event.title)
+                            .font(.caption2.bold())
+                            .foregroundColor(.black)
+
+                        if event.badge == .exam {
+                            Image(systemName: "star.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                        }
+                    }
 
                     Text("\(timeString(event.startDate)) – \(timeString(event.endDate))")
                         .font(.caption2)
@@ -832,8 +840,16 @@ struct MonthWithScheduleView: View {
                                     .padding(.top, 4)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(event.title)
-                                        .font(.headline)
+                                    HStack(spacing: 4) {
+                                        Text(event.title)
+                                            .font(.headline)
+
+                                        if event.badge == .exam {
+                                            Image(systemName: "star.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.yellow)
+                                        }
+                                    }
 
                                     Text(timeRangeString(for: event))
                                         .font(.subheadline)
@@ -976,13 +992,22 @@ struct MonthGridView: View {
                             let isToday = calendar.isDate(date, inSameDayAs: today)
 
                             let isBreakDay = dayEvents.contains { $0.isAllDay && $0.kind == .break }
+                            let hasExam = dayEvents.contains { $0.badge == .exam || $0.title.hasPrefix("★") }
                             let dotColors = dotColorsForDayEvents(dayEvents)
 
                             VStack(spacing: 3) {
-                                Text("\(dayNumber)")
-                                    .font(.caption)
-                                    .foregroundColor(isSelected ? .black : .white)
-                                    .frame(maxWidth: .infinity)
+                                HStack(spacing: 3) {
+                                    Text("\(dayNumber)")
+                                        .font(.caption)
+                                        .foregroundColor(isSelected ? .black : .white)
+
+                                    if hasExam {
+                                        Image(systemName: "star.fill")
+                                            .font(.system(size: 8))
+                                            .foregroundStyle(isSelected ? Color.black : Color.yellow)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
 
                                 if dotColors.isEmpty {
                                     Circle()
@@ -1076,11 +1101,13 @@ struct ClassEventDetailView: View {
     let event: ClassEvent
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var notesFocused: Bool
     @State private var confirmRemoveOne: Bool = false
     @State private var confirmRemoveSeries: Bool = false
     @State private var confirmRemoveCourse: Bool = false
     @State private var confirmHideOccurrence: Bool = false
     @State private var confirmHideAllDay: Bool = false
+    @State private var notesText: String = ""
 
     private let dfDate: DateFormatter = {
         let df = DateFormatter()
@@ -1098,38 +1125,56 @@ struct ClassEventDetailView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(event.title)
-                    .font(.title3.bold())
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(event.title)
+                        .font(.title3.bold())
 
-                if event.isAllDay {
-                    Text("All-day event")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if event.isAllDay {
+                        Text("All-day event")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                    Text("\(dfDate.string(from: event.startDate))")
-                        .font(.subheadline)
+                        Text("\(dfDate.string(from: event.startDate))")
+                            .font(.subheadline)
 
-                    if Calendar.current.startOfDay(for: event.startDate) != Calendar.current.startOfDay(for: event.endDate) {
-                        Text("Through \(dfDate.string(from: event.endDate))")
+                        if Calendar.current.startOfDay(for: event.startDate) != Calendar.current.startOfDay(for: event.endDate) {
+                            Text("Through \(dfDate.string(from: event.endDate))")
+                                .font(.subheadline)
+                        }
+                    } else {
+                        Text(dfDate.string(from: event.startDate))
+                            .font(.subheadline)
+
+                        Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
                             .font(.subheadline)
                     }
-                } else {
-                    Text(dfDate.string(from: event.startDate))
-                        .font(.subheadline)
 
-                    Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
-                        .font(.subheadline)
+                    if !event.location.isEmpty {
+                        Text(event.location)
+                            .font(.subheadline)
+                    }
+
+                    if let enrollmentID = event.enrollmentID, event.kind == .classMeeting {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes")
+                                .font(.headline)
+
+                            TextEditor(text: $notesText)
+                                .focused($notesFocused)
+                                .frame(minHeight: 160)
+                                .padding(8)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .onChange(of: notesText) {
+                                    viewModel.setNotes(notesText, for: enrollmentID)
+                                }
+                        }
+                    }
                 }
-
-                if !event.location.isEmpty {
-                    Text(event.location)
-                        .font(.subheadline)
-                }
-
-                Spacer()
+                .padding()
             }
-            .padding()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Event Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1167,6 +1212,15 @@ struct ClassEventDetailView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { notesFocused = false }
+                }
+            }
+            .onAppear {
+                if let enrollmentID = event.enrollmentID, event.kind == .classMeeting {
+                    notesText = viewModel.notes(for: enrollmentID)
                 }
             }
             .confirmationDialog("Hide all-day event?", isPresented: $confirmHideAllDay, titleVisibility: .visible) {
