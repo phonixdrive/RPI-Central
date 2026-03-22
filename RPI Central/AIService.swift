@@ -201,7 +201,7 @@ struct GeminiEventExtractor {
 }
 
 enum GeminiCourseAdvisor {
-    private static let apiKey = "AIzaSyAaHnO7UrxxIpy0Q11IA1CSqp8VxlQqBPQ"
+    private static let apiKey = "key would go here"
     private static let modelID = "gemini-2.5-flash"
 
     static func fetchSummary(

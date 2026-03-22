@@ -1,0 +1,5 @@
+
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcresult
