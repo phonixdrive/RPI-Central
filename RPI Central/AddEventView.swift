@@ -372,16 +372,20 @@ struct AddEventView: View {
 
         // ✅ recurrence id (shared across generated events)
         let seriesID: UUID? = (frequency == .none) ? nil : UUID()
+        let friendIDs = Array(selectedFriendIDs).sorted()
+        let groupIDs = Array(selectedGroupIDs).sorted()
 
         switch frequency {
         case .none:
-            viewModel.addEvent(
+            addSingleEvent(
                 title: trimmedTitle,
                 location: location,
-                date: date,
+                eventDate: selectedDate,
                 startTime: startTime,
                 endTime: fixedEndTime,
-                seriesID: nil
+                seriesID: nil,
+                friendIDs: friendIDs,
+                groupIDs: groupIDs
             )
             isPresented = false
 
@@ -391,7 +395,9 @@ struct AddEventView: View {
                 location: location,
                 startTime: startTime,
                 endTime: fixedEndTime,
-                seriesID: seriesID
+                seriesID: seriesID,
+                friendIDs: friendIDs,
+                groupIDs: groupIDs
             )
             isPresented = false
 
@@ -401,7 +407,9 @@ struct AddEventView: View {
                 location: location,
                 startTime: startTime,
                 endTime: fixedEndTime,
-                seriesID: seriesID
+                seriesID: seriesID,
+                friendIDs: friendIDs,
+                groupIDs: groupIDs
             )
             isPresented = false
 
@@ -411,17 +419,56 @@ struct AddEventView: View {
                 location: location,
                 startTime: startTime,
                 endTime: fixedEndTime,
-                seriesID: seriesID
+                seriesID: seriesID,
+                friendIDs: friendIDs,
+                groupIDs: groupIDs
             )
             isPresented = false
         }
+
+        if socialManager.currentUser?.shareSchedule == true {
+            Task {
+                await socialManager.syncSchedule(from: viewModel)
+            }
+        }
     }
 
-    private func addDailyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
+    private func addSingleEvent(
+        title: String,
+        location: String,
+        eventDate: Date,
+        startTime: Date,
+        endTime: Date,
+        seriesID: UUID?,
+        friendIDs: [String],
+        groupIDs: [String]
+    ) {
+        viewModel.addEvent(
+            title: title,
+            location: location,
+            date: eventDate,
+            startTime: startTime,
+            endTime: endTime,
+            seriesID: seriesID,
+            shareMode: shareMode,
+            sharedFriendIDs: friendIDs,
+            sharedGroupIDs: groupIDs
+        )
+    }
+
+    private func addDailyEvents(
+        title: String,
+        location: String,
+        startTime: Date,
+        endTime: Date,
+        seriesID: UUID?,
+        friendIDs: [String],
+        groupIDs: [String]
+    ) {
         var cal = Calendar.current
         cal.timeZone = .current
 
-        let startDay = cal.startOfDay(for: date)
+        let startDay = cal.startOfDay(for: selectedDate)
         let endDay = cal.startOfDay(for: repeatUntil)
 
         var cur = startDay
@@ -430,7 +477,16 @@ struct AddEventView: View {
             let isWeekend = (weekday == 1 || weekday == 7)
 
             if !(dailyWeekdaysOnly && isWeekend) {
-                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
+                addSingleEvent(
+                    title: title,
+                    location: location,
+                    eventDate: cur,
+                    startTime: startTime,
+                    endTime: endTime,
+                    seriesID: seriesID,
+                    friendIDs: friendIDs,
+                    groupIDs: groupIDs
+                )
             }
 
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
@@ -438,34 +494,68 @@ struct AddEventView: View {
         }
     }
 
-    private func addWeeklyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
+    private func addWeeklyEvents(
+        title: String,
+        location: String,
+        startTime: Date,
+        endTime: Date,
+        seriesID: UUID?,
+        friendIDs: [String],
+        groupIDs: [String]
+    ) {
         var cal = Calendar.current
         cal.timeZone = .current
 
-        let startDay = cal.startOfDay(for: date)
+        let startDay = cal.startOfDay(for: selectedDate)
         let endDay = cal.startOfDay(for: repeatUntil)
 
         // If somehow empty, default to weekday of tapped date
         var days = weeklyDays
-        if days.isEmpty, let wk = weekdayEnum(for: date) { days = [wk] }
+        if days.isEmpty, let wk = weekdayEnum(for: selectedDate) { days = [wk] }
 
         var cur = startDay
         while cur <= endDay {
             if let wk = weekdayEnum(for: cur), days.contains(wk) {
-                viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
+                addSingleEvent(
+                    title: title,
+                    location: location,
+                    eventDate: cur,
+                    startTime: startTime,
+                    endTime: endTime,
+                    seriesID: seriesID,
+                    friendIDs: friendIDs,
+                    groupIDs: groupIDs
+                )
             }
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
             cur = next
         }
     }
 
-    private func addMonthlyEvents(title: String, location: String, startTime: Date, endTime: Date, seriesID: UUID?) {
+    private func addMonthlyEvents(
+        title: String,
+        location: String,
+        startTime: Date,
+        endTime: Date,
+        seriesID: UUID?,
+        friendIDs: [String],
+        groupIDs: [String]
+    ) {
         let cal = Calendar.current
-        let day = dayOfMonth(date)
+        let day = dayOfMonth(selectedDate)
 
-        var cur = date
+        var cur = selectedDate
         while cur <= repeatUntil {
-            viewModel.addEvent(title: title, location: location, date: cur, startTime: startTime, endTime: endTime, seriesID: seriesID)
+            addSingleEvent(
+                title: title,
+                location: location,
+                eventDate: cur,
+                startTime: startTime,
+                endTime: endTime,
+                seriesID: seriesID,
+                friendIDs: friendIDs,
+                groupIDs: groupIDs
+            )
 
             guard let nextMonth = cal.date(byAdding: .month, value: 1, to: cur) else { break }
             var comps = cal.dateComponents([.year, .month], from: nextMonth)
@@ -506,4 +596,11 @@ struct AddEventView: View {
         default: return nil
         }
     }
+}
+
+private struct SharingSelectionRow: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
 }
