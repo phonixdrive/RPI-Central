@@ -1124,3 +1124,95 @@ final class SocialManager: ObservableObject {
             }
         }
     }
+#endif
+
+    private func runOperation(
+        showSpinner: Bool = true,
+        _ operation: () async throws -> Void
+    ) async {
+#if canImport(FirebaseCore)
+        if isFirebaseAvailable, FirebaseApp.app() == nil {
+            errorMessage = "Firebase is not configured yet. Add GoogleService-Info.plist to the app target."
+            isLoading = false
+            return
+        }
+#endif
+        if showSpinner {
+            isLoading = true
+        }
+        errorMessage = nil
+        statusMessage = nil
+        defer { isLoading = false }
+
+        do {
+            try await operation()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func makeScheduleSnapshot(from viewModel: CalendarViewModel) -> [SharedScheduleItem] {
+        let now = Date()
+        let horizon = Calendar.current.date(byAdding: .day, value: 21, to: now) ?? now
+        let enrollmentSemesterByID = Dictionary(uniqueKeysWithValues: viewModel.enrolledCourses.map { ($0.id, $0.semesterCode) })
+
+        return viewModel.events
+            .filter { event in
+                guard event.startDate <= horizon else { return false }
+                if let enrollmentID = event.enrollmentID {
+                    return enrollmentSemesterByID[enrollmentID] == viewModel.currentSemester.rawValue
+                }
+                return event.endDate >= now
+            }
+            .sorted { $0.startDate < $1.startDate }
+            .map { event in
+                SharedScheduleItem(
+                    id: event.id.uuidString,
+                    title: event.title,
+                    location: event.location,
+                    startDate: ISO8601DateFormatter().string(from: event.startDate),
+                    endDate: ISO8601DateFormatter().string(from: event.endDate),
+                    isAllDay: event.isAllDay,
+                    kind: event.kind.rawValue,
+                    badge: event.badge?.rawValue
+                )
+            }
+    }
+
+    private func normalizeDisplayName(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func normalizeEmail(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func nowISO() -> String {
+        ISO8601DateFormatter().string(from: Date())
+    }
+
+    private func emptyToNil(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+}
+
+enum SocialError: LocalizedError {
+    case firebaseNotLinked
+    case invalidResponse
+    case notAuthenticated
+    case api(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .firebaseNotLinked:
+            return "Firebase is not linked yet. Add FirebaseCore, FirebaseAuth, FirebaseFirestore, and GoogleService-Info.plist."
+        case .invalidResponse:
+            return "Firebase returned an invalid response."
+        case .notAuthenticated:
+            return "You need to sign in first."
+        case .api(let message):
+            return message
+        }
+    }
+}
