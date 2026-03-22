@@ -66,6 +66,81 @@ struct SocialSearchResult: Codable, Identifiable, Equatable {
     let hasPendingOutgoing: Bool
 }
 
+struct SocialFriendGroup: Codable, Identifiable, Equatable {
+    let id: String
+    let ownerID: String
+    let name: String
+    let createdAt: String
+    let memberIDs: [String]
+}
+
+enum SocialFeedVisibility: String, Codable, CaseIterable, Identifiable {
+    case friends
+    case everyone
+    case groups
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .friends: return "Friends"
+        case .everyone: return "Everybody"
+        case .groups: return "Specific groups"
+        }
+    }
+}
+
+enum SocialFeedPresenceStatus: String, Codable, Identifiable {
+    case going
+    case here
+    case notGoing
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .going: return "Going"
+        case .here: return "Here"
+        case .notGoing: return "Not going"
+        }
+    }
+}
+
+struct SocialFeedPost: Codable, Identifiable, Equatable {
+    let id: String
+    let ownerID: String
+    let ownerUsername: String
+    let ownerDisplayName: String
+    let title: String
+    let location: String
+    let details: String
+    let createdAt: String
+    let startsAt: String
+    let endedAt: String?
+    let visibility: SocialFeedVisibility
+    let visibleGroupIDs: [String]
+}
+
+struct SocialFeedPresence: Codable, Identifiable, Equatable {
+    let postID: String
+    let userID: String
+    let username: String
+    let displayName: String
+    let status: SocialFeedPresenceStatus
+    let respondedAt: String
+
+    var id: String {
+        "\(postID)|\(userID)"
+    }
+}
+
+struct SocialFeedItem: Identifiable, Equatable {
+    let post: SocialFeedPost
+    let responses: [SocialFeedPresence]
+
+    var id: String { post.id }
+}
+
 struct SocialRequestEnvelope: Codable {
     let request: SocialFriendRequest
 }

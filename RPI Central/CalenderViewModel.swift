@@ -286,6 +286,8 @@ final class CalendarViewModel: ObservableObject {
 
     private let hiddenAllDayKey = "hidden_all_day_events_v1"
     private var hiddenAllDayEvents: Set<String> = []
+    private let personalEventsStorageKey = "personal_events_v2"
+    private var personalEvents: [StoredPersonalEvent] = []
 
     private let lightPalette: [Color] = [
         Color(red: 1.0,       green: 0.83529,  blue: 0.87451),
@@ -375,6 +377,7 @@ final class CalendarViewModel: ObservableObject {
             loadHiddenAllDay()
             loadAssumedPrereqs()
             loadEnrollment()
+            loadPersonalEvents()
             loadGrades()
             loadNotes()
 
@@ -1272,26 +1275,43 @@ final class CalendarViewModel: ObservableObject {
         startTime: Date,
         endTime: Date,
         color: Color = .gray,
-        seriesID: UUID? = nil
+        seriesID: UUID? = nil,
+        shareMode: PersonalEventShareMode = .none,
+        sharedFriendIDs: [String] = [],
+        sharedGroupIDs: [String] = []
     ) {
         let start = merge(date: date, time: startTime)
         let end = merge(date: date, time: endTime)
 
         let bg = lightPalette[2]
         let accent = darkPalette[2]
-
-        let new = ClassEvent(
+        let record = StoredPersonalEvent(
+            id: UUID(),
             title: title,
             location: location,
             startDate: start,
             endDate: end,
+            seriesID: seriesID,
+            shareMode: shareMode,
+            sharedFriendIDs: sharedFriendIDs.sorted(),
+            sharedGroupIDs: sharedGroupIDs.sorted()
+        )
+
+        let new = ClassEvent(
+            title: record.title,
+            location: record.location,
+            startDate: record.startDate,
+            endDate: record.endDate,
             backgroundColor: bg,
             accentColor: accent,
             enrollmentID: nil,
-            seriesID: seriesID,
+            seriesID: record.seriesID,
+            persistentID: record.id,
             isAllDay: false,
             kind: .personal
         )
+        personalEvents.append(record)
+        savePersonalEvents()
         events.append(new)
     }
 
@@ -1304,10 +1324,16 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func removePersonalEvent(_ event: ClassEvent) {
+        if let persistentID = event.persistentID {
+            personalEvents.removeAll { $0.id == persistentID }
+            savePersonalEvents()
+        }
         events.removeAll { $0.id == event.id }
     }
 
     func removePersonalSeries(seriesID: UUID) {
+        personalEvents.removeAll { $0.seriesID == seriesID }
+        savePersonalEvents()
         events.removeAll { $0.seriesID == seriesID }
     }
 
@@ -1861,10 +1887,76 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    private func savePersonalEvents() {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(personalEvents) {
+            UserDefaults.standard.set(data, forKey: personalEventsStorageKey)
+        }
+    }
+
+    private func loadPersonalEvents() {
+        guard let data = UserDefaults.standard.data(forKey: personalEventsStorageKey) else {
+            personalEvents = []
+            return
+        }
+
+        let decoder = JSONDecoder()
+        if let loaded = try? decoder.decode([StoredPersonalEvent].self, from: data) {
+            personalEvents = loaded
+        } else {
+            personalEvents = []
+        }
+    }
+
+    private func makePersonalEvent(from stored: StoredPersonalEvent) -> ClassEvent {
+        let bg = lightPalette[2]
+        let accent = darkPalette[2]
+
+        return ClassEvent(
+            title: stored.title,
+            location: stored.location,
+            startDate: stored.startDate,
+            endDate: stored.endDate,
+            backgroundColor: bg,
+            accentColor: accent,
+            enrollmentID: nil,
+            seriesID: stored.seriesID,
+            persistentID: stored.id,
+            isAllDay: false,
+            kind: .personal
+        )
+    }
+
+    func storedPersonalEvent(for event: ClassEvent) -> StoredPersonalEvent? {
+        guard let persistentID = event.persistentID else { return nil }
+        return personalEvents.first { $0.id == persistentID }
+    }
+
+    func personalEventVisibleToFriend(
+        _ friendID: String,
+        event: ClassEvent,
+        groupMembersByID: [String: Set<String>]
+    ) -> Bool {
+        guard event.kind == .personal else { return true }
+        guard let stored = storedPersonalEvent(for: event) else { return true }
+
+        switch stored.shareMode {
+        case .none:
+            return false
+        case .friends:
+            return stored.sharedFriendIDs.contains(friendID)
+        case .groups:
+            return stored.sharedGroupIDs.contains { groupID in
+                groupMembersByID[groupID]?.contains(friendID) == true
+            }
+        }
+    }
+
     private func rebuildEventsFromEnrollment() {
         withWidgetPublishingSuppressed {
-            let fixed = events.filter { $0.enrollmentID == nil }
+            let fixed = events.filter { $0.enrollmentID == nil && $0.kind != .personal }
             events = fixed
+            events.append(contentsOf: personalEvents.map(makePersonalEvent(from:)))
 
             for enrollment in enrolledCourses {
                 let course = enrollment.course
