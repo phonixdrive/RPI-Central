@@ -950,6 +950,113 @@ struct SocialHubView: View {
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
     }
 
+    private func feedPostCard(_ item: SocialFeedItem) -> some View {
+        let hereResponses = item.responses.filter { $0.status == .here }
+        let goingResponses = item.responses.filter { $0.status == .going }
+        let myStatus = item.responses.first { $0.userID == socialManager.currentUser?.id }?.status
+        let isOwnPost = item.post.ownerID == socialManager.currentUser?.id
+        let isEnded = feedIsEnded(item)
+        let isUpcoming = feedIsUpcoming(item)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(calendarViewModel.themeColor.opacity(0.14))
+                        .frame(width: 42, height: 42)
+                        .overlay(
+                            Text(String(item.post.ownerDisplayName.prefix(1)).uppercased())
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+                        )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.post.title)
+                            .font(.headline)
+                        HStack(spacing: 8) {
+                            Text(item.post.ownerDisplayName)
+                                .font(.subheadline.weight(.semibold))
+                            Text("@\(item.post.ownerUsername)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    badgeLabel(feedStateText(for: item), color: feedStateColor(for: item))
+                    badgeLabel(feedVisibilityText(for: item.post), color: .secondary)
+                }
+            }
+
+            if !item.post.location.isEmpty {
+                Label(item.post.location, systemImage: "mappin.and.ellipse")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Label(feedTimingText(for: item), systemImage: isEnded ? "checkmark.circle" : "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if !item.post.details.isEmpty {
+                Text(item.post.details)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                feedPresencePill("Going", count: goingResponses.count, names: goingResponses.map(\.displayName), color: .blue)
+                feedPresencePill("Here", count: hereResponses.count, names: hereResponses.map(\.displayName), color: .green)
+            }
+
+            if !isEnded {
+                HStack(spacing: 8) {
+                    feedActionButton("Going", icon: "figure.walk", isSelected: myStatus == .going) {
+                        Task {
+                            let nextStatus: SocialFeedPresenceStatus? = myStatus == .going ? nil : .going
+                            _ = await socialManager.setFeedPresence(postID: item.post.id, status: nextStatus)
+                        }
+                    }
+
+                    if !isUpcoming {
+                        feedActionButton("Here", icon: "location.fill", isSelected: myStatus == .here) {
+                            Task {
+                                let nextStatus: SocialFeedPresenceStatus? = myStatus == .here ? nil : .here
+                                _ = await socialManager.setFeedPresence(postID: item.post.id, status: nextStatus)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if isOwnPost {
+                HStack(spacing: 10) {
+                    if !isEnded {
+                        Button("Mark ended") {
+                            Task {
+                                _ = await socialManager.endFeedPost(item.post.id)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button("Delete post", role: .destructive) {
+                        Task {
+                            _ = await socialManager.deleteFeedPost(item.post.id)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+    }
+
     private func statPill(
         title: String,
         value: String,
@@ -979,6 +1086,35 @@ struct SocialHubView: View {
             .foregroundStyle(color)
     }
 
+    private func feedPresencePill(_ title: String, count: Int, names: [String], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(count) \(title.lowercased())")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+            if !names.isEmpty {
+                Text(names.prefix(2).joined(separator: ", "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 14).fill(color.opacity(0.08)))
+    }
+
+    private func feedActionButton(_ title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(isSelected ? calendarViewModel.themeColor : Color(.tertiarySystemFill))
+    }
+
     private func messageBanner(text: String, color: Color) -> some View {
         Text(text)
             .font(.caption)
@@ -986,6 +1122,80 @@ struct SocialHubView: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.08)))
+    }
+
+    private var friendToolsSheet: some View {
+        NavigationStack {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        findFriendsSearchCard
+                        requestsCard
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 18)
+                }
+            }
+            .navigationTitle("Friends")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        showFriendTools = false
+                    }
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        searchFieldFocused = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func sectionButton(title: String, section: SocialHubSection, badgeCount: Int = 0) -> some View {
+        let isSelected = selectedSection == section
+
+        return Button {
+            selectedSection = section
+        } label: {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                if badgeCount > 0 {
+                    Text("\(badgeCount)")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.2) : calendarViewModel.themeColor.opacity(0.16)))
+                }
+            }
+            .foregroundStyle(isSelected ? .white : .primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? calendarViewModel.themeColor : Color(.secondarySystemBackground).opacity(0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? calendarViewModel.themeColor.opacity(0.2) : Color.primary.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func syncSharedScheduleIfNeeded() async {
