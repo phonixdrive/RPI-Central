@@ -1647,6 +1647,113 @@ final class SocialManager: ObservableObject {
         )
     }
 
+    private func loadScheduleSnapshot(ownerID: String, viewerID: String) async throws -> SharedScheduleSnapshot {
+        var friendViewResult: SharedScheduleSnapshot?
+        do {
+            let friendViewSnapshot = try await getDocument(friendViewReference(ownerID: ownerID, viewerID: viewerID))
+            if friendViewSnapshot.exists,
+               let data = friendViewSnapshot.data(),
+               data["items"] != nil {
+                friendViewResult = makeScheduleSnapshot(from: data)
+            }
+        } catch {
+            if !isPermissionDenied(error) {
+                throw error
+            }
+        }
+
+        let userLegacySnapshot = try await loadUserDocLegacyScheduleSnapshot(ownerID: ownerID)
+        if let merged = mergeScheduleSnapshots(primary: friendViewResult, fallback: userLegacySnapshot),
+           !merged.items.isEmpty {
+            return merged
+        }
+
+        do {
+            let legacySnapshot = try await getDocument(firestore.collection("sharedSchedules").document(ownerID))
+            let rootSnapshot = makeScheduleSnapshot(from: legacySnapshot.data())
+            if let merged = mergeScheduleSnapshots(
+                primary: mergeScheduleSnapshots(primary: friendViewResult, fallback: userLegacySnapshot),
+                fallback: rootSnapshot
+            ) {
+                return merged
+            }
+        } catch {
+            if !isPermissionDenied(error) {
+                throw error
+            }
+        }
+
+        return friendViewResult ?? userLegacySnapshot ?? SharedScheduleSnapshot(
+            semesterCode: "",
+            generatedAt: nil,
+            items: []
+        )
+    }
+
+    private func mergeScheduleSnapshots(
+        primary: SharedScheduleSnapshot?,
+        fallback: SharedScheduleSnapshot?
+    ) -> SharedScheduleSnapshot? {
+        guard primary != nil || fallback != nil else { return nil }
+
+        var mergedByID: [String: SharedScheduleItem] = [:]
+        let primaryItems = primary?.items ?? []
+        let fallbackItems = fallback?.items ?? []
+
+        for item in fallbackItems {
+            mergedByID[item.id] = item
+        }
+
+        for item in primaryItems {
+            mergedByID[item.id] = item
+        }
+
+        let mergedItems = mergedByID.values.sorted { lhs, rhs in
+            let lhsDate = isoDate(lhs.startDate) ?? .distantFuture
+            let rhsDate = isoDate(rhs.startDate) ?? .distantFuture
+            if lhsDate == rhsDate {
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+            return lhsDate < rhsDate
+        }
+
+        return SharedScheduleSnapshot(
+            semesterCode: emptyToNil(primary?.semesterCode) ?? fallback?.semesterCode ?? "",
+            generatedAt: primary?.generatedAt ?? fallback?.generatedAt,
+            items: mergedItems
+        )
+    }
+
+    private func loadUserDocLegacyScheduleSnapshot(ownerID: String) async throws -> SharedScheduleSnapshot? {
+        let snapshot = try await getDocument(firestore.collection("users").document(ownerID))
+        guard let data = snapshot.data(),
+              let items = data["sharedScheduleLegacyItems"] as? [[String: Any]] else {
+            return nil
+        }
+
+        return SharedScheduleSnapshot(
+            semesterCode: data["sharedScheduleLegacySemesterCode"] as? String ?? "",
+            generatedAt: emptyToNil(data["sharedScheduleLegacyGeneratedAt"] as? String),
+            items: items.map { item in
+                SharedScheduleItem(
+                    id: item["id"] as? String ?? UUID().uuidString,
+                    title: item["title"] as? String ?? "",
+                    location: item["location"] as? String ?? "",
+                    startDate: item["startDate"] as? String ?? "",
+                    endDate: item["endDate"] as? String ?? "",
+                    isAllDay: item["isAllDay"] as? Bool ?? false,
+                    kind: item["kind"] as? String ?? "",
+                    badge: item["badge"] as? String
+                )
+            }
+        )
+    }
+
+    private func makeLegacyScheduleSnapshot(from viewModel: CalendarViewModel) -> [SharedScheduleItem] {
+        makeScheduleSnapshot(from: viewModel)
+            .filter { $0.kind != CalendarEventKind.personal.rawValue }
+    }
+
     private func sharedScheduleItemData(_ item: SharedScheduleItem) -> [String: Any] {
         [
             "id": item.id,
@@ -1868,18 +1975,32 @@ final class SocialManager: ObservableObject {
         }
     }
 
-    private func makeScheduleSnapshot(from viewModel: CalendarViewModel) -> [SharedScheduleItem] {
+    private func makeScheduleSnapshot(
+        from viewModel: CalendarViewModel,
+        visibleToFriendID: String? = nil,
+        groupMembersByID: [String: Set<String>] = [:]
+    ) -> [SharedScheduleItem] {
         let now = Date()
-        let horizon = Calendar.current.date(byAdding: .day, value: 21, to: now) ?? now
+        let calendar = Calendar.current
+        let startWindow = calendar.startOfDay(for: now)
+        let horizon = calendar.date(byAdding: .day, value: 120, to: now) ?? now
         let enrollmentSemesterByID = Dictionary(uniqueKeysWithValues: viewModel.enrolledCourses.map { ($0.id, $0.semesterCode) })
 
         return viewModel.events
             .filter { event in
                 guard event.startDate <= horizon else { return false }
+                guard event.endDate >= startWindow else { return false }
+                if let visibleToFriendID, event.kind == .personal {
+                    return viewModel.personalEventVisibleToFriend(
+                        visibleToFriendID,
+                        event: event,
+                        groupMembersByID: groupMembersByID
+                    )
+                }
                 if let enrollmentID = event.enrollmentID {
                     return enrollmentSemesterByID[enrollmentID] == viewModel.currentSemester.rawValue
                 }
-                return event.endDate >= now
+                return true
             }
             .sorted { $0.startDate < $1.startDate }
             .map { event in
@@ -1911,6 +2032,11 @@ final class SocialManager: ObservableObject {
     private func emptyToNil(_ value: String?) -> String? {
         guard let value, !value.isEmpty else { return nil }
         return value
+    }
+
+    private func isoDate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        return ISO8601DateFormatter().date(from: value)
     }
 }
 
