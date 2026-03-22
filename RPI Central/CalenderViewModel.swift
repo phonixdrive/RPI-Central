@@ -132,6 +132,7 @@ final class CalendarViewModel: ObservableObject {
     private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
+    private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -175,6 +176,12 @@ final class CalendarViewModel: ObservableObject {
 
     @Published var semesterGPAOverrides: [String: SemesterGPAOverride] = [:] {
         didSet { saveSemesterGPAOverrides() }
+    }
+
+    @Published var socialDemoToolsEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(socialDemoToolsEnabled, forKey: socialDemoToolsEnabledKey)
+        }
     }
 
     @Published private(set) var academicEventsLoaded: Bool = false
@@ -360,6 +367,7 @@ final class CalendarViewModel: ObservableObject {
             self.academicHistoryStartSemester = .fall2024
         }
         self.semesterGPAOverrides = Self.loadSemesterGPAOverrides()
+        self.socialDemoToolsEnabled = UserDefaults.standard.bool(forKey: socialDemoToolsEnabledKey)
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
