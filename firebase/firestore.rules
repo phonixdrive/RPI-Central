@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userID) {
+      return signedIn() && request.auth.uid == userID;
+    }
+
+    function friendshipDocID(a, b) {
+      return a < b ? a + "_" + b : b + "_" + a;
+    }
+
+    function areFriends(a, b) {
+      return exists(
+        /databases/$(database)/documents/friendships/$(friendshipDocID(a, b))
+      );
+    }
+
+    match /users/{userID} {
+      allow read: if signedIn();
+      allow create: if isSelf(userID);
+      allow update: if isSelf(userID);
+      allow delete: if false;
+    }
+
+    match /friendRequests/{requestID} {
+      allow read: if signedIn() &&
+        (resource.data.fromUserID == request.auth.uid || resource.data.toUserID == request.auth.uid);
+
+      allow create: if signedIn() &&
+        request.resource.data.fromUserID == request.auth.uid;
+
+      allow update: if signedIn() &&
+        resource.data.toUserID == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    match /friendships/{friendshipID} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow delete: if signedIn() && request.auth.uid in resource.data.members;
+      allow update: if false;
+    }
+
+    match /sharedSchedules/{userID} {
+      allow read: if signedIn() &&
+        areFriends(request.auth.uid, userID) &&
+        get(/databases/$(database)/documents/users/$(userID)).data.shareSchedule == true;
+
+      allow create: if isSelf(userID);
+      allow update: if isSelf(userID);
+      allow delete: if isSelf(userID);
+    }
+  }
+}
