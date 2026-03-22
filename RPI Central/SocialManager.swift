@@ -14,6 +14,8 @@ import FirebaseFirestore
 final class SocialManager: ObservableObject {
     @Published private(set) var currentUser: SocialUser?
     @Published private(set) var overview: SocialOverviewResponse?
+    @Published private(set) var friendGroups: [SocialFriendGroup] = []
+    @Published private(set) var feedItems: [SocialFeedItem] = []
     @Published private(set) var searchResults: [SocialSearchResult] = []
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
     @Published var isLoading: Bool = false
@@ -59,6 +61,8 @@ final class SocialManager: ObservableObject {
 #endif
         currentUser = nil
         overview = nil
+        friendGroups = []
+        feedItems = []
         searchResults = []
         loadedFriendSchedule = nil
         statusMessage = nil
@@ -290,6 +294,14 @@ final class SocialManager: ObservableObject {
                 "createdAt": nowISO(),
             ], at: firestore.collection("friendships").document(canonicalFriendshipID(viewer.id, demoFriend.id)))
 
+            try await writeFriendViewSchedule(
+                ownerID: demoFriend.id,
+                viewerID: viewer.id,
+                semesterCode: calendarViewModel.currentSemester.rawValue,
+                generatedAt: demoFriend.lastScheduleAt ?? nowISO(),
+                items: demoScheduleItems()
+            )
+
             try? context.auth.signOut()
 
             statusMessage = "Created @\(searchableUser.username), @\(requester.username), and @\(demoFriend.username)."
@@ -377,6 +389,251 @@ final class SocialManager: ObservableObject {
             throw SocialError.firebaseNotLinked
 #endif
         }
+    }
+
+    @discardableResult
+    func createFriendGroup(name: String, memberIDs: [String]) async -> Bool {
+        var didSucceed = false
+        await runOperation {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedName.isEmpty else {
+                throw SocialError.api("Group name is required.")
+            }
+
+            let validFriendIDs = Set(overview?.friends.map(\.id) ?? [])
+            let sanitizedMembers = Array(Set(memberIDs)).filter { validFriendIDs.contains($0) }.sorted()
+            guard !sanitizedMembers.isEmpty else {
+                throw SocialError.api("Choose at least one friend.")
+            }
+
+            var groups = try await loadFriendGroups(ownerID: viewer.id)
+            groups.append(
+                SocialFriendGroup(
+                    id: UUID().uuidString,
+                    ownerID: viewer.id,
+                    name: normalizedName,
+                    createdAt: nowISO(),
+                    memberIDs: sanitizedMembers
+                )
+            )
+
+            try await saveFriendGroups(groups, ownerID: viewer.id)
+
+            try await refreshOverviewInternal()
+            statusMessage = "Friend group created."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func deleteFriendGroup(_ groupID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let groups = try await loadFriendGroups(ownerID: viewer.id)
+            guard groups.contains(where: { $0.id == groupID && $0.ownerID == viewer.id }) else {
+                throw SocialError.api("That group is not available.")
+            }
+
+            let updatedGroups = groups.filter { $0.id != groupID }
+            try await saveFriendGroups(updatedGroups, ownerID: viewer.id)
+            try await refreshOverviewInternal()
+            statusMessage = "Friend group removed."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func createFeedPost(
+        title: String,
+        location: String,
+        details: String,
+        startsAt: Date,
+        visibility: SocialFeedVisibility,
+        groupIDs: [String]
+    ) async -> Bool {
+        var didSucceed = false
+        await runOperation {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedTitle.isEmpty else {
+                throw SocialError.api("Activity title is required.")
+            }
+            let sanitizedGroupIDs = Array(Set(groupIDs)).sorted()
+            if visibility == .groups && sanitizedGroupIDs.isEmpty {
+                throw SocialError.api("Choose at least one group for a group-only activity.")
+            }
+
+            let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
+            let data = snapshot.data() ?? [:]
+            var posts = decodeFeedPosts(from: data)
+            posts.insert(
+                SocialFeedPost(
+                    id: UUID().uuidString,
+                    ownerID: viewer.id,
+                    ownerUsername: viewer.username,
+                    ownerDisplayName: viewer.displayName,
+                    title: normalizedTitle,
+                    location: normalizedLocation,
+                    details: normalizedDetails,
+                    createdAt: nowISO(),
+                    startsAt: ISO8601DateFormatter().string(from: startsAt),
+                    endedAt: nil,
+                    visibility: visibility,
+                    visibleGroupIDs: sanitizedGroupIDs
+                ),
+                at: 0
+            )
+            posts = Array(posts.prefix(40))
+
+            try await updateData([
+                "feedPosts": posts.map(feedPostData),
+                "lastFeedPostAt": posts.first?.createdAt ?? nowISO(),
+            ], at: firestore.collection("users").document(viewer.id))
+
+            try await refreshOverviewInternal()
+            statusMessage = "Activity posted."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func endFeedPost(_ postID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
+            let data = snapshot.data() ?? [:]
+            let posts = decodeFeedPosts(from: data)
+            var didUpdate = false
+            let updatedPosts = posts.map { post -> SocialFeedPost in
+                guard post.id == postID, post.ownerID == viewer.id, post.endedAt == nil else {
+                    return post
+                }
+                didUpdate = true
+                return SocialFeedPost(
+                    id: post.id,
+                    ownerID: post.ownerID,
+                    ownerUsername: post.ownerUsername,
+                    ownerDisplayName: post.ownerDisplayName,
+                    title: post.title,
+                    location: post.location,
+                    details: post.details,
+                    createdAt: post.createdAt,
+                    startsAt: post.startsAt,
+                    endedAt: nowISO(),
+                    visibility: post.visibility,
+                    visibleGroupIDs: post.visibleGroupIDs
+                )
+            }
+
+            guard didUpdate else {
+                throw SocialError.api("That activity is not available.")
+            }
+
+            try await updateData([
+                "feedPosts": updatedPosts.map(feedPostData),
+                "lastFeedPostAt": updatedPosts.first?.createdAt ?? "",
+            ], at: firestore.collection("users").document(viewer.id))
+
+            try await refreshOverviewInternal()
+            statusMessage = "Activity ended."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func deleteFeedPost(_ postID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
+            let data = snapshot.data() ?? [:]
+            let posts = decodeFeedPosts(from: data)
+            guard posts.contains(where: { $0.id == postID && $0.ownerID == viewer.id }) else {
+                throw SocialError.api("That activity is not available.")
+            }
+
+            let updatedPosts = posts.filter { $0.id != postID }
+            var payload: [AnyHashable: Any] = [
+                "feedPosts": updatedPosts.map(feedPostData)
+            ]
+            if let latest = updatedPosts.first?.createdAt, !latest.isEmpty {
+                payload["lastFeedPostAt"] = latest
+            } else {
+                payload["lastFeedPostAt"] = FieldValue.delete()
+            }
+            try await updateData(payload, at: firestore.collection("users").document(viewer.id))
+
+            try await refreshOverviewInternal()
+            statusMessage = "Activity removed."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func setFeedPresence(postID: String, status: SocialFeedPresenceStatus?) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
+            let data = snapshot.data() ?? [:]
+            var responses = decodeFeedResponses(from: data)
+            responses.removeAll { $0.postID == postID && $0.userID == viewer.id }
+
+            if let status {
+                responses.append(
+                    SocialFeedPresence(
+                        postID: postID,
+                        userID: viewer.id,
+                        username: viewer.username,
+                        displayName: viewer.displayName,
+                        status: status,
+                        respondedAt: nowISO()
+                    )
+                )
+            }
+
+            try await updateData([
+                "feedResponses": responses.map(feedResponseData)
+            ], at: firestore.collection("users").document(viewer.id))
+
+            try await refreshOverviewInternal()
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
     }
 
     func unfriend(_ friendID: String) async {
