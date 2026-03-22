@@ -3,3 +3,13 @@
 build/
 DerivedData/
 *.xcresult
+
+# Firebase config stays local
+RPI Central/GoogleService-Info.plist
+
+# User-local Xcode workspace data
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# SwiftPM workspace lockfile noise for this project
+RPI Central.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
