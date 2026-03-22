@@ -52,6 +52,13 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(
+                    header: Text("Social"),
+                    footer: Text("Demo social tools add seeded test users and requests to help you test the Firebase social features.")
+                ) {
+                    Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
+                }
+
                 // NOTIFICATIONS (UI only – wiring to real notifications can come later)
                 Section(header: Text("Notifications")) {
                     Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)

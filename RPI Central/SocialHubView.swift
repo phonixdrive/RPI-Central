@@ -623,3 +623,481 @@ struct SocialHubView: View {
     }
 }
 
+private struct SocialCard<Content: View>: View {
+    var background: Color = Color(.systemBackground)
+    var stroke: Color = Color.primary.opacity(0.06)
+    let content: Content
+
+    init(
+        background: Color = Color(.systemBackground),
+        stroke: Color = Color.primary.opacity(0.06),
+        @ViewBuilder content: () -> Content
+    ) {
+        self.background = background
+        self.stroke = stroke
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(background)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(stroke, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 6)
+    }
+}
+
+private enum AuthMode: String, CaseIterable, Identifiable {
+    case login
+    case register
+    case guest
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .login: return "Login"
+        case .register: return "Register"
+        case .guest: return "Guest"
+        }
+    }
+
+    var buttonTitle: String {
+        switch self {
+        case .login: return "Sign in"
+        case .register: return "Create account"
+        case .guest: return "Continue as guest"
+        }
+    }
+
+    var requiresDisplayName: Bool {
+        switch self {
+        case .login: return false
+        case .register, .guest: return true
+        }
+    }
+
+    var requiresEmail: Bool {
+        switch self {
+        case .login, .register: return true
+        case .guest: return false
+        }
+    }
+
+    var requiresPassword: Bool {
+        switch self {
+        case .login, .register: return true
+        case .guest: return false
+        }
+    }
+
+    func isFormValid(displayName: String, email: String, password: String) -> Bool {
+        switch self {
+        case .login:
+            return !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !password.isEmpty
+        case .register:
+            return !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                password.count >= 6
+        case .guest:
+            return !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+}
+
+private struct FriendScheduleView: View {
+    let response: FriendScheduleResponse
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedDate: Date
+    @State private var displayedMonth: Date
+
+    private var parsedItems: [ParsedScheduleItem] {
+        response.schedule.items.compactMap { item in
+            ParsedScheduleItem(item: item)
+        }
+        .sorted { $0.startDate < $1.startDate }
+    }
+
+    private var selectedDateItems: [ParsedScheduleItem] {
+        parsedItems.filter { item in
+            Calendar.current.isDate(item.startDate, inSameDayAs: selectedDate)
+        }
+    }
+
+    private var monthTitle: String {
+        FriendScheduleFormatters.month.string(from: displayedMonth)
+    }
+
+    private var generatedAtText: String? {
+        guard let generatedAt = response.schedule.generatedAt,
+              let date = FriendScheduleFormatters.iso.date(from: generatedAt) else { return nil }
+        return FriendScheduleFormatters.generatedAt.string(from: date)
+    }
+
+    init(response: FriendScheduleResponse) {
+        self.response = response
+        let anchorDate = response.schedule.items
+            .compactMap { FriendScheduleFormatters.iso.date(from: $0.startDate) }
+            .sorted()
+            .first ?? Date()
+        _selectedDate = State(initialValue: anchorDate)
+        _displayedMonth = State(initialValue: FriendScheduleCalendar.startOfMonth(for: anchorDate))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    SocialCard(background: Color(.secondarySystemBackground), stroke: calendarViewModel.themeColor.opacity(0.15)) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(response.owner.displayName)
+                                        .font(.title3.bold())
+                                    Text("@\(response.owner.username)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                badge(for: response.owner.shareSchedule ? "Sharing enabled" : "Sharing off")
+                            }
+
+                            if let generatedAtText {
+                                Label("Updated \(generatedAtText)", systemImage: "clock")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !response.schedule.semesterCode.isEmpty {
+                                Label(response.schedule.semesterCode, systemImage: "graduationcap")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    SocialCard {
+                        VStack(spacing: 14) {
+                            HStack {
+                                Button {
+                                    shiftMonth(by: -1)
+                                } label: {
+                                    Image(systemName: "chevron.left")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Spacer()
+
+                                Text(monthTitle)
+                                    .font(.headline)
+
+                                Spacer()
+
+                                Button {
+                                    shiftMonth(by: 1)
+                                } label: {
+                                    Image(systemName: "chevron.right")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
+                                ForEach(FriendScheduleCalendar.shortWeekdaySymbols, id: \.self) { symbol in
+                                    Text(symbol)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity)
+                                }
+
+                                ForEach(FriendScheduleCalendar.gridDates(for: displayedMonth), id: \.self) { day in
+                                    Button {
+                                        selectedDate = day
+                                    } label: {
+                                        FriendScheduleDayCell(
+                                            date: day,
+                                            monthStart: displayedMonth,
+                                            isSelected: Calendar.current.isDate(day, inSameDayAs: selectedDate),
+                                            itemCount: items(on: day).count,
+                                            hasExam: items(on: day).contains(where: \.isExam),
+                                            accent: calendarViewModel.themeColor
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    SocialCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(FriendScheduleFormatters.selectedDayHeader.string(from: selectedDate))
+                                .font(.headline)
+
+                            if selectedDateItems.isEmpty {
+                                Text("No shared items on this day.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(selectedDateItems) { item in
+                                    FriendScheduleEventRow(item: item, accent: calendarViewModel.themeColor)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(response.owner.displayName)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func items(on day: Date) -> [ParsedScheduleItem] {
+        parsedItems.filter { item in
+            Calendar.current.isDate(item.startDate, inSameDayAs: day)
+        }
+    }
+
+    private func shiftMonth(by value: Int) {
+        let nextMonth = Calendar.current.date(byAdding: .month, value: value, to: displayedMonth) ?? displayedMonth
+        displayedMonth = FriendScheduleCalendar.startOfMonth(for: nextMonth)
+    }
+
+    private func badge(for text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(calendarViewModel.themeColor.opacity(0.14)))
+            .foregroundStyle(calendarViewModel.themeColor)
+    }
+}
+
+private struct ParsedScheduleItem: Identifiable {
+    let id: String
+    let title: String
+    let location: String
+    let startDate: Date
+    let endDate: Date
+    let isAllDay: Bool
+    let kind: String
+    let badge: String?
+
+    var isExam: Bool {
+        badge?.lowercased() == "exam"
+    }
+
+    var formattedTime: String {
+        if isAllDay {
+            return "All day"
+        }
+        let start = FriendScheduleFormatters.time.string(from: startDate)
+        let end = FriendScheduleFormatters.time.string(from: endDate)
+        return "\(start) - \(end)"
+    }
+
+    init?(item: SharedScheduleItem) {
+        guard let startDate = FriendScheduleFormatters.iso.date(from: item.startDate),
+              let endDate = FriendScheduleFormatters.iso.date(from: item.endDate) else {
+            return nil
+        }
+
+        self.id = item.id
+        self.title = item.title
+        self.location = item.location
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = item.isAllDay
+        self.kind = item.kind
+        self.badge = item.badge
+    }
+}
+
+private struct FriendScheduleDayCell: View {
+    let date: Date
+    let monthStart: Date
+    let isSelected: Bool
+    let itemCount: Int
+    let hasExam: Bool
+    let accent: Color
+
+    var body: some View {
+        let inMonth = Calendar.current.isDate(date, equalTo: monthStart, toGranularity: .month)
+
+        VStack(spacing: 6) {
+            Text("\(Calendar.current.component(.day, from: date))")
+                .font(.subheadline.weight(isSelected ? .bold : .medium))
+                .foregroundStyle(
+                    isSelected
+                        ? Color.white
+                        : (inMonth ? Color.primary : Color.secondary.opacity(0.55))
+                )
+
+            HStack(spacing: 4) {
+                if hasExam {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                }
+
+                if itemCount > 0 {
+                    Circle()
+                        .frame(width: 6, height: 6)
+                    if itemCount > 1 {
+                        Text("\(min(itemCount, 9))")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                }
+            }
+            .foregroundStyle(isSelected ? Color.white.opacity(0.92) : accent)
+            .frame(height: 10)
+        }
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    isSelected
+                        ? accent
+                        : (inMonth ? Color(.secondarySystemBackground) : Color(.systemGray6))
+                )
+        )
+    }
+}
+
+private struct FriendScheduleEventRow: View {
+    let item: ParsedScheduleItem
+    let accent: Color
+
+    private var kindLabel: String {
+        switch item.kind {
+        case "classMeeting":
+            return item.isExam ? "Class + Exam" : "Class"
+        case "assignment":
+            return "Assignment"
+        case "academic":
+            return "Academic"
+        default:
+            return "Personal"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(accent.opacity(0.18))
+                .frame(width: 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(accent)
+                        .frame(width: 4)
+                )
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(item.title)
+                        .font(.headline)
+
+                    if item.isExam {
+                        Label("Exam", systemImage: "star.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Text(item.formattedTime)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if !item.location.isEmpty {
+                    Label(item.location, systemImage: "mappin.and.ellipse")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(kindLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accent)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.secondarySystemBackground)))
+    }
+}
+
+private enum FriendScheduleCalendar {
+    static let calendar = Calendar.current
+
+    static var shortWeekdaySymbols: [String] {
+        var symbols = calendar.veryShortStandaloneWeekdaySymbols
+        if calendar.firstWeekday > 1 {
+            let prefix = symbols.prefix(calendar.firstWeekday - 1)
+            symbols.removeFirst(calendar.firstWeekday - 1)
+            symbols.append(contentsOf: prefix)
+        }
+        return symbols
+    }
+
+    static func startOfMonth(for date: Date) -> Date {
+        calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
+    }
+
+    static func gridDates(for monthStart: Date) -> [Date] {
+        let start = startOfMonth(for: monthStart)
+        let weekday = calendar.component(.weekday, from: start)
+        let offset = (weekday - calendar.firstWeekday + 7) % 7
+        let gridStart = calendar.date(byAdding: .day, value: -offset, to: start) ?? start
+        return (0..<42).compactMap { index in
+            calendar.date(byAdding: .day, value: index, to: gridStart)
+        }
+    }
+}
+
+private enum FriendScheduleFormatters {
+    static let iso = ISO8601DateFormatter()
+
+    static let month: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL yyyy"
+        return formatter
+    }()
+
+    static let time: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
+    static let generatedAt: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static let selectedDayHeader: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}

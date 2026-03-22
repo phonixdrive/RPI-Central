@@ -23,6 +23,11 @@ struct ContentView: View {
                     Label("Courses", systemImage: "book")
                 }
 
+            SocialHubView()
+                .tabItem {
+                    Label("Social", systemImage: "person.2.fill")
+                }
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
@@ -36,4 +41,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(CalendarViewModel())
+        .environmentObject(SocialManager())
 }
