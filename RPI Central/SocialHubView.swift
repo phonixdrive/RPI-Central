@@ -4,99 +4,227 @@ struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
 
+    @AppStorage("social.feedRefreshIntervalSeconds") private var feedRefreshIntervalSeconds = 30
+    @State private var selectedSection: SocialHubSection = .friends
     @State private var authMode: AuthMode = .login
     @State private var displayName: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var profileDisplayName: String = ""
     @State private var searchQuery: String = ""
+    @State private var showFriendTools = false
+    @State private var showCreateGroup = false
+    @State private var showFeedComposer = false
     @State private var selectedFriendSchedule: FriendScheduleResponse?
     @FocusState private var searchFieldFocused: Bool
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
+    private var feedRefreshTaskID: String {
+        "\(selectedSection.rawValue)-\(feedRefreshIntervalSeconds)-\(socialManager.currentUser?.id ?? "none")"
+    }
+    private var scheduleSyncTaskID: String {
+        [
+            socialManager.currentUser?.id ?? "none",
+            calendarViewModel.currentSemester.rawValue,
+            String(calendarViewModel.events.count),
+            String(calendarViewModel.enrolledCourses.count),
+            String(friendCount)
+        ].joined(separator: "|")
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(.systemGroupedBackground),
-                        calendarViewModel.themeColor.opacity(0.14),
-                        Color(.systemBackground),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+        socialHubScreen
+    }
+
+    private var socialHubScreen: AnyView {
+        let navigation = AnyView(
+            NavigationStack {
+                rootContent
+            }
+        )
+
+        let decorated = AnyView(
+            navigation
+                .navigationTitle("Social")
+                .toolbar { toolbarContent }
+                .refreshable {
+                    guard socialManager.isAuthenticated else { return }
+                    await socialManager.refreshOverview()
+                }
+                .sheet(item: $selectedFriendSchedule) { schedule in friendScheduleSheet(schedule) }
+                .sheet(isPresented: $showFriendTools) { friendToolsSheet }
+                .sheet(isPresented: $showCreateGroup) { createGroupSheet }
+                .sheet(isPresented: $showFeedComposer) { feedComposerSheet }
+        )
+
+        let withTasks = AnyView(
+            decorated
+                .task {
+                    if socialManager.isAuthenticated && socialManager.overview == nil {
+                        await socialManager.refreshOverview()
+                    }
+                    syncProfileDisplayName()
+                    await syncSharedScheduleIfNeeded()
+                }
+                .task(id: socialManager.currentUser?.displayName) {
+                    syncProfileDisplayName()
+                }
+                .task(id: socialManager.currentUser?.id) {
+                    syncProfileDisplayName()
+                }
+                .task(id: scheduleSyncTaskID) {
+                    await syncSharedScheduleIfNeeded()
+                }
+                .task(id: feedRefreshTaskID) {
+                    await runFeedRefreshLoop()
+                }
+                .task(id: selectedSection) {
+                    guard selectedSection == .feed else { return }
+                    await socialManager.refreshOverview()
+                }
+        )
+
+        return withTasks
+    }
+
+    private var rootContent: some View {
+        ZStack {
+            backgroundGradient
+
+            VStack(spacing: 0) {
+                if shouldShowSectionBar {
+                    sectionBar
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                }
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        heroCard
-                        setupCard
-
-                        if socialManager.isFirebaseAvailable && socialManager.isAuthenticated {
-                            profileCard
-                            sharingCard
-                            if calendarViewModel.socialDemoToolsEnabled {
-                                demoCard
-                            }
-                            findFriendsCard
-                            requestsCard
-                            friendsCard
-                        } else if socialManager.isFirebaseAvailable {
-                            authCard
-                        }
+                        screenSections
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 18)
                 }
             }
-            .navigationTitle("Social")
-            .toolbar {
-                if socialManager.isAuthenticated {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            Task { await socialManager.refreshOverview() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                }
+        }
+    }
 
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        searchFieldFocused = false
-                    }
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemGroupedBackground),
+                calendarViewModel.themeColor.opacity(0.14),
+                Color(.systemBackground),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private var shouldShowSectionBar: Bool {
+        socialManager.isFirebaseAvailable && socialManager.isAuthenticated
+    }
+
+    @ViewBuilder
+    private var screenSections: some View {
+        if socialManager.isFirebaseAvailable && socialManager.isAuthenticated {
+            authenticatedSections
+        } else if socialManager.isFirebaseAvailable {
+            unauthenticatedSections
+        } else {
+            setupCard
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedSections: some View {
+        switch selectedSection {
+        case .profile:
+            heroCard
+            setupCard
+            profileCard
+            sharingCard
+            if calendarViewModel.socialDemoToolsEnabled {
+                demoCard
+            }
+        case .feed:
+            feedHeaderCard
+            feedListCard
+        case .friends:
+            friendToolsCard
+            groupsCard
+            friendsCard
+        }
+    }
+
+    @ViewBuilder
+    private var unauthenticatedSections: some View {
+        heroCard
+        setupCard
+        authCard
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if socialManager.isAuthenticated {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await socialManager.refreshOverview() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
             }
-            .refreshable {
-                guard socialManager.isAuthenticated else { return }
-                await socialManager.refreshOverview()
+        }
+
+        ToolbarItemGroup(placement: .keyboard) {
+            Spacer()
+            Button("Done") {
+                searchFieldFocused = false
             }
-            .sheet(item: $selectedFriendSchedule) { schedule in
-                FriendScheduleView(response: schedule)
-            }
-            .task {
-                if socialManager.isAuthenticated && socialManager.overview == nil {
-                    await socialManager.refreshOverview()
-                }
-                syncProfileDisplayName()
+        }
+    }
+
+    private var createGroupSheet: some View {
+        FriendGroupEditorView(
+            friends: socialManager.overview?.friends ?? [],
+            accent: calendarViewModel.themeColor
+        ) { name, memberIDs in
+            let created = await socialManager.createFriendGroup(name: name, memberIDs: memberIDs)
+            if created {
                 await syncSharedScheduleIfNeeded()
             }
-            .task(id: socialManager.currentUser?.displayName) {
-                syncProfileDisplayName()
-            }
-            .onChange(of: calendarViewModel.currentSemester) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
-            .onChange(of: calendarViewModel.events.count) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
-            .onChange(of: calendarViewModel.enrolledCourses.count) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
+            return created
+        }
+    }
+
+    private var feedComposerSheet: some View {
+        FeedComposerView(
+            groups: socialManager.friendGroups,
+            accent: calendarViewModel.themeColor
+        ) { title, location, details, startsAt, visibility, groupIDs in
+            await socialManager.createFeedPost(
+                title: title,
+                location: location,
+                details: details,
+                startsAt: startsAt,
+                visibility: visibility,
+                groupIDs: groupIDs
+            )
+        }
+    }
+
+    private func friendScheduleSheet(_ schedule: FriendScheduleResponse) -> some View {
+        FriendScheduleView(response: schedule)
+    }
+
+    private var sectionBar: some View {
+        HStack(spacing: 10) {
+            sectionButton(title: "Friends", section: .friends, badgeCount: incomingCount)
+            sectionButton(title: "Feed", section: .feed)
+            sectionButton(title: "Profile", section: .profile)
         }
     }
 
