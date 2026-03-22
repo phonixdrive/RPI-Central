@@ -25,6 +25,8 @@ final class SocialManager: ObservableObject {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
     private var listenerRegistrations: [ListenerRegistration] = []
     private var activeListenerUserID: String?
+    private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
+    private var permissionRecoveryInFlight = false
 #endif
 
     init() {
@@ -33,10 +35,8 @@ final class SocialManager: ObservableObject {
         self.setupMessage = FirebaseApp.app() == nil
             ? "Firebase packages detected. Add GoogleService-Info.plist to finish setup."
             : "Firebase is configured."
-        if FirebaseApp.app() != nil {
-            Task {
-                await restoreSessionIfNeeded()
-            }
+        Task {
+            await bootstrapFirebaseSession()
         }
 #else
         self.isFirebaseAvailable = false
@@ -501,6 +501,51 @@ final class SocialManager: ObservableObject {
     }
     #endif
 
+    private func bootstrapFirebaseSession() async {
+        // Firebase configuration can land slightly after SocialManager init in the SwiftUI lifecycle.
+        if FirebaseApp.app() == nil {
+            for _ in 0..<20 where FirebaseApp.app() == nil {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+            }
+        }
+
+        guard FirebaseApp.app() != nil else { return }
+        setupMessage = "Firebase is configured."
+        attachAuthStateListenerIfNeeded()
+        try? await refreshAuthTokenIfNeeded()
+        await restoreSessionIfNeeded()
+    }
+
+    private func attachAuthStateListenerIfNeeded() {
+        guard authStateListenerHandle == nil else { return }
+
+        authStateListenerHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+
+                guard user != nil else {
+                    self.detachRealtimeListeners()
+                    self.currentUser = nil
+                    self.overview = nil
+                    self.searchResults = []
+                    self.loadedFriendSchedule = nil
+                    return
+                }
+
+                guard self.currentUser == nil || self.overview == nil else { return }
+
+                do {
+                    try await self.refreshOverviewInternal()
+                } catch {
+                    let recovered = await self.handlePermissionErrorIfNeeded(error)
+                    if !recovered {
+                        self.errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        }
+    }
+
     private func restoreSessionIfNeeded() async {
         guard Auth.auth().currentUser != nil else { return }
         await runOperation(showSpinner: false) {
@@ -526,7 +571,7 @@ final class SocialManager: ObservableObject {
             return members.first(where: { $0 != viewer.id })
         }
         let friendUsers = try await fetchUsers(ids: friendIDs)
-        let scheduleCounts = try await fetchScheduleCounts(for: friendIDs)
+        let scheduleCounts = await fetchScheduleCounts(for: Array(friendUsers.values))
 
         let friends = friendUsers.values
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
@@ -608,14 +653,74 @@ final class SocialManager: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self else { return }
             if let error {
-                self.errorMessage = error.localizedDescription
+                let recovered = await self.handlePermissionErrorIfNeeded(error)
+                if !recovered {
+                    self.errorMessage = error.localizedDescription
+                }
                 return
             }
 
             do {
                 try await self.refreshOverviewInternal()
             } catch {
-                self.errorMessage = error.localizedDescription
+                let recovered = await self.handlePermissionErrorIfNeeded(error)
+                if !recovered {
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func handlePermissionErrorIfNeeded(_ error: Error) async -> Bool {
+        guard isPermissionDenied(error) else { return false }
+
+        if permissionRecoveryInFlight {
+            errorMessage = "Social access was denied. Pull to retry or sign in again."
+            return true
+        }
+
+        detachRealtimeListeners()
+        permissionRecoveryInFlight = true
+        defer { permissionRecoveryInFlight = false }
+
+        do {
+            try await refreshAuthTokenIfNeeded(forceRefresh: true)
+            try await refreshOverviewInternal()
+            errorMessage = nil
+            statusMessage = "Social connection restored."
+        } catch {
+            currentUser = nil
+            overview = nil
+            searchResults = []
+            loadedFriendSchedule = nil
+            errorMessage = "Social access was denied. Sign in again to refresh your phone's session."
+        }
+        return true
+    }
+
+    private func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == "FIRFirestoreErrorDomain",
+           nsError.code == FirestoreErrorCode.permissionDenied.rawValue {
+            return true
+        }
+
+        let message = nsError.localizedDescription.lowercased()
+        return message.contains("missing or insufficient permissions") || message.contains("permission denied")
+    }
+
+    private func refreshAuthTokenIfNeeded(forceRefresh: Bool = false) async throws {
+        guard let user = Auth.auth().currentUser else { return }
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+            user.getIDTokenForcingRefresh(forceRefresh) { token, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let token, !token.isEmpty {
+                    continuation.resume(returning: token)
+                } else {
+                    continuation.resume(throwing: SocialError.invalidResponse)
+                }
             }
         }
     }
@@ -800,12 +905,17 @@ final class SocialManager: ObservableObject {
         return makeUser(from: snapshot)
     }
 
-    private func fetchScheduleCounts(for userIDs: [String]) async throws -> [String: Int] {
+    private func fetchScheduleCounts(for users: [SocialUser]) async -> [String: Int] {
         var counts: [String: Int] = [:]
-        for userID in userIDs {
-            let snapshot = try await getDocument(firestore.collection("sharedSchedules").document(userID))
-            let items = snapshot.data()?["items"] as? [[String: Any]] ?? []
-            counts[userID] = items.count
+        for user in users where user.shareSchedule {
+            do {
+                let snapshot = try await getDocument(firestore.collection("sharedSchedules").document(user.id))
+                let items = snapshot.data()?["items"] as? [[String: Any]] ?? []
+                counts[user.id] = items.count
+            } catch {
+                // Preview counts are cosmetic. A missing or denied schedule should not break the entire social hub.
+                counts[user.id] = 0
+            }
         }
         return counts
     }
@@ -1147,7 +1257,10 @@ final class SocialManager: ObservableObject {
         do {
             try await operation()
         } catch {
-            errorMessage = error.localizedDescription
+            let recovered = await handlePermissionErrorIfNeeded(error)
+            if !recovered {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
