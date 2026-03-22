@@ -431,10 +431,18 @@ struct RPICentralMonthOnlyWidgetView: View {
                             .frame(width: 4)
 
                         VStack(alignment: .leading, spacing: 1.5) {
-                            Text(ev.title)
-                                .font(.caption)
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                Text(ev.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+
+                                if ev.badge == "exam" {
+                                    Image(systemName: "star.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.yellow)
+                                }
+                            }
 
                             Text(subtitleLine(timeText: timeLabel(for: ev), location: ev.location))
                                 .font(.caption2)
@@ -519,10 +527,18 @@ struct RPICentralMonthAndTodayWidgetView: View {
                                 .frame(width: 4)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(ev.title)
-                                    .font(.caption)
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
+                                HStack(spacing: 4) {
+                                    Text(ev.title)
+                                        .font(.caption)
+                                        .foregroundStyle(.white)
+                                        .lineLimit(1)
+
+                                    if ev.badge == "exam" {
+                                        Image(systemName: "star.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.yellow)
+                                    }
+                                }
 
                                 Text(subtitleLine(timeText: timeLabel(for: ev), location: ev.location))
                                     .font(.caption2)

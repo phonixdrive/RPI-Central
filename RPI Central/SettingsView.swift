@@ -107,7 +107,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(footer: Text("More settings can go here later (AI integration, academic calendar sync, etc.).")) {
+                Section(footer: Text("You can move the order by pressing and holding the section by the way")) {
                     EmptyView()
                 }
             }
