@@ -492,7 +492,53 @@ struct SocialHubView: View {
         }
     }
 
-    private var findFriendsCard: some View {
+    private var friendToolsCard: some View {
+        SocialCard(
+            background: Color(red: 0.20, green: 0.22, blue: 0.26),
+            stroke: Color.white.opacity(0.08)
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Friend Tools", systemImage: "person.badge.plus")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+
+                Text("Open friend search and review incoming or outgoing requests in one place.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.white.opacity(0.72))
+
+                HStack(spacing: 12) {
+                    statPill(
+                        title: "Incoming",
+                        value: "\(incomingCount)",
+                        background: Color.white.opacity(0.10),
+                        valueColor: .white,
+                        titleColor: Color.white.opacity(0.66)
+                    )
+                    statPill(
+                        title: "Outgoing",
+                        value: "\(socialManager.overview?.outgoingRequests.count ?? 0)",
+                        background: Color.white.opacity(0.10),
+                        valueColor: .white,
+                        titleColor: Color.white.opacity(0.66)
+                    )
+                }
+
+                Button {
+                    showFriendTools = true
+                } label: {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                        Text("Add Friends or Review Requests")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    private var findFriendsSearchCard: some View {
         SocialCard {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Find Friends", systemImage: "magnifyingglass")
@@ -594,6 +640,191 @@ struct SocialHubView: View {
                     Text("No friends yet.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var groupsCard: some View {
+        let groups = socialManager.friendGroups
+        let friends = socialManager.overview?.friends ?? []
+        let namesByID = Dictionary(uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) })
+
+        return SocialCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Friend Groups", systemImage: "person.3.fill")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Button {
+                        showCreateGroup = true
+                    } label: {
+                        Label("New Group", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(friends.isEmpty)
+                }
+
+                Text("Create smaller circles for personal-event sharing and future social features.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if groups.isEmpty {
+                    Text(friends.isEmpty ? "Add a friend first to start building groups." : "No groups yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(groups) { group in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(group.name)
+                                            .font(.headline)
+                                        Text("\(group.memberIDs.count) member\(group.memberIDs.count == 1 ? "" : "s")")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Button("Delete", role: .destructive) {
+                                        Task {
+                                            let deleted = await socialManager.deleteFriendGroup(group.id)
+                                            if deleted {
+                                                await syncSharedScheduleIfNeeded()
+                                            }
+                                        }
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                }
+
+                                Text(groupSummary(for: group, namesByID: namesByID))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var feedHeaderCard: some View {
+        SocialCard(
+            background: Color(red: 0.16, green: 0.18, blue: 0.23),
+            stroke: Color.white.opacity(0.08)
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Campus Feed")
+                            .font(.title3.bold())
+                            .foregroundStyle(.white)
+                        Text("Share what you are doing right now and let people join in.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.white.opacity(0.72))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .padding(12)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        showFeedComposer = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                            Text("Create activity")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Menu {
+                        ForEach(FeedRefreshOption.allCases) { option in
+                            Button {
+                                feedRefreshIntervalSeconds = option.seconds
+                            } label: {
+                                HStack {
+                                    Text(option.title)
+                                    if feedRefreshIntervalSeconds == option.seconds {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.clockwise")
+                            Text(FeedRefreshOption(seconds: feedRefreshIntervalSeconds).title)
+                                .font(.caption.weight(.semibold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.12)))
+                    }
+                    .foregroundStyle(.white)
+                }
+
+                Text("Double-tap-style behavior: tapping an active response again clears it.")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.62))
+            }
+        }
+    }
+
+    private var feedListCard: some View {
+        SocialCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Live Activity")
+                            .font(.headline)
+                        Text("Recent plans, meetups, and who is already there.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        Task { await socialManager.refreshOverview() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if socialManager.feedItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No activity yet.")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Start the feed with a study session, meal plan, or hangout.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                } else {
+                    LazyVStack(spacing: 12) {
+                        ForEach(socialManager.feedItems) { item in
+                            feedPostCard(item)
+                        }
+                    }
                 }
             }
         }
