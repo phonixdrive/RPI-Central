@@ -74,6 +74,38 @@ struct SocialFriendGroup: Codable, Identifiable, Equatable {
     let memberIDs: [String]
 }
 
+enum SocialFeedRefreshOption: Int, CaseIterable, Identifiable, Codable {
+    case off = 0
+    case fifteen = 15
+    case thirty = 30
+    case sixty = 60
+
+    var id: Int { rawValue }
+    var seconds: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return "Off"
+        case .fifteen: return "15 seconds"
+        case .thirty: return "30 seconds"
+        case .sixty: return "60 seconds"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .off: return "Refresh off"
+        case .fifteen: return "15s"
+        case .thirty: return "30s"
+        case .sixty: return "60s"
+        }
+    }
+
+    init(seconds: Int) {
+        self = SocialFeedRefreshOption(rawValue: seconds) ?? .thirty
+    }
+}
+
 enum SocialFeedVisibility: String, Codable, CaseIterable, Identifiable {
     case friends
     case everyone
@@ -168,6 +200,22 @@ struct SharedScheduleItem: Codable, Identifiable, Equatable {
     let isAllDay: Bool
     let kind: String
     let badge: String?
+}
+
+struct ReceivedSharedCalendarEvent: Codable, Identifiable, Equatable {
+    let id: String
+    let ownerID: String
+    let ownerUsername: String
+    let ownerDisplayName: String
+    let title: String
+    let location: String
+    let startDate: String
+    let endDate: String
+    let createdAt: String
+}
+
+extension Notification.Name {
+    static let sharedCalendarEventsDidUpdate = Notification.Name("sharedCalendarEventsDidUpdate")
 }
 
 struct FriendScheduleResponse: Codable, Identifiable {
