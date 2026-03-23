@@ -8,6 +8,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
 
+    @AppStorage("shuttle_tracker_refresh_interval_seconds") private var shuttleTrackerRefreshIntervalSeconds = 5
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
     @State private var editMode: EditMode = .inactive
@@ -69,11 +70,17 @@ struct SettingsView: View {
                         footer: Text("Demo social tools add seeded test users and requests to help you test the Firebase social features.")
                     ) {
                         Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
+
+                        Picker("Feed auto-refresh", selection: $calendarViewModel.socialFeedRefreshIntervalSeconds) {
+                            ForEach(SocialFeedRefreshOption.allCases) { option in
+                                Text(option.title).tag(option.seconds)
+                            }
+                        }
                     }
 
-                    // NOTIFICATIONS (UI only – wiring to real notifications can come later)
                     Section(header: Text("Notifications")) {
-                        Toggle("Enable class reminders", isOn: $calendarViewModel.notificationsEnabled)
+                        Toggle("Enable calendar reminders", isOn: $calendarViewModel.notificationsEnabled)
+                        Toggle("Enable feed and shared-event alerts", isOn: $calendarViewModel.socialNotificationsEnabled)
 
                         if calendarViewModel.notificationsEnabled {
                             HStack {
@@ -97,6 +104,18 @@ struct SettingsView: View {
                                 NotificationManager.requestAuthorization()
                                 NotificationManager.scheduleTestNotification()
                             }
+                        }
+                    }
+
+                    Section(
+                        header: Text("Shuttle Tracker"),
+                        footer: Text("Shorter refresh intervals feel more live, but they use more battery and network. The Home Dashboard controls below can also enable, disable, or reorder the shuttle tile.")
+                    ) {
+                        Picker("Refresh interval", selection: $shuttleTrackerRefreshIntervalSeconds) {
+                            Text("1 second").tag(1)
+                            Text("2 seconds").tag(2)
+                            Text("5 seconds").tag(5)
+                            Text("10 seconds").tag(10)
                         }
                     }
 
