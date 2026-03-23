@@ -3366,6 +3366,13 @@
     "description": "This studio/seminar consists of longer projects with attention to concept, process, and finish. The student will either work individually or as a member on a team and be expected to have a vision or concept they are driven to create. Some possible topics covered may include virtual environments, advanced shader networks, MEL, compositing, non photorealistic rendering, 3D graphics programming, game engines, or motion capture.",
     "source": "SIS"
   },
+  "ARTS-4025": {
+    "subj": "ARTS",
+    "crse": "4025",
+    "name": "Spatial Music And Sound",
+    "description": "From immersive concerts to film soundtracks and video games, 3D audio has become an essential part of how we experience sound. This seminar explores the creative, historical, and technical dimensions of spatial sound, tracing how composers and artists have shaped our listening experience from antiquity to today. After a brief introduction to the psychoacoustics of sound localization, the course surveys works ranging from Renaissance polychoral masses and multi-ensemble compositions to contemporary electronic works, sound installations, and multi-location projects. In collaboration with EMPAC, students will engage with current and emerging 3D sound technologies and formats, including surround sound, ambisonics, wavefield synthesis, binaural audio, and virtual environments. Students will also have access to the Spatial Music Lab, a multichannel workspace featuring an extensive repertoire of historical and contemporary spatial works for creative and research projects.",
+    "source": "SIS"
+  },
   "ARTS-4040": {
     "subj": "ARTS",
     "crse": "4040",
@@ -4342,7 +4349,7 @@
   "ASTR-1940": {
     "subj": "ASTR",
     "crse": "1940",
-    "name": "Readings In Astr",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -4869,6 +4876,13 @@
     "crse": "6250",
     "name": "Interstellar Medium",
     "description": "Thermal structure and dynamics of the interstellar medium. Topics include diffuse nebulae, composition of interstellar dust and relation to extinction and polarization, molecules and interstellar chemistry, physics of star-forming regions.",
+    "source": "SIS"
+  },
+  "ASTR-6260": {
+    "subj": "ASTR",
+    "crse": "6260",
+    "name": "Astrophysics: Galaxies",
+    "description": "This course will explore the structure, dynamics, and content of galaxies such as the Milky Way, as well as stellar and Galactic evolution. Students will learn methods to gather information about stars, the Milky Way galaxy in particular, and galaxies in general. Students will master the mathematical foundations that will enable more complex calculations of the interactions of stars, gas, and dark matter in galaxies.",
     "source": "SIS"
   },
   "ASTR-6900": {
@@ -5788,6 +5802,13 @@
     "description": "The goal of this laboratory course is to learn about biology through computational data analysis. Students will be introduced to a wide variety of real-world biological data sets. Students will learn how to manage, visualize, analyze, and interpret biological data. This class culminates in a collaborative research project. Students enrolled in a major other than biology and students with an interest in computational biology are particularly encouraged to register for this course.",
     "source": "SIS"
   },
+  "BIOL-1155": {
+    "subj": "BIOL",
+    "crse": "1155",
+    "name": "Welcome To Biological Science",
+    "description": "This course is designed to give students entering the department of biological sciences the opportunities to explore the potential of a major in the department.   We will focus on biology's role in society by delving into faculty research and will resources that will allow you to advance your career in the biological sciences.",
+    "source": "SIS"
+  },
   "BIOL-1550": {
     "subj": "BIOL",
     "crse": "1550",
@@ -5798,7 +5819,7 @@
   "BIOL-1940": {
     "subj": "BIOL",
     "crse": "1940",
-    "name": "Readings In Biol",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -5926,6 +5947,13 @@
     "crse": "2500",
     "name": "Genetics & Evolution",
     "description": "Mechanisms of inheritance in eukaryotes and prokaryotes; genetic mapping, gene expression, cloning and sequencing; quantitative and population genetics, and synthetic theory of evolution.",
+    "source": "SIS"
+  },
+  "BIOL-2555": {
+    "subj": "BIOL",
+    "crse": "2555",
+    "name": "Biology Colloquium",
+    "description": "The pace of advances in the biological sciences is brisk. In order to continually understand these advances, the habit of attending and engaging in biological presentations is essential.  This course offers a framework for student to participate in a seminar series.  This course is graded S/U. This course cannot count towards the Math/Science Core.",
     "source": "SIS"
   },
   "BIOL-2900": {
@@ -6120,7 +6148,7 @@
   "BIOL-4070": {
     "subj": "BIOL",
     "crse": "4070",
-    "name": "Principles Of Research Culminating Experience",
+    "name": "Marine Biology",
     "description": "The goal of this course is to provide both biology majors and non-majors with a solid foundation in the physical and biological aspects of the marine environment.  With this foundation, we will delve into a discussion-based investigation in current topics in marine biology.",
     "source": "SIS"
   },
@@ -7461,6 +7489,13 @@
     "description": "Mechanical regulation of biological systems. Topics include principles and concepts of mechanobiology; evolution, embryogenesis, and histogenesis of tissues with particular references to skeletal system; mechanical regulation of cellular behavior, tissue growth and organ development; concept and application of strain energy regulation in biology; application of mechanobiology to tissue regeneration; limits of mechanical regulation.",
     "source": "SIS"
   },
+  "BMED-4520": {
+    "subj": "BMED",
+    "crse": "4520",
+    "name": "Immunoengineering",
+    "description": "This course will cover the fundamentals of basic immunobiology and then describe engineering strategies to modulate, control, and exploit immune responses to improve human health. Through lectures, literature reviews, and group projects we will understand the principles of innate and adaptive immunology, explore the immunologist's toolkit to measure and assess immune cells and responses, and study new engineering approaches to modulate the immune system that have developed immunotherapies against cancer, autoimmunity, and other diseases.",
+    "source": "SIS"
+  },
   "BMED-4540": {
     "subj": "BMED",
     "crse": "4540",
@@ -7473,6 +7508,13 @@
     "crse": "4550",
     "name": "Cell Biomechanics",
     "description": "This is an undergraduate/graduate course on the mechanics of biopolymers, cell cytoskeleton, cell membrane, the whole cell, and multicellular structures in the context of the modulation of cell function by mechanical stresses. Topics include state-of-the-art experimental techniques in cell biomechanics, and cutting-edge research in stem cell mechanobiology, cell motility, collective cell behavior, neurite growth, osteocyte sensing, cardiovascular diseases, and immunology.",
+    "source": "SIS"
+  },
+  "BMED-4560": {
+    "subj": "BMED",
+    "crse": "4560",
+    "name": "Biomaterial Applications In Medicine",
+    "description": "This course reviews relevant core skills within this new biomedical engineering sub-field, including therapeutic modulation of non-neuromuscular nerve pathways to peripheral organs. Special focus is on important neuroimmune pathways discovered within the spleen and lymphoid tissues, and neurometabolic pathways within the liver, pancreas, and gastrointestinal tissues. New tools for recording and stimulating nerves are discussed, including non-invasive ultrasonic and electromagnetic devices, and how to test these tools for clinical use.",
     "source": "SIS"
   },
   "BMED-4580": {
@@ -7811,11 +7853,25 @@
     "description": "Mechanical regulation of biological systems will be discussed. Topics include principles and concepts of mechanobiology; embryogenesis, and histogenesis of tissues with particular references to skeletal system; physical forces at cellular, tissue, and organ level; mechanical regulation of cellular behavior, tissue growth, and organ development; limits of mechanical regulation; biochemical influences; application of mechanobiology to tissue regeneration.",
     "source": "SIS"
   },
+  "BMED-6520": {
+    "subj": "BMED",
+    "crse": "6520",
+    "name": "Immunoengineering",
+    "description": "This course will cover the fundamentals of basic immunobiology and then describe engineering strategies to modulate, control, and exploit immune responses to improve human health. Through lectures, literature reviews, and group projects we will understand the principles of innate and adaptive immunology, explore the immunologist\u2019s toolkit to measure and assess immune cells and responses, and study new engineering approaches to modulate the immune system that have developed immunotherapies against cancer, autoimmunity, and other diseases.",
+    "source": "SIS"
+  },
   "BMED-6550": {
     "subj": "BMED",
     "crse": "6550",
     "name": "Cell Biomechanics",
     "description": "This is an undergraduate/graduate course on the mechanics of biopolymers, cell cytoskeleton, cell membrane, the whole cell, and multicellular structures in the context of the modulation of cell function by mechanical stresses. Topics include state-of-the-art experimental techniques in cell biomechanics, and cutting-edge research in stem cell mechanobiology, cell motility, collective cell behavior, neurite growth, osteocyte sensing, cardiovascular diseases, and immunology.",
+    "source": "SIS"
+  },
+  "BMED-6560": {
+    "subj": "BMED",
+    "crse": "6560",
+    "name": "Biomaterial Applications In Medicine",
+    "description": "This course reviews relevant core skills within this new biomedical engineering sub-field, including therapeutic modulation of non-neuromuscular nerve pathways to peripheral organs. Special focus is on important neuroimmune pathways discovered within the spleen and lymphoid tissues, and neurometabolic pathways within the liver, pancreas, and gastrointestinal tissues. New tools for recording and stimulating nerves are discussed, including non-invasive ultrasonic and electromagnetic devices, and how to test these tools for clinical use.",
     "source": "SIS"
   },
   "BMED-6580": {
@@ -7998,6 +8054,41 @@
     "crse": "9990",
     "name": "Dissertation",
     "description": "Active participation in research, under the supervision of a faculty adviser, leading to a doctoral dissertation. Grades of IP are assigned until the dissertation has been publicly defended, approved by the doctoral committee, and accepted by the Office of Graduate Education to be archived in a standard format in the library. Grades will then be listed as S.",
+    "source": "SIS"
+  },
+  "BUSN-3150": {
+    "subj": "BUSN",
+    "crse": "3150",
+    "name": "Creating Value: Business Model",
+    "description": "In this course, students evaluate an organization considering its strategic mission and vision.  Students map the value creation process in the context of a dynamic client and market.  Students make recommendations for improvements and then evaluate those from market, competition, and financial perspectives.",
+    "source": "SIS"
+  },
+  "BUSN-3155": {
+    "subj": "BUSN",
+    "crse": "3155",
+    "name": "Managing To Achieve Goals",
+    "description": "In this course, students evaluate how to implement performance improvements and change within an organization, learning how to manage teams and individuals to achieve specific outcomes and metrics.  Students plan for particular performance improvements and evaluate how that change will impact/be impacted by culture and organizational structure.  Students practice crucial conversations to improve interpersonal communication.",
+    "source": "SIS"
+  },
+  "BUSN-3170": {
+    "subj": "BUSN",
+    "crse": "3170",
+    "name": "Decision Making / Problem Solv",
+    "description": "In this course, students evaluate a variety of information and data sources relevant to a problem, question, or decision.  Students perform research, use data visualization techniques, deploy AI tools, and perform structured internet searches to gather relevant information.  Students evaluate and weigh the collected information, utilize root cause analysis, develop structured decision trees and logic chains, and then choose a response that they can support.  Students prepare formal presentations in which they demonstrate their solutions.",
+    "source": "SIS"
+  },
+  "BUSN-3175": {
+    "subj": "BUSN",
+    "crse": "3175",
+    "name": "Mgmt Communication & Practices",
+    "description": "In this course, students build their capacity to be effective managers and supervisors, practicing the techniques that bring the best results in units and organizations.   Students facilitate meetings, perform negotiations, hold crucial conversations, utilize project management facilitation techniques, and learn to coach those they supervise. Students learn how to establish personal and professional SMART goals and then facilitate discussions to ensure goals are achieved.   Students use assessments to determine their management strengths and challenges, then develop personal professional plans to become the manager they aspire to be.",
+    "source": "SIS"
+  },
+  "BUSN-4185": {
+    "subj": "BUSN",
+    "crse": "4185",
+    "name": "Evaluating Syst & Supply Chain",
+    "description": "In this course, students apply value stream mapping, forecasting, and data analysis to align internal operations with both upstream suppliers and downstream customers. Students extend their analysis to include external partners, identifying bottlenecks, sources of waste, and risks to on-time delivery. They make targeted improvements to inventory management policies, adjust schedules to mitigate late deliveries, and enhance supplier management plans. By creating extended value stream maps, students improve forecasting accuracy for customer delivery dates and strengthen supply chain performance across the entire network.",
     "source": "SIS"
   },
   "BUSN-6102": {
@@ -9687,6 +9778,13 @@
     "description": "This course will examine how bioinformatics, functional genomics, and other modern biotechnologies are used to speed the discovery of new drugs, especially those small organic molecules to treat human diseases with large unmet therapeutic need. Special emphasis will be placed on molecular target identification and validation as well as high-throughput screening to identify a lead. Topics to be discussed will include transgenic mice, RNA interference, DNA and protein microarrays, homogenous time-resolved fluorescence bioassays, phage-display, combinatorial chemistry, and parallel synthesis.",
     "source": "SIS"
   },
+  "CHEM-4340": {
+    "subj": "CHEM",
+    "crse": "4340",
+    "name": "Organic Chemistry III",
+    "description": "Organic Chemistry III is an advanced organic chemistry course that develops a mechanistic and strategic understanding of modern synthetic chemistry. Topics include stereochemistry and stereochemical control, conformational analysis, aromaticity and molecular orbital theory, pericyclic reactions, organometallic chemistry and catalytic cycles, retrosynthetic analysis, heterocyclic chemistry, and asymmetric synthesis.",
+    "source": "SIS"
+  },
   "CHEM-4350": {
     "subj": "CHEM",
     "crse": "4350",
@@ -10091,6 +10189,13 @@
     "crse": "6330",
     "name": "Drug Discovery",
     "description": "This course will examine how bioinformatics, functional genomics, and other modern biotechnologies are used to speed the discovery of new drugs, especially those small organic molecules to treat human diseases with large unmet therapeutic need. Special emphasis will be placed on molecular target identification and validation as well as high-throughput screening to identify a lead. Topics to be discussed will include transgenic mice, RNA interference, DNA and protein microarrays, homogenous time-resolved fluorescence bioassays, phage-display, combinatorial chemistry, and parallel synthesis.",
+    "source": "SIS"
+  },
+  "CHEM-6340": {
+    "subj": "CHEM",
+    "crse": "6340",
+    "name": "Organic Sythesis & Stereochem",
+    "description": "Organic Synthesis & Stereochemistry is an advanced organic chemistry course that develops a mechanistic and strategic understanding of modern synthetic chemistry. Topics include stereochemistry and stereochemical control, conformational analysis, aromaticity and molecular orbital theory, pericyclic reactions, organometallic chemistry and catalytic cycles, retrosynthetic analysis, heterocyclic chemistry, and asymmetric synthesis. Emphasis is placed on predicting reaction outcomes, analyzing mechanisms, and designing efficient synthetic routes to complex molecules. Students also engage in critical analysis of current research literature and gain structured training in scientific writing and the research publication process.",
     "source": "SIS"
   },
   "CHEM-6490": {
@@ -11619,13 +11724,6 @@
     "description": "This course is an introduction to the role of physiological mechanisms in behavioral processes. There will be detailed examination and discussion of the involvement of biological systems in feeding and drinking, sexual behavior, sleep and arousal, learning and memory, psychopathology and psychopharmacology.",
     "source": "SIS"
   },
-  "COGS-4410": {
-    "subj": "COGS",
-    "crse": "4410",
-    "name": "Programming For Cog Sci & Ai",
-    "description": "Research in Cognitive Science and Artificial Intelligence (AI) is driven by data. Researchers in these fields collect, manipulate, model and analyze data generated by real-world processes.  Since the amount of data available has grown exponentially, the ability to automate these tasks through computer programs is essential. Specifically, probabilistic and statistical computing are needed to learn from the data. The objectives of this course are for the student to perform exploratory data analysis and to acquire the basics of statistical and machine learning in order to model real-world datasets.",
-    "source": "SIS"
-  },
   "COGS-4420": {
     "subj": "COGS",
     "crse": "4420",
@@ -11864,6 +11962,13 @@
     "description": "This course is the second in a two-semester sequence on research methods and statistics in the behavioral sciences. It covers approaches to statistical modeling and inference that lie within the null hypothesis significance testing (NHST) framework as well as alternative frameworks. Students will learn how to analyze various kinds of data using linear regression and analysis of variance and gain proficiency with the R programming language and software environment for statistical computing. Students will carry out a research project and give a formal presentation of the findings.",
     "source": "SIS"
   },
+  "COGS-6335": {
+    "subj": "COGS",
+    "crse": "6335",
+    "name": "Feminist Critiques Of Logic",
+    "description": "Feminist critiques of many disciplines have led to deep and radical revisions to their foundational assumptions. In the case of the a priori disciplines---mathematics, computation, engineering---critiques tend to be less foundational. There exist, however, threads of literature debating the role that feminist theory plays in determining the bounds of reason itself and, consequently, the contours of disciplines like mathematics. The thesis that oppressive themes are baked into the foundations of logic leads to important questions: Can the many fruits of logic (engineering, medicine, computers) be balanced with a revision of its foundation? Does a more inclusive epistemology of logical reasoning conflict with the idea that mathematical truths (for example) are necessary and eternal?",
+    "source": "SIS"
+  },
   "COGS-6340": {
     "subj": "COGS",
     "crse": "6340",
@@ -11871,11 +11976,11 @@
     "description": "This course will explore how linguistics, the scientific study of the properties of human language and languages, can be applied to the development of intelligent agents that can fluently and meaningfully communicate with people in natural language. It will focus on linguistic phenomena that have so far been particularly resistant to effective machine processing, such as lexical ambiguity resolution, reference resolution, ellipsis, indirect speech acts, implicature, and non-literal language (e.g., metaphor and irony).",
     "source": "SIS"
   },
-  "COGS-6410": {
+  "COGS-6380": {
     "subj": "COGS",
-    "crse": "6410",
-    "name": "Programming For Cog Sci & Ai",
-    "description": "This course is a graduate course that teaches Cognitive Science and Artificial Intelligence concepts by enabling the student to develop and understand computer programs that implement them. It covers data collection and analysis, task environments, natural language, cognitive architectures, and learning. Some previous programming experience is very beneficial but not required.",
+    "crse": "6380",
+    "name": "Behavioral Data Science",
+    "description": "Do you want to move beyond traditional statistics? This course introduces the emerging field of Behavioral Data Science, blending theory-driven insights from the social sciences with computational tools from data science, machine learning, and statistics. Students will learn to analyze behavioral data to solve complex problems, such as modeling user behavior, identifying patterns in social networks, uncovering personality structures, and applying deep learning for behavioral prediction and uncertainty quantification. Graduates will be well-equipped to address data challenges across industries, helping shape a diverse and interdisciplinary data science workforce.",
     "source": "SIS"
   },
   "COGS-6420": {
@@ -11904,6 +12009,13 @@
     "crse": "6450",
     "name": "Non-classical Logic",
     "description": "This course provides an introduction to the philosophical and formal aspects of several families of non-classical logics that provide alternatives to classical (Russell-Frege) logic. Emphases will include philosophical objections to particular components of classical logic and how alternative formalizations of reasoning have emerged in order to accommodate these objections. In particular, topics to be covered will include logics of strict implication, intuitionistic logic, relevant logic, and fuzzy logic.",
+    "source": "SIS"
+  },
+  "COGS-6530": {
+    "subj": "COGS",
+    "crse": "6530",
+    "name": "Appl Data Analysis & Prob Mod",
+    "description": "This course introduces the principles and methods of Bayesian statistics and probabilistic modeling, with an emphasis on practical application to real-world problems. The course provides a self-contained foundation in probability theory, Bayesian estimation, model comparison, and decision theory, and contrasts Bayesian and non-Bayesian approaches with a focus on uncertainty quantification and interpretation. Students will learn modern computational techniques for Bayesian inference, including MCMC, hierarchical models, and simulation-based methods, and will engage in hands-on sessions using R to implement principled Bayesian workflows such as prior checking, sensitivity analysis, and model validation. Advanced topics, including approximate Bayesian computation, variational inference, and generative neural networks, are also introduced, equipping students with the skills needed to apply contemporary Bayesian methods in practice.",
     "source": "SIS"
   },
   "COGS-6540": {
@@ -12175,7 +12287,7 @@
   "COMM-1940": {
     "subj": "COMM",
     "crse": "1940",
-    "name": "Studies In Communications",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -12427,7 +12539,7 @@
   "COMM-2941": {
     "subj": "COMM",
     "crse": "2941",
-    "name": "Undergraduate Research Project",
+    "name": "Ugrad Research Project",
     "description": "",
     "source": "SIS"
   },
@@ -12576,6 +12688,13 @@
     "crse": "4009",
     "name": "Consortia Course At Sage",
     "description": "",
+    "source": "SIS"
+  },
+  "COMM-4111": {
+    "subj": "COMM",
+    "crse": "4111",
+    "name": "Freedom Of Speech",
+    "description": "This course will survey the historical, cultural, and legal significance of Freedom of Speech in the United States. Emphasizing the legal debates around the First Amendment to the United States Constitution students will become familiar with important issues in free speech practice including freedom of the press, defamation law, protest and social movements, and copyright and intellectual property law.",
     "source": "SIS"
   },
   "COMM-4150": {
@@ -12826,7 +12945,7 @@
   "COMM-4941": {
     "subj": "COMM",
     "crse": "4941",
-    "name": "Undergraduate Research Project",
+    "name": "Ugrad Research Project",
     "description": "",
     "source": "SIS"
   },
@@ -13666,7 +13785,7 @@
   "CSCI-2941": {
     "subj": "CSCI",
     "crse": "2941",
-    "name": "Undergraduate Research Project",
+    "name": "Ugrad Research Project",
     "description": "",
     "source": "SIS"
   },
@@ -13680,9 +13799,9 @@
   "CSCI-2960": {
     "subj": "CSCI",
     "crse": "2960",
-    "name": "Topics In Csci",
-    "description": "",
-    "source": "SIS"
+    "name": "Introduction To Competitive Programming",
+    "description": "This course provides an introduction to competitive programming, with a special emphasis on writing code to solve real problems that appear in various programming contests. Students will learn to apply different techniques they learned in CSCI 2300 to write correct and efficient solutions in code in addition to being introduced to new algorithmic techniques and approaches. Course (Student) Learning Outcomes (CLOs): (1) students will gain practical experience in collaborative software development on real-world projects of their choosing; (2) students will learn practical aspects of community driven software development; (3) students will learn and apply the principles of open source on real life projects in an open environment; (4) students will be given the opportunity to learn new technologies of their choosing and will need to develop capabilities to \"self learn\" new topics areas. This is a third-year programming course. As a result, it assumes a level of academic maturity appropriate for a student in their sophomore or junior year. It also requires good working knowledge of data structures and algorithms, and proficiency in C++ programming or Python.",
+    "source": "CSCI topics"
   },
   "CSCI-2961": {
     "subj": "CSCI",
@@ -14115,7 +14234,7 @@
     "subj": "CSCI",
     "crse": "4520",
     "name": "Web Science Systems Develpment",
-    "description": "Building\u00a0on the technology covered in Web Systems Development, students will be exposed to current technologies, frameworks, and practices in the area of Web development. Types of topics included will be HTML5/CSS3, API\u2019s for data, node.js, MongoDB, and Angular. Methodology to be explored will be application design, software versioning, and team development. Lab intensive, this course is intended to complete a foundation for the advanced courses in Data Science and Advanced Web Science.",
+    "description": "Building on the technology covered in Web Systems Development, students will be exposed to current technologies, frameworks, and practices in the area of Web development. Types of topics included will be HTML5/CSS3, API's for data, node.js, MongoDB, and Angular. Methodology to be explored will be application design, software versioning, and team development. Lab intensive, this course is intended to complete a foundation for the advanced courses in Data Science and Advanced Web Science.",
     "source": "SIS"
   },
   "CSCI-4530": {
@@ -14219,7 +14338,7 @@
   "CSCI-4941": {
     "subj": "CSCI",
     "crse": "4941",
-    "name": "Undergraduate Research Project",
+    "name": "Ugrad Research Project",
     "description": "",
     "source": "SIS"
   },
@@ -14233,72 +14352,72 @@
   "CSCI-4960": {
     "subj": "CSCI",
     "crse": "4960",
-    "name": "Topics In Csci",
-    "description": "Credit Hours: 1 to 4",
-    "source": "SIS"
+    "name": "Security & Privacy Of Ml",
+    "description": "Machine learning (ML) has demonstrated superior performance in many areas and has increasingly been deployed in real-world critical applications. However, the vulnerabilities and privacy risks of ML models could put public safety and user privacy in danger. Existing studies have shown that the ML applications such as financial analytics and autonomous vehicles are vulnerable to attacks that can manipulate the models to their malicious ends. This course will introduce potential vulnerabilities of ML models, recent research and future directions about the security and privacy problems in real-world machine learning systems. We will cover different types of attacks against computer systems leveraging ML as well as defense techniques, privacy-preserving ML, and robustness and fairness in ML. Students will familiarize themselves with the emerging body of literature on each topic, understand different algorithms, analyze security vulnerabilities, and develop the ability to conduct research projects on related topics.",
+    "source": "CSCI topics"
   },
   "CSCI-4961": {
     "subj": "CSCI",
     "crse": "4961",
-    "name": "Security And Privacy Of Ml",
-    "description": "Machine learning (ML) has demonstrated superior performance in many areas and has increasingly been deployed in real-world critical applications. However, the vulnerabilities and privacy risks of ML models could put public safety and user privacy in danger. Existing studies have shown that the ML applications such as financial analytics and autonomous vehicles are vulnerable to attacks that can manipulate the models to their malicious ends. This course will introduce potential vulnerabilities of ML models, recent research and future directions about the security and privacy problems in real-world machine learning systems. We will cover different types of attacks against computer systems leveraging ML as well as defense techniques, privacy-preserving ML, and robustness and fairness in ML. Students will familiarize themselves with the emerging body of literature on each topic, understand different algorithms, analyze security vulnerabilities, and develop the ability to conduct research projects on related topics.",
+    "name": "Network Security And Defense",
+    "description": "This course covers network security and defense mechanisms to thwart a variety of attacks. Topics include packet sniffing and spoofing, attacks on the TCP/IP protocol, attacks on the ICMP, ARP protocol, firewall, DNS security: local DNS attack, remote DNS attack, virtual private networks, public key infrastructure, transport layer security, and CDN security.",
     "source": "CSCI topics"
   },
   "CSCI-4962": {
     "subj": "CSCI",
     "crse": "4962",
-    "name": "Frontiers In Blockchain Research",
-    "description": "This research seminar-oriented course will explore the synergistic combination of Artificial Intelligence (AI) and Blockchain technologies. A primary focus of the course is to identify the disruptors in the two technologies from a research lens. Specifically, we intend to discuss how leveraging blockchain technology can benefit AI and how applying AI can enhance the capabilities of blockchain technology. Furthermore, students are encouraged to think about the impact of these two technologies on society. Topics discussed in the course include blockchain fundamentals, smart contracts, web3, federated machine learning, and decentralized applications that combine AI and blockchain technologies.",
+    "name": "Cloud Computing",
+    "description": "This course will provide an in-depth overview of Cloud Computing and associated virtualization technologies.  Key areas of study will include review of virtualization concepts , cloud service models,  virtual machines (VMs), Docker, portability, and VM migration.  Various virtualization software packages will be leveraged including AWS, Azure, VMWare, VirtualBox, and Docker. This is a hands-on course, and all topics presented will be reinforced by developing solutions using these technologies.",
     "source": "CSCI topics"
   },
   "CSCI-4963": {
     "subj": "CSCI",
     "crse": "4963",
-    "name": "Distributed Quantum Computing",
-    "description": "This seminar course explores the emerging field of distributed quantum computing, where information is processed and shared across interconnected quantum systems. The course will cover three broad areas: quantum networks and their applications; distributing quantum programs; and hybrid quantum-classical computing. We will work together to develop a deep understanding of this content through just-in-time lectures on foundational topics, class presentations and discussions of research papers, and student-led tutorials. Students will also create a research or survey project of their choosing. See also: https://rpi-sep.github.io/teaching/dqc-spring-2026",
+    "name": "Principles Of Machine Learning",
+    "description": "TBD",
     "source": "CSCI topics"
   },
   "CSCI-4964": {
     "subj": "CSCI",
     "crse": "4964",
-    "name": "Hardware Security",
-    "description": "This course introduces methods that leverage the basic analysis techniques learned in Robotics I to develop numerical and algorithmic techniques needed to endow robots with the \"intelligence\" to devise strategies to solve problems they will encounter. Once these abilities are sufficiently well developed, robots will become safe and autonomous, thus paving the way for pervasive personal robots. Topics include: configuration space representation, cell decomposition, roadmap methods, rapidly-exploring random trees, simultaneous localization and mapping, contact modeling, grasping, and dexterous manipulation.",
+    "name": "Quantum Computer Organization",
+    "description": "This course introduces quantum computing through the lens of classic CS computer organization and software engineering. The course is guided by the principle that \"you don't really understand something until you can code it\"; every concept covered in class will be reinforced by hands-on implementation. Students will not only study the theoretical foundations of quantum computation but will also build software artifacts that translate theory into practice. Participants will learn how to design and implement the abstractions that connect low-level hardware with high-level applications, forming the essential layers of the quantum computer and its associated software stack. Through a combination of lectures, coding projects, and real-world case studies, students will (a) build a solid understanding of quantum computing theory toward more advanced studies, (b) implement foundational data structures for quantum computing, as well as key quantum algorithms in software, (c) explore workload optimization, compilation, error mitigation, result validation and resource management in quantum systems, and (d) gain experience with modern quantum programming frameworks and hardware backends. By the end of the course, students will have developed the technical skills and practical experience necessary to become the workforce powering the next generation of quantum computing, creating tools, frameworks, and platforms that enable application developers, researchers, and domain experts to fully leverage quantum technologies.",
     "source": "CSCI topics"
   },
   "CSCI-4965": {
     "subj": "CSCI",
     "crse": "4965",
-    "name": "Computational Aspects Of Online Learning",
-    "description": "This seminar course focuses on the computational foundations of online learning, online optimization, and reinforcement learning. We will explore seminal and recent papers covering topics such as stochastic bandits, adversarial bandits, and regret minimization. The course provides a rigorous and mathematical perspective on these problems. We will see how principles in reinforcement learning, e.g., exploration and exploitation, can be used rigorously to obtain provable guarantees in online learning. The course is open to students with a strong interest in algorithm design, analysis, and machine learning. The seminar is centered on reading and discussion of research papers from top conferences related to online learning. Evaluation will be based on paper reviews, in-class presentations, and active participation. There are no exams or tests. There is a website for the course: https://www.chen-wang.info/teaching/csci-49656965-computational-aspects-of-online-learning-spring-26",
+    "name": "Designing Economic Algorithms",
+    "description": "This advanced theory course studies the design of \"economic algorithms,\" such as student-school assignment, auctions, and multi-candidate elections, with an emphasis on improving their simplicity and quantifying their complexity. We will ask: How can we make the algorithms' outcomes transparent and their properties clear? What happens if participants are not perfectly rational, or the designer has only limited information or control? Topics may include market and information design, social choice theory, behavioral economics, interactive mechanisms, and communication complexity. For each topic covered, we will introduce classic results, study recent research papers, and have a problem set focused on theory. Prior experience with mathematical proofs (or significant effort) is required. Final course projects may be theory-focused (e.g., presenting or extending the results of a recent paper) or more-applied (e.g., running simulations, analyzing data, or building an implementation informed by course themes).",
     "source": "CSCI topics"
   },
   "CSCI-4966": {
     "subj": "CSCI",
     "crse": "4966",
-    "name": "Machine Learning Open Source, Open Science -- Ml(Os)^2",
-    "description": "A structured, intensive research experience for students interested in Machine Learning, AI and Data. Students will focus on a single research project through the semester to answer a novel research question within an open source, open science framework. Projects will use data from a variety of application domains including medical (e.g. disease modeling), environment, finance, text, image, etc. The primary outcomes for students will be open source tools and research publications in peer-reviewed venues.",
+    "name": "Programming In Haskell",
+    "description": "Haskell is a functional programming language increasingly used in industry; many Haskell features and ideas have been adopted by mainstream languages such as Python. The class will cover basic lambda calculus (the theoretical foundation of functional programing languages) and explore features such as lazy evaluation and infinite structures, higher-order functions, static types, and error reporting. It will cover more advanced Haskell features as well: monads (including lists and IO), type classes, polymorphism, Hindley-Milner type inference and other. Grading will be based on class participation, in-class open-note quizzes, small biweekly programming assignments, and a larger final programming assignment.",
     "source": "CSCI topics"
   },
   "CSCI-4967": {
     "subj": "CSCI",
     "crse": "4967",
-    "name": "Designing Economic Algorithms",
-    "description": "This advanced theory course studies the design of \"economic algorithms,\" such as student-school assignment, auctions, and multi-candidate elections, with an emphasis on improving their simplicity and quantifying their complexity. We will ask: How can we make the algorithms' outcomes transparent and their properties clear? What happens if participants are not perfectly rational, or the designer has only limited information or control? Topics may include market and information design, social choice theory, behavioral economics, interactive mechanisms, and communication complexity. For each topic covered, we will introduce classic results, study recent research papers, and have a problem set focused on theory. Prior experience with mathematical proofs (or significant effort) is required. Final course projects may be theory-focused (e.g., presenting or extending the results of a recent paper) or more-applied (e.g., running simulations, analyzing data, or building an implementation informed by course themes).",
-    "source": "CSCI topics"
-  },
-  "CSCI-4968": {
-    "subj": "CSCI",
-    "crse": "4968",
     "name": "Topics In Csci",
     "description": "",
     "source": "SIS"
   },
+  "CSCI-4968": {
+    "subj": "CSCI",
+    "crse": "4968",
+    "name": "Advanced Operating Systems",
+    "description": "This course provides an in-depth exploration of operating system concepts and mechanisms beyond the introductory level. Students will study the design, implementation, and evaluation of modern operating systems, with a focus on advanced topics such as system calls, CPU scheduling, concurrency, synchronization, memory management, file systems, virtual memory, and device drivers. The course combines theoretical foundations with practical experience, including programming assignments that involve developing and analyzing operating system components. By the end of the course, students will gain a thorough understanding of the principles and challenges in building robust, efficient, and secure operating systems, preparing them for research or careers in systems software development.",
+    "source": "CSCI topics"
+  },
   "CSCI-4969": {
     "subj": "CSCI",
     "crse": "4969",
-    "name": "Robotics Ii",
-    "description": "This course introduces methods that leverage the basic analysis techniques learned in Robotics I to develop numerical and algorithmic techniques needed to endow robots with the \"intelligence\" to devise strategies to solve problems they will encounter. Once these abilities are sufficiently well developed, robots will become safe and autonomous, thus paving the way for pervasive personal robots. Topics include: configuration space representation, cell decomposition, roadmap methods, rapidly-exploring random trees, simultaneous localization and mapping, contact modeling, grasping, and dexterous manipulation.",
-    "source": "CSCI topics"
+    "name": "Topics In Csci",
+    "description": "",
+    "source": "SIS"
   },
   "CSCI-4970": {
     "subj": "CSCI",
@@ -14317,9 +14436,9 @@
   "CSCI-4972": {
     "subj": "CSCI",
     "crse": "4972",
-    "name": "Topics In Csci",
-    "description": "",
-    "source": "SIS"
+    "name": "Introduction To Logic-Based Ai",
+    "description": "Cross-listed from: COGS 4962/6962; PHIL 4961",
+    "source": "CSCI topics"
   },
   "CSCI-4973": {
     "subj": "CSCI",
@@ -14744,79 +14863,79 @@
   "CSCI-6960": {
     "subj": "CSCI",
     "crse": "6960",
-    "name": "Machine Learning And Optimization",
-    "description": "The first portion of this course introduces the optimization background necessary to understand the algorithms that dominate the landscape of machine learning. The second portion introduces effective architectures used in modern machine learning. Students revisit classical models and learn state-of-the-art models, always in service of gaining algorithmic insight that is broadly useful beyond specific models.",
+    "name": "Security & Privacy Of Ml",
+    "description": "Machine learning (ML) has demonstrated superior performance in many areas and has increasingly been deployed in real-world critical applications. However, the vulnerabilities and privacy risks of ML models could put public safety and user privacy in danger. Existing studies have shown that the ML applications such as financial analytics and autonomous vehicles are vulnerable to attacks that can manipulate the models to their malicious ends. This course will introduce potential vulnerabilities of ML models, recent research and future directions about the security and privacy problems in real-world machine learning systems. We will cover different types of attacks against computer systems leveraging ML as well as defense techniques, privacy-preserving ML, and robustness and fairness in ML. Students will familiarize themselves with the emerging body of literature on each topic, understand different algorithms, analyze security vulnerabilities, and develop the ability to conduct research projects on related topics.",
     "source": "CSCI topics"
   },
   "CSCI-6961": {
     "subj": "CSCI",
     "crse": "6961",
-    "name": "Security And Privacy Of Ml",
-    "description": "Machine learning (ML) has demonstrated superior performance in many areas and has increasingly been deployed in real-world critical applications. However, the vulnerabilities and privacy risks of ML models could put public safety and user privacy in danger. Existing studies have shown that the ML applications such as financial analytics and autonomous vehicles are vulnerable to attacks that can manipulate the models to their malicious ends. This course will introduce potential vulnerabilities of ML models, recent research and future directions about the security and privacy problems in real-world machine learning systems. We will cover different types of attacks against computer systems leveraging ML as well as defense techniques, privacy-preserving ML, and robustness and fairness in ML. Students will familiarize themselves with the emerging body of literature on each topic, understand different algorithms, analyze security vulnerabilities, and develop the ability to conduct research projects on related topics.",
-    "source": "CSCI topics"
+    "name": "Topics In Csci",
+    "description": "",
+    "source": "SIS"
   },
   "CSCI-6962": {
     "subj": "CSCI",
     "crse": "6962",
-    "name": "Frontiers In Blockchain Research",
-    "description": "This research seminar-oriented course will explore the synergistic combination of Artificial Intelligence (AI) and Blockchain technologies. A primary focus of the course is to identify the disruptors in the two technologies from a research lens. Specifically, we intend to discuss how leveraging blockchain technology can benefit AI and how applying AI can enhance the capabilities of blockchain technology. Furthermore, students are encouraged to think about the impact of these two technologies on society. Topics discussed in the course include blockchain fundamentals, smart contracts, web3, federated machine learning, and decentralized applications that combine AI and blockchain technologies.",
+    "name": "Cloud Computing",
+    "description": "This course will provide an in-depth overview of Cloud Computing and associated virtualization technologies.  Key areas of study will include review of virtualization concepts , cloud service models,  virtual machines (VMs), Docker, portability, and VM migration.  Various virtualization software packages will be leveraged including AWS, Azure, VMWare, VirtualBox, and Docker. This is a hands-on course, and all topics presented will be reinforced by developing solutions using these technologies.",
     "source": "CSCI topics"
   },
   "CSCI-6963": {
     "subj": "CSCI",
     "crse": "6963",
-    "name": "Distributed Quantum Computing",
-    "description": "This seminar course explores the emerging field of distributed quantum computing, where information is processed and shared across interconnected quantum systems. The course will cover three broad areas: quantum networks and their applications; distributing quantum programs; and hybrid quantum-classical computing. We will work together to develop a deep understanding of this content through just-in-time lectures on foundational topics, class presentations and discussions of research papers, and student-led tutorials. Students will also create a research or survey project of their choosing. See also: https://rpi-sep.github.io/teaching/dqc-spring-2026",
-    "source": "CSCI topics"
+    "name": "Topics In Csci",
+    "description": "",
+    "source": "SIS"
   },
   "CSCI-6964": {
     "subj": "CSCI",
     "crse": "6964",
-    "name": "Hardware Security",
-    "description": "This course introduces methods that leverage the basic analysis techniques learned in Robotics I to develop numerical and algorithmic techniques needed to endow robots with the \"intelligence\" to devise strategies to solve problems they will encounter. Once these abilities are sufficiently well developed, robots will become safe and autonomous, thus paving the way for pervasive personal robots. Topics include: configuration space representation, cell decomposition, roadmap methods, rapidly-exploring random trees, simultaneous localization and mapping, contact modeling, grasping, and dexterous manipulation.",
+    "name": "Quantum Computer Organization",
+    "description": "This course introduces quantum computing through the lens of classic CS computer organization and software engineering. The course is guided by the principle that \"you don't really understand something until you can code it\"; every concept covered in class will be reinforced by hands-on implementation. Students will not only study the theoretical foundations of quantum computation but will also build software artifacts that translate theory into practice. Participants will learn how to design and implement the abstractions that connect low-level hardware with high-level applications, forming the essential layers of the quantum computer and its associated software stack. Through a combination of lectures, coding projects, and real-world case studies, students will (a) build a solid understanding of quantum computing theory toward more advanced studies, (b) implement foundational data structures for quantum computing, as well as key quantum algorithms in software, (c) explore workload optimization, compilation, error mitigation, result validation and resource management in quantum systems, and (d) gain experience with modern quantum programming frameworks and hardware backends. By the end of the course, students will have developed the technical skills and practical experience necessary to become the workforce powering the next generation of quantum computing, creating tools, frameworks, and platforms that enable application developers, researchers, and domain experts to fully leverage quantum technologies.",
     "source": "CSCI topics"
   },
   "CSCI-6965": {
     "subj": "CSCI",
     "crse": "6965",
-    "name": "Computational Aspects Of Online Learning",
-    "description": "This seminar course focuses on the computational foundations of online learning, online optimization, and reinforcement learning. We will explore seminal and recent papers covering topics such as stochastic bandits, adversarial bandits, and regret minimization. The course provides a rigorous and mathematical perspective on these problems. We will see how principles in reinforcement learning, e.g., exploration and exploitation, can be used rigorously to obtain provable guarantees in online learning. The course is open to students with a strong interest in algorithm design, analysis, and machine learning. The seminar is centered on reading and discussion of research papers from top conferences related to online learning. Evaluation will be based on paper reviews, in-class presentations, and active participation. There are no exams or tests. There is a website for the course: https://www.chen-wang.info/teaching/csci-49656965-computational-aspects-of-online-learning-spring-26",
+    "name": "Designing Economic Algorithms",
+    "description": "This advanced theory course studies the design of \"economic algorithms,\" such as student-school assignment, auctions, and multi-candidate elections, with an emphasis on improving their simplicity and quantifying their complexity. We will ask: How can we make the algorithms' outcomes transparent and their properties clear? What happens if participants are not perfectly rational, or the designer has only limited information or control? Topics may include market and information design, social choice theory, behavioral economics, interactive mechanisms, and communication complexity. For each topic covered, we will introduce classic results, study recent research papers, and have a problem set focused on theory. Prior experience with mathematical proofs (or significant effort) is required. Final course projects may be theory-focused (e.g., presenting or extending the results of a recent paper) or more-applied (e.g., running simulations, analyzing data, or building an implementation informed by course themes).",
     "source": "CSCI topics"
   },
   "CSCI-6966": {
     "subj": "CSCI",
     "crse": "6966",
-    "name": "Network Flows",
-    "description": "Network flow problems form a subclass of linear programming problems with applications to transportation, logistics, manufacturing, computer science, project management, and finance, and many other domains. This subject will survey some of the applications of network optimization and focus on key special cases of network optimization problems including the following: the shortest path problems, the maximum flow problems, traveling salesperson problems, and matching problems.",
+    "name": "Programming In Haskell",
+    "description": "Haskell is a functional programming language increasingly used in industry; many Haskell features and ideas have been adopted by mainstream languages such as Python. The class will cover basic lambda calculus (the theoretical foundation of functional programing languages) and explore features such as lazy evaluation and infinite structures, higher-order functions, static types, and error reporting. It will cover more advanced Haskell features as well: monads (including lists and IO), type classes, polymorphism, Hindley-Milner type inference and other. Grading will be based on class participation, in-class open-note quizzes, small biweekly programming assignments, and a larger final programming assignment.",
     "source": "CSCI topics"
   },
   "CSCI-6967": {
     "subj": "CSCI",
     "crse": "6967",
-    "name": "Designing Economic Algorithms",
-    "description": "This advanced theory course studies the design of \"economic algorithms,\" such as student-school assignment, auctions, and multi-candidate elections, with an emphasis on improving their simplicity and quantifying their complexity. We will ask: How can we make the algorithms' outcomes transparent and their properties clear? What happens if participants are not perfectly rational, or the designer has only limited information or control? Topics may include market and information design, social choice theory, behavioral economics, interactive mechanisms, and communication complexity. For each topic covered, we will introduce classic results, study recent research papers, and have a problem set focused on theory. Prior experience with mathematical proofs (or significant effort) is required. Final course projects may be theory-focused (e.g., presenting or extending the results of a recent paper) or more-applied (e.g., running simulations, analyzing data, or building an implementation informed by course themes).",
+    "name": "Introduction To Logic-Based Ai",
+    "description": "Cross-listed from: COGS 4962/6962; PHIL 4961",
     "source": "CSCI topics"
   },
   "CSCI-6968": {
     "subj": "CSCI",
     "crse": "6968",
-    "name": "Topics In Csci",
-    "description": "",
-    "source": "SIS"
+    "name": "Advanced Operating Systems",
+    "description": "This course provides an in-depth exploration of operating system concepts and mechanisms beyond the introductory level. Students will study the design, implementation, and evaluation of modern operating systems, with a focus on advanced topics such as system calls, CPU scheduling, concurrency, synchronization, memory management, file systems, virtual memory, and device drivers. The course combines theoretical foundations with practical experience, including programming assignments that involve developing and analyzing operating system components. By the end of the course, students will gain a thorough understanding of the principles and challenges in building robust, efficient, and secure operating systems, preparing them for research or careers in systems software development.",
+    "source": "CSCI topics"
   },
   "CSCI-6969": {
     "subj": "CSCI",
     "crse": "6969",
-    "name": "Robotics Ii",
-    "description": "This course introduces methods that leverage the basic analysis techniques learned in Robotics I to develop numerical and algorithmic techniques needed to endow robots with the \"intelligence\" to devise strategies to solve problems they will encounter. Once these abilities are sufficiently well developed, robots will become safe and autonomous, thus paving the way for pervasive personal robots. Topics include: configuration space representation, cell decomposition, roadmap methods, rapidly-exploring random trees, simultaneous localization and mapping, contact modeling, grasping, and dexterous manipulation.",
-    "source": "CSCI topics"
+    "name": "Topics In Csci",
+    "description": "",
+    "source": "SIS"
   },
   "CSCI-6970": {
     "subj": "CSCI",
     "crse": "6970",
-    "name": "Professional Project",
-    "description": "Active participation in a semester-long project, under the supervision of a faculty adviser. A Professional Project often serves as a culminating experience for a Professional Master\u2019s program but, with departmental or school approval, can be used to fulfill other program requirements. With approval, students may register for more than one Professional Project. Professional Projects must result in documentation established by each department or school, but are not submitted to the Office of Graduate Education and are not archived in the library. Grades of A, B, C, or F are assigned by the faculty adviser at the end of the semester. If not completed on time, a formal Incomplete grade may be assigned by the faculty adviser, listing the work remaining to be completed and the time limit for completing this work.",
-    "source": "SIS"
+    "name": "Decision Making Under Uncertainty",
+    "description": "This course introduces methods for automating the process of decision-making. Starting with the concept of probabilistic reasoning, this course will provide a foundation for a sequential decision-making framework, which can be applied in various domains including autonomous driving, exploration, and robotics. The focus will specifically be on decision making problems under state uncertainty and finally multi-agent systems. Topics include: Bayesian networks, Markov decision process, partially observable Markov decision processes, multi-agent reasoning.",
+    "source": "CSCI topics"
   },
   "CSCI-6971": {
     "subj": "CSCI",
@@ -15087,7 +15206,7 @@
   "ENGR-1940": {
     "subj": "ENGR",
     "crse": "1940",
-    "name": "Readings In Engr",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -15318,7 +15437,7 @@
   "ENGR-2700": {
     "subj": "ENGR",
     "crse": "2700",
-    "name": "Intro Manufacturing Planning",
+    "name": "Prod And Operations Mgmt",
     "description": "Overview of methods used in the design and operation of production and service systems and basic cost accounting. Topics include forecasting, capacity planning, line balancing, production scheduling, staff scheduling, inventory control, just in time, time study, project planning, and discrete item cost accounting. Goal of course is to educate students in basic operations management principles and models and in discrete goods cost accounting. Students cannot receive credit for this course and ISYE 2210.",
     "source": "SIS"
   },
@@ -15525,13 +15644,6 @@
     "description": "",
     "source": "SIS"
   },
-  "ENGR-4200": {
-    "subj": "ENGR",
-    "crse": "4200",
-    "name": "Fortran Programming",
-    "description": "This course provides a practical introduction to computer programming in Classical Fortran, emphasizing selected language features that are useful in performing numerical calculations. It is intended mainly for graduate students in engineering and science who need to use Fortran in research projects and in courses that assume a knowledge of the language or of programming. Grading is based primarily on the student\u2019s use of Fortran in a significant project, which may be for thesis research or for another course. Required reading (about 17 pages per week) is assigned from the textbook \u201cClassical Fortran Second Edition\u201d and there might be short in-class quizzes on the reading.",
-    "source": "SIS"
-  },
   "ENGR-4370": {
     "subj": "ENGR",
     "crse": "4370",
@@ -15586,13 +15698,6 @@
     "crse": "4720",
     "name": "Manufacturing Processes And Systems Laboratory II",
     "description": "Student teams finalize manufacturing system plans from select ENGR 4710 projects, build a manufacturing system to complete several hundred units of a product, optimize the system, manage a project budget, modify manufacturing and packaging plans, and conform to a project schedule as proposed in the associated project Technical Data Packages produced by ENGR 4710 teams. In addition, students will learn new advanced manufacturing topics to increase their breath and depth of manufacturing.",
-    "source": "SIS"
-  },
-  "ENGR-4750": {
-    "subj": "ENGR",
-    "crse": "4750",
-    "name": "Engineer Eco & Project Mgmt",
-    "description": "This course deals with cost analysis in engineering decision making and the management and control of complex projects. Engineering economics topics include interest formulas and equivalence calculations, inflation, measures of investment worth, after tax analysis, depreciation accounting and replacement analyses, life-cycle costing and design economics, risk analysis and cost-benefit analysis. Engineering project management topics include methods for planning, evaluation, organization, budgeting, cost estimating, scheduling, expediting, reporting, monitoring, and implementation of projects. Students cannot obtain credit for both this course and either ENGR 4760 or ISYE 4240.",
     "source": "SIS"
   },
   "ENGR-4760": {
@@ -16074,7 +16179,7 @@
   "ERTH-1940": {
     "subj": "ERTH",
     "crse": "1940",
-    "name": "Readings In Erth",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -17555,6 +17660,13 @@
     "description": "Forecasts play a crucial role in the formation of economic policy and financial decisions. As a result, accurate predictions of the future are critical for the public and private sector alike. This course introduces students to the empirical techniques used by professional economists in business , government and financial sectors to model the complex processes generating data through time and to make real world forecasts. The steps and methods required to develop a forecast-from understanding the properties of time-series data to forecast evaluation-are defined. Topics include modeling trends, seasonality and cycles, ARMA and ARIMA models, forecast combination, vector-autoregression, and nonlinear methods. All these topics and the relevant techniques will be illustrated using economic and financial data.",
     "source": "SIS"
   },
+  "ECON-4530": {
+    "subj": "ECON",
+    "crse": "4530",
+    "name": "Appl Data Analysis & Prob Mod",
+    "description": "This course introduces the principles and methods of Bayesian statistics and probabilistic modeling, with an emphasis on practical application to real-world problems. The course provides a self-contained foundation in probability theory, Bayesian estimation, model comparison, and decision theory, and contrasts Bayesian and non-Bayesian approaches with a focus on uncertainty quantification and interpretation. Students will learn modern computational techniques for Bayesian inference, including MCMC, hierarchical models, and simulation-based methods, and will engage in hands-on sessions using R to implement principled Bayesian workflows such as prior checking, sensitivity analysis, and model validation. Advanced topics, including approximate Bayesian computation, variational inference, and generative neural networks, are also introduced, equipping students with the skills needed to apply contemporary Bayesian methods in practice.",
+    "source": "SIS"
+  },
   "ECON-4570": {
     "subj": "ECON",
     "crse": "4570",
@@ -18969,6 +19081,13 @@
     "description": "Time and frequency-domain representation of continuous- and discrete-time signals and systems.  Response of linear, time-invariant systems. Convolution, Fourier series, Fourier transform, Laplace transform, and z-transform. Applications in communication, feedback control, and filtering.",
     "source": "SIS"
   },
+  "ECSE-2470": {
+    "subj": "ECSE",
+    "crse": "2470",
+    "name": "Intro To Robot Programming",
+    "description": "This course provides an introduction to Robot Operating System (ROS), a widely used middleware for robot programming. Students will learn the basic components of ROS, how to utilize and write ROS packages, gain experience utilizing simulation software, and apply the concepts to physical platforms.",
+    "source": "SIS"
+  },
   "ECSE-2500": {
     "subj": "ECSE",
     "crse": "2500",
@@ -19245,7 +19364,7 @@
   "ECSE-4210": {
     "subj": "ECSE",
     "crse": "4210",
-    "name": "Advanced Design Concepts",
+    "name": "Advanced Device Concepts",
     "description": "An introduction to emerging electronic and optoelectronics technology. Topics cover cutting-edge technologies and novel device concepts, such as quantum devices, silicon-on-insulators (SOI), compound semiconductor devices and technologies, thin film transistors (TFTs), wide band gap semiconductor devices and technologies, Si-Ge devices, solar cells, photodetectors, semiconductor lasers, optoelectronic ICs, optical interconnects, and display technologies.",
     "source": "SIS"
   },
@@ -19280,7 +19399,7 @@
   "ECSE-4370": {
     "subj": "ECSE",
     "crse": "4370",
-    "name": "Introduction To Optoelectronics Technology",
+    "name": "Fundmtls Optoelectronics Tech",
     "description": "The nature of optics, physics, and operation principles of optoelectronic devices and systems for communication, display, lighting, and computing. Topics include optics fundamentals, optical cavity, waveguides and fibers, light emitting diodes, laser diodes, photodetectors, solar cells, liquid crystal, birefringent materials, properties and devices, modulators and optical display. Several complex optoelectronic systems will also be used.",
     "source": "SIS"
   },
@@ -19296,13 +19415,6 @@
     "crse": "4440",
     "name": "Control Systems Engineering",
     "description": "Application of linear feedback theory to the design of large-scale, integrated control systems. Derivation of complex mathematical models of physical systems. Synthesis of appropriate control laws to provide stability. Simulation of complex control systems on digital computers.",
-    "source": "SIS"
-  },
-  "ECSE-4470": {
-    "subj": "ECSE",
-    "crse": "4470",
-    "name": "Intro To Robot Programming",
-    "description": "This course provides an introduction to Robot Operating System (ROS), a widely used middleware for robot programming. Students will learn the basic components of ROS, how to utilize and write ROS packages, gain experience utilizing simulation software, and apply the concepts to physical platforms.",
     "source": "SIS"
   },
   "ECSE-4480": {
@@ -20558,6 +20670,48 @@
     "description": "",
     "source": "SIS"
   },
+  "ESCI-4100": {
+    "subj": "ESCI",
+    "crse": "4100",
+    "name": "Process & Quality Engring 1",
+    "description": "In this course, students analyze and evaluate the manufacturing process of physical products to ensure efficient and repeatable operations that produce high-quality outputs.  They create process maps for standardizing work and refining work instructions. Using process data, they identify and characterize the key variables that drive operational performance, examine how those variables relate to business metrics, and assess the tradeoffs required to achieve both operational and business goals.",
+    "source": "SIS"
+  },
+  "ESCI-4105": {
+    "subj": "ESCI",
+    "crse": "4105",
+    "name": "Process & Quality Engring 2",
+    "description": "In this course, students tackle the complexities of defining and managing quality in a manufacturing environment. They assess and enhance total quality management (TQM) plans and apply process improvement techniques to evaluate both process and product quality. Students refine quality standards, analyze qualitative and quantitative data to investigate quality issues, and employ statistical measures to characterize and address variability. Through statistical process control strategies and root cause analysis, they identify sources of quality problems stemming from both management practices and process-related factors.",
+    "source": "SIS"
+  },
+  "ESCI-4120": {
+    "subj": "ESCI",
+    "crse": "4120",
+    "name": "Production Data & Statistics",
+    "description": "In this course, students evaluate the use of statistics to inform questions and solve problems.  Students use probability and distribution theory to determine likely outcomes, construct spreadsheet-based models with identified risk and variable elements, calculate probabilities around risk variables to determine most likely outcomes, determine confidence intervals around unknowns, use solver to determine likely outcomes in their spreadsheet models, and calculate descriptive statistics and ranges around basic data sets.",
+    "source": "SIS"
+  },
+  "ESCI-4125": {
+    "subj": "ESCI",
+    "crse": "4125",
+    "name": "Data Visualization & Analytics",
+    "description": "In this course, students deploy the RPI Analytical framework to inform questions, solve problems, and make decisions.  Students deploy decision-making and problem-solving frameworks, adding data visualization, summarization, and statistical testing techniques.  Students clean and prepare data, use graphical and summarization table analysis, including the use of AI, and test data hypotheses, using results to inform decisions and solutions so that the likelihood of making the best decision possible is enhanced.",
+    "source": "SIS"
+  },
+  "ESCI-4180": {
+    "subj": "ESCI",
+    "crse": "4180",
+    "name": "Project Planning & Execution",
+    "description": "In this course, students facilitate, plan, and coordinate the implementation of projects using a blend and traditional and agile approaches to ensure the project is completed on time, on budget, and on specification. They develop project charters, vision statements, requirements, and stakeholder engagement plans, along with refined schedules, budgets, and resource allocation strategies. Students practice methods to track project progress, report to customers, and keep projects on track.",
+    "source": "SIS"
+  },
+  "ESCI-4200": {
+    "subj": "ESCI",
+    "crse": "4200",
+    "name": "Capstone Project",
+    "description": "In this capstone course, students work individually with a Faculty Mentor to define and execute a project that brings together the 5 program certificates in a manner that demonstrates their learning mastery and their abilities to manage in the professional realm.  Students define the project, plan its completion, and execute to achieve specific results within the semester.  Students present their results to a panel of Faculty Members as the culminating activity in their program. Note: this is a communications-intensive course.",
+    "source": "SIS"
+  },
   "ESCI-4940": {
     "subj": "ESCI",
     "crse": "4940",
@@ -20736,7 +20890,7 @@
   "ENVE-1940": {
     "subj": "ENVE",
     "crse": "1940",
-    "name": "Readings In Enee",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -21839,6 +21993,20 @@
     "description": "This is a class on the composition of game engines, the substrate between hardware and scripting. Topics include entity/component systems, multithreading, event management, graphics and shader programming, rigid body dynamics, collision detection, multiplayer networking, audio, and other elements of modern game engines.",
     "source": "SIS"
   },
+  "GSAS-4567": {
+    "subj": "GSAS",
+    "crse": "4567",
+    "name": "Adaptations In Games & Media",
+    "description": "This course explores practices of adaptation across media formats and genres, with a particular focus on what happens in transmedial adaptation processes between narrative and ludic modes (i.e., between stories and games). Students will trace historical trends in adaptation studies, consider various theoretical models, and undertake critical analyses of adaptations and/or produce creative works of adaptation in a medium of their choosing.",
+    "source": "SIS"
+  },
+  "GSAS-4826": {
+    "subj": "GSAS",
+    "crse": "4826",
+    "name": "200 Yr Old Vampires Movie Hist",
+    "description": "Using a world-building and storytelling framework similar to a table-top roleplaying game, students create characters that become vampires shortly after the invention of the photographic image. They come together as covens and witness the evolution of motion pictures through the present day, encountering media and culture spanning 200 years. The semester culminates in a festival of the history of images and motion pictures, recounting the unlife of images as it relates to living cultural histories.",
+    "source": "SIS"
+  },
   "GSAS-4940": {
     "subj": "GSAS",
     "crse": "4940",
@@ -21902,6 +22070,27 @@
     "description": "As foundational course in the practice of critical game design, this course introduces students to major theorists in the field of game studies and topics including theories of play, space, narratology, ludology, identity, representation, culture and society. Students make integrative connections between theory and practice with a semester-long iterative design project, including critical writing, paper prototyping and peer feedback. Students explore game studies concepts both in a traditional research paper format, and in design practice.",
     "source": "SIS"
   },
+  "GSAS-6110": {
+    "subj": "GSAS",
+    "crse": "6110",
+    "name": "Graduate Game Studio I",
+    "description": "This course is the first in a two-semester graduate-level studio course sequence in development and production of games. Students work in teams, going through the game production cycle across two semesters, from ideation and production planning to development and public release of one or more game projects. Creativity, technical implementation, interdisciplinary teamwork, and production practices are emphasized, to prepare students for professional studio environments. Graduate Game Studio 1 covers the first half of the development cycle, leading to a playable deliverable demonstrating core gameplay, features, and aesthetics.",
+    "source": "SIS"
+  },
+  "GSAS-6120": {
+    "subj": "GSAS",
+    "crse": "6120",
+    "name": "Graduate Game Studio 2",
+    "description": "This course is the second in a two-semester graduate-level studio course sequence in development and production of games. Students work in teams, going through the game production cycle across two semesters, from ideation and production planning to development and public release of one or more game projects. Creativity, technical implementation, interdisciplinary teamwork, and production practices are emphasized, to prepare students for professional studio environments. Graduate Game Studio 2 covers the second half of the development cycle, leading to a completed, releasable product.",
+    "source": "SIS"
+  },
+  "GSAS-6130": {
+    "subj": "GSAS",
+    "crse": "6130",
+    "name": "Concepts In Game Studies",
+    "description": "This course provides a set of genealogies, discourses, and trajectories of a collection of major concepts in game studies, as a way of helping students to form a conceptual basis for comprehending current configurations and past practices in the field of game studies. The word \"concept\" is commonly used across the humanities and social sciences, yet is also difficult to define in its entirety. We can think of \"concepts\" as terms, phrases, and vocabulary that provide games scholars with tools for identifying and interpreting empirical and philosophical elements in game texts, and in clarifying and comparing social processes in play and production across space, time, and culture. Concepts are core words that allow scholarly communities to communicate with one another.",
+    "source": "SIS"
+  },
   "GSAS-6200": {
     "subj": "GSAS",
     "crse": "6200",
@@ -21914,6 +22103,13 @@
     "crse": "6300",
     "name": "Res Mthds Critical Game Dsgn",
     "description": "This multidisciplinary course provides theoretical and methodological orientation to critical games research, and seeks to address both the broad and pragmatic implications of the question, \u201cWhat does it mean to conduct research via games?\u201d Through a hybrid lecture-workshop class format, students will engage with methodological research techniques in the various disciplines that game design draws upon\u2013Visual Arts, Humanities and Media Studies, Social Science, and Computer Science\u2013as well as experiment with independent research design and proposal writing.",
+    "source": "SIS"
+  },
+  "GSAS-6310": {
+    "subj": "GSAS",
+    "crse": "6310",
+    "name": "Rhetoric & Form",
+    "description": "This class will take an expansive approach to formal analysis of contemporary art. Starting with early modern discussions of aesthetics and \"significant form,\" we will then ask such questions as: What is the difference between aesthetics and semiotics, forms and signs? What are the differences between signs and symbols as well as the various categories of signs (such as icon and index)? How do we tell symbols from allegories? What relevance does literary analysis of tropes (metaphor, irony, etc.) and genres (comedy, tragedy, etc.) have for visual art? What is the relationship between the literary and the visual, and between literacy and orality? And finally, addressing the pervasiveness of digital technologies today, we will discuss how information relates to discourse and knowledge. The course recognizes the value of a wide range of theoretical perspectives and diverse ways of making and talking about art.",
     "source": "SIS"
   },
   "GSAS-6400": {
@@ -23036,6 +23232,13 @@
     "description": "Problems of scheduling several tasks over time. Topics include measures of performance, single machine sequencing, flowshop scheduling, the job shop problem, and priority dispatching. Integer programming, dynamic programming, and heuristic approaches to various problems are also presented.",
     "source": "SIS"
   },
+  "ISYE-6230": {
+    "subj": "ISYE",
+    "crse": "6230",
+    "name": "Quality Control And Reli",
+    "description": "",
+    "source": "SIS"
+  },
   "ISYE-6260": {
     "subj": "ISYE",
     "crse": "6260",
@@ -23474,7 +23677,7 @@
     "subj": "ITWS",
     "crse": "4500",
     "name": "Web Science Systems Dev",
-    "description": "Building\u00a0on the technology covered in Web Systems Development, students will be exposed to current technologies, frameworks, and practices in the area of Web development. Types of topics included will be HTML5/CSS3, API\u2019s for data, node.js, MongoDB, and Angular. Methodology to be explored will be application design, software versioning, and team development. Lab intensive, this course is intended to complete a foundation for the advanced courses in Data Science and Advanced Web Science.",
+    "description": "Building on the technology covered in Web Systems Development, students will be exposed to current technologies, frameworks, and practices in the area of Web development. Types of topics included will be HTML5/CSS3, API's for data, node.js, MongoDB, and Angular. Methodology to be explored will be application design, software versioning, and team development. Lab intensive, this course is intended to complete a foundation for the advanced courses in Data Science and Advanced Web Science.",
     "source": "SIS"
   },
   "ITWS-4600": {
@@ -27519,7 +27722,7 @@
   "MGMT-1940": {
     "subj": "MGMT",
     "crse": "1940",
-    "name": "Readings In Mgmt",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -28821,7 +29024,7 @@
   "MGMT-6690": {
     "subj": "MGMT",
     "crse": "6690",
-    "name": "Negotiation",
+    "name": "Negotiations",
     "description": "This course is designed to help develop essential expertise in managing negotiations that occur in a broad array of settings. Students will learn to recognize types of negotiation, and gain proficiency in helping to shape beneficial outcomes. Students will develop negotiation skills experientially using a variety of exercises and case studies while implementing useful analytical frameworks.",
     "source": "SIS"
   },
@@ -31401,6 +31604,13 @@
     "description": "The world at-large is confronted with increasingly larger and complex sets of structured/unstructured information; from cyber and human sources. Traditional enterprises are moving toward analytics-driven approaches for core business functions. Data and information analytics extends analysis (descriptive models of data) by using data mining and machine learning methods, with optimization and validation, to recommend action or guide and communicate decision-making. Thus, analytics in an entire methodology rather than individual analyses or analysis steps.",
     "source": "SIS"
   },
+  "MATP-4530": {
+    "subj": "MATP",
+    "crse": "4530",
+    "name": "Appld Data Analysis Prob Modlg",
+    "description": "This course introduces the principles and methods of Bayesian statistics and probabilistic modeling, with an emphasis on practical application to real-world problems. The course provides a self-contained foundation in probability theory, Bayesian estimation, model comparison, and decision theory, and contrasts Bayesian and non-Bayesian approaches with a focus on uncertainty quantification and interpretation. Students will learn modern computational techniques for Bayesian inference, including MCMC, hierarchical models, and simulation-based methods, and will engage in hands-on sessions using R to implement principled Bayesian workflows such as prior checking, sensitivity analysis, and model validation. Advanced topics, including approximate Bayesian computation, variational inference, and generative neural networks, are also introduced, equipping students with the skills needed to apply contemporary Bayesian methods in practice.",
+    "source": "SIS"
+  },
   "MATP-4600": {
     "subj": "MATP",
     "crse": "4600",
@@ -31842,13 +32052,6 @@
     "description": "Functions of several variables, introductory linear algebra, and other analytical techniques needed for further study in probability, statistics, and operations research. Topics covered include improper integrals, probability density functions, partial derivatives and optimization techniques for functions of several variables, matrix algebra, linear systems, lines and planes in 3-space, linear inequalities, introductory linear programming, introductory combinatorics, and some probability.",
     "source": "SIS"
   },
-  "MATH-1620": {
-    "subj": "MATH",
-    "crse": "1620",
-    "name": "Contemporary Math Ideas",
-    "description": "An application-oriented course introducing contemporary mathematical concepts that pertain to areas of Architecture and Humanities, Arts, and Social Sciences. The course will cover growth and form, symmetry, patterns, tilings, linear programming, information coding, voting systems, game theory, logic, probability, and statistics.",
-    "source": "SIS"
-  },
   "MATH-1900": {
     "subj": "MATH",
     "crse": "1900",
@@ -31968,11 +32171,25 @@
     "description": "",
     "source": "SIS"
   },
+  "MATH-2100": {
+    "subj": "MATH",
+    "crse": "2100",
+    "name": "Intro To Linear Algebra",
+    "description": "Provides students with comprehensive coverage of the subject. Topics: vectors and matrices, operations with vectors and matrices, solving systems of linear equations, inverse matrix, LU decomposition, vector spaces and subspaces, independence, bases and dimension, a\ufb03ne spaces, orthogonality, projections, least squares approximation, orthonormal bases, determinants, eigenvalues and eigenvectors, diagonalization, symmetric matrices, positive definite matrices, Cholesky factorization, singular value decomposition, linear transformations.",
+    "source": "SIS"
+  },
   "MATH-2400": {
     "subj": "MATH",
     "crse": "2400",
     "name": "Intro Diff Equations",
     "description": "First-order differential equations, second-order linear equations, eigenvalues and eigenvectors of matrices, systems of first-order equations, stability and qualitative properties of nonlinear autonomous systems in the plane, Fourier series, separation of variables for partial differential equations.",
+    "source": "SIS"
+  },
+  "MATH-2910": {
+    "subj": "MATH",
+    "crse": "2910",
+    "name": "Calculus Mentoring: 1st Year",
+    "description": "The math mentor program is an e\ufb00ort to try to help students improve their basic mathematical skills and mathematical accuracy while making Rensselaer academics friendlier as mentors help Freshmen make the transition to college academics.",
     "source": "SIS"
   },
   "MATH-2940": {
@@ -32288,6 +32505,20 @@
     "crse": "4840",
     "name": "Numerical Linear Algebra With Applications",
     "description": "The focus of the course is on fundamental algorithms in computational linear algebra and their applications in science and engineering. These algorithms involve QR and SVD factorizations, the computation of eigenvalues and eigenvectors, basic optimization methods, and iterative methods for sparse systems. Applications will be considered in areas such as data analysis and compression, principal component and spectral analysis, solutions of large sparse systems, among others.",
+    "source": "SIS"
+  },
+  "MATH-4910": {
+    "subj": "MATH",
+    "crse": "4910",
+    "name": "Calculus Mentoring II",
+    "description": "The math mentor program is an e\ufb00ort to help students improve their basic mathematical skills and mathematical accuracy while making Rensselaer academics friendlier as mentors help Freshman make the transition to college academics.",
+    "source": "SIS"
+  },
+  "MATH-4911": {
+    "subj": "MATH",
+    "crse": "4911",
+    "name": "Calculus Mentoring III",
+    "description": "The math mentor program is an e\ufb00ort to help students improve their basic mathematical skills and mathematical accuracy while making Rensselaer academics friendlier as mentors help Freshman make the transition to college academics.",
     "source": "SIS"
   },
   "MATH-4940": {
@@ -32806,6 +33037,13 @@
     "crse": "2400",
     "name": "Fundamentals Of Nuclear Engr",
     "description": "Nuclear reactor systems and types; basic reactor physics, criticality calculations; fuel cycles; reactivity changes; reactor kinetics. Instrumentation and control; radiation protection. Reactor materials; shielding; energy removal. Reactor safety; economics. Waste management. Reactor design.",
+    "source": "SIS"
+  },
+  "MANE-2550": {
+    "subj": "MANE",
+    "crse": "2550",
+    "name": "Intro To Robot Programming",
+    "description": "This course provides an introduction to Robot Operating System (ROS), a widely used middleware for robot programming. Students will learn the basic components of ROS, how to utilize and write ROS packages, gain experience utilizing simulation software, and apply the concepts to physical platforms.",
     "source": "SIS"
   },
   "MANE-2710": {
@@ -35503,6 +35741,13 @@
     "description": "What is progress in science? How has the concept of progress been influenced by science? Are there significant differences between scientific and technological revolutions? These questions are explored in order to shed light on the complex dynamics of academic and industrial research.",
     "source": "SIS"
   },
+  "PHIL-4335": {
+    "subj": "PHIL",
+    "crse": "4335",
+    "name": "Feminist Critiques Of Logic",
+    "description": "Feminist critiques of many disciplines have led to deep and radical revisions to their foundational assumptions. In the case of the a priori disciplines---mathematics, computation, engineering---critiques tend to be less foundational. There exist, however, threads of literature debating the role that feminist theory plays in determining the bounds of reason itself and, consequently, the contours of disciplines like mathematics. The thesis that oppressive themes are baked into the foundations of logic leads to important questions: Can the many fruits of logic (engineering, medicine, computers) be balanced with a revision of its foundation? Does a more inclusive epistemology of logical reasoning conflict with the idea that mathematical truths (for example) are necessary and eternal?",
+    "source": "SIS"
+  },
   "PHIL-4420": {
     "subj": "PHIL",
     "crse": "4420",
@@ -36371,6 +36616,13 @@
     "description": "Students will engage in technical team leadership practice by leading collaborative teams of students in problem solving and online activities in introductory and intermediate Physics courses. The student will also provide individual problem-solving help and tutorials as agreed with faculty supervisor. Note that this course cannot be applied toward the satisfaction of the Institute Math/Science Core requirement.",
     "source": "SIS"
   },
+  "PHYS-4171": {
+    "subj": "PHYS",
+    "crse": "4171",
+    "name": "Physics Teaching Practicum",
+    "description": "Students will engage in technical team leadership practice by leading collaborative teams of students in problem solving and online activities in introductory and intermediate Physics courses. The student will also provide individual problem-solving help and tutorials and may lead teams of classroom aides as agreed with faculty supervisor.",
+    "source": "SIS"
+  },
   "PHYS-4210": {
     "subj": "PHYS",
     "crse": "4210",
@@ -36397,6 +36649,13 @@
     "crse": "4240",
     "name": "General Relativity",
     "description": "Introduction to the physics of gravitation and spacetime. Special relativity, tensor calculus, and relativistic electrodynamics. General relativity with selected applications of Einstein's field equations (gravitational time dilation; gravitational lensing; frame dragging; gravitational radiation). The physics of nonrotating and rotating black holes. Relativistic models for the large-scale structure of the Universe. Observational constraints on the cosmological parameters. Big Bang nucleosynthesis, the Cosmic Background Radiation. A culminating experience project is required. (Meets with ASTR 4240).",
+    "source": "SIS"
+  },
+  "PHYS-4260": {
+    "subj": "PHYS",
+    "crse": "4260",
+    "name": "Astrophysics: Galaxies",
+    "description": "This course will explore the structure, dynamics, and content of galaxies such as the Milky Way, as well as stellar and Galactic evolution. Students will learn methods to gather information about stars, the Milky Way galaxy in particular, and galaxies in general. Students will master the mathematical foundations that will enable more complex calculations of the interactions of stars, gas, and dark matter in galaxies.",
     "source": "SIS"
   },
   "PHYS-4330": {
@@ -36642,6 +36901,13 @@
     "crse": "6210",
     "name": "Mathematical Methods In Physic",
     "description": "",
+    "source": "SIS"
+  },
+  "PHYS-6260": {
+    "subj": "PHYS",
+    "crse": "6260",
+    "name": "Astrophysics: Galaxies",
+    "description": "This course will explore the structure, dynamics, and content of galaxies such as the Milky Way, as well as stellar and Galactic evolution. Students will learn methods to gather information about stars, the Milky Way galaxy in particular, and galaxies in general. Students will master the mathematical foundations that will enable more complex calculations of the interactions of stars, gas, and dark matter in galaxies.",
     "source": "SIS"
   },
   "PHYS-6410": {
@@ -36899,7 +37165,7 @@
   "PSYC-1940": {
     "subj": "PSYC",
     "crse": "1940",
-    "name": "Independant Studies In Psyc",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -37288,6 +37554,13 @@
     "description": "The focus of this course is on the flow of information from sensory input to retrieval from long-term memory. Within this framework, topics such as mnemonics, pattern recognition, attention, computer simulation, reasoning, and the relationship between culture and thought are discussed.",
     "source": "SIS"
   },
+  "PSYC-4380": {
+    "subj": "PSYC",
+    "crse": "4380",
+    "name": "Behavioral Data Science",
+    "description": "Do you want to move beyond traditional statistics? This course introduces the emerging field of Behavioral Data Science, blending theory-driven insights from the social sciences with computational tools from data science, machine learning, and statistics. Students will learn to analyze behavioral data to solve complex problems, such as modeling user behavior, identifying patterns in social networks, uncovering personality structures, and applying deep learning for behavioral prediction and uncertainty quantification. Graduates will be well-equipped to address data challenges across industries, helping shape a diverse and interdisciplinary data science workforce.",
+    "source": "SIS"
+  },
   "PSYC-4410": {
     "subj": "PSYC",
     "crse": "4410",
@@ -37316,6 +37589,13 @@
     "description": "The first half of this course is devoted to presentation of traditional theories of learning. Classical and operant conditioning and single-subject methodology are studied in depth. During the second half of the course, students apply their knowledge of operant conditioning principles in the context of a group-based field study.",
     "source": "SIS"
   },
+  "PSYC-4460": {
+    "subj": "PSYC",
+    "crse": "4460",
+    "name": "Human Memory",
+    "description": "This course examines in detail theories and studies about the acquisition, storage, and retrieval processes of knowledge. Major topics are working memory, sensory and short-term memory, information coding and retrieval processes, implicit and explicit memory, long-term memory, knowledge representation, memory for space and time, reconstruction in memory, eye-witness memory, memory deficits, neural bases and computational models of memory.",
+    "source": "SIS"
+  },
   "PSYC-4500": {
     "subj": "PSYC",
     "crse": "4500",
@@ -37335,6 +37615,13 @@
     "crse": "4520",
     "name": "Psychology & Economics",
     "description": "This course explores the intersection of psychology and economics, a field recognized in the 2002 Nobel Prize awarded to Daniel Kahneman. Topics include theories of rationality, psychological perspectives on market behavior, and the cognitive underpinnings of economic decision-making. The course also introduces dynamic systems including market, sub-economic, economic externality, and inequality dynamics. These systems are grounded in psychological concepts such as intentional charge, cognitive fields, consciousness, impulse control, and Freudian personality theory.",
+    "source": "SIS"
+  },
+  "PSYC-4530": {
+    "subj": "PSYC",
+    "crse": "4530",
+    "name": "Appl Data Analysis & Prob Mod",
+    "description": "This course introduces the principles and methods of Bayesian statistics and probabilistic modeling, with an emphasis on practical application to real-world problems. The course provides a self-contained foundation in probability theory, Bayesian estimation, model comparison, and decision theory, and contrasts Bayesian and non-Bayesian approaches with a focus on uncertainty quantification and interpretation. Students will learn modern computational techniques for Bayesian inference, including MCMC, hierarchical models, and simulation-based methods, and will engage in hands-on sessions using R to implement principled Bayesian workflows such as prior checking, sensitivity analysis, and model validation. Advanced topics, including approximate Bayesian computation, variational inference, and generative neural networks, are also introduced, equipping students with the skills needed to apply contemporary Bayesian methods in practice.",
     "source": "SIS"
   },
   "PSYC-4600": {
@@ -39433,7 +39720,7 @@
   "STSO-1940": {
     "subj": "STSO",
     "crse": "1940",
-    "name": "Readings In Stso",
+    "name": "Ugrad Independent Study",
     "description": "",
     "source": "SIS"
   },
@@ -39484,13 +39771,6 @@
     "crse": "2300",
     "name": "Environment And Society",
     "description": "Society and the natural environment are crucially linked in a number of ways. Environmental problems such as pollution and natural resource depletion are not only problems for society, affecting the way people live their lives; they are also problems of society\u2014the result of patterns of social organization and social practices. In this course, students will explore these society/environment interactions at various levels, from the local to the global, using the concepts and insights of environmental sociology. Environmental sociologists aim to understand the social origins of environmental problems and propose workable solutions to them. By showing how social interaction, institutions, and beliefs shape human behavior, environmental sociology provides a useful complement to the natural sciences in the analysis of the environmental problems faced today.",
-    "source": "SIS"
-  },
-  "STSO-2400": {
-    "subj": "STSO",
-    "crse": "2400",
-    "name": "Public Health",
-    "description": "The course aims to equip students with the skills necessary to critically analyze health policies and to advocate for equitable health practices. Students will engage with critical scholarship that will cover not only the foundational principles of global health but also the contemporary debates on public health ethics and policy.",
     "source": "SIS"
   },
   "STSO-2500": {
@@ -39668,6 +39948,13 @@
     "description": "This seminar surveys the history of mental health through discussion and analysis of secondary literature that explores central and key themes from the late eighteenth century up through recent history. Topics will include the history of mental health institutions and professions, the classification, diagnosis and treatment of mental illness, public health and policy, historical memory, the I.Q. controversy, the state, and race, class, and gender in the history of mental health.",
     "source": "SIS"
   },
+  "STSO-4450": {
+    "subj": "STSO",
+    "crse": "4450",
+    "name": "Global Public Health",
+    "description": "The course aims to equip students with the skills necessary to critically analyze health policies and to advocate for equitable health practices. Students will engage with critical scholarship that will cover not only the foundational principles of global health but also the contemporary debates on public health ethics and policy. The course serves a crucial role for public health minor and pathway.",
+    "source": "SIS"
+  },
   "STSO-4500": {
     "subj": "STSO",
     "crse": "4500",
@@ -39738,6 +40025,20 @@
     "description": "DIS Studio C focuses on the co-production of products, organizations, and problem-solving strategies. Students will explore how to facilitate communication across multiple disciplinary and audience modalities, including stakeholders, designers, and users. Projects and course discussions will train students to translate social scientific and engineering problem-solving judgments and to evaluate how complex problems come to be defined. This course is required for DIS students who are dual-majoring with the School of Engineering.",
     "source": "SIS"
   },
+  "STSO-4650": {
+    "subj": "STSO",
+    "crse": "4650",
+    "name": "Media & Mis/disinformation",
+    "description": "This co-listed undergraduate and graduate course explores major approaches to studying\u2013\u2013and debates about stopping\u2013\u2013the spread of dis/misinformation, \"fake news,\" and conspiracy theories in media. Topics we will consider include: news gathering and publishing practices in both legacy and digital journalism, including fact checking; public relations and marketing; pre-digital \"fake news\" and conspiracy theories; propaganda and authoritarianism; and \"media manipulation\" and dis/misinformation on social media platforms.",
+    "source": "SIS"
+  },
+  "STSO-4710": {
+    "subj": "STSO",
+    "crse": "4710",
+    "name": "Visual Culture",
+    "description": "This co-listed undergraduate and graduate course will help students understand the barrage of images we encounter daily, including how these images affect us emotionally as individuals, how they influence the way we think and understand our reality, and how we conduct our lives together in the world. We'll examine a broad range of visual media from photographs, art, television, and film to social media platforms and new media technologies (e.g., YouTube, TikTok, VR, and AI).",
+    "source": "SIS"
+  },
   "STSO-4720": {
     "subj": "STSO",
     "crse": "4720",
@@ -39750,6 +40051,13 @@
     "crse": "4850",
     "name": "Phelan Seminar Tech & Society",
     "description": "",
+    "source": "SIS"
+  },
+  "STSO-4897": {
+    "subj": "STSO",
+    "crse": "4897",
+    "name": "Social Media & Society",
+    "description": "Social media is a sociotechnical system that impacts our everyday lives; it affects how we develop our sense of identity, how we communicate with others and develop relationships, and how we find information about topics, products, pop culture, and politics. Simultaneously, social media reciprocally reflects existing social dynamics. This course explores those dynamics and that reciprocal relationship. Specifically, rather than a \"how-to\" course, this course explores theoretical approaches to social media, including identity formation, community formation, surveillance, and digital labor. Specifically, this course begins by examining everyday user practices and experiences in the first half of the course. In the second half of the course, we discuss how those user practices are situated in larger sociotechnical systems, including interface analysis and design, governance of platforms, governance by platforms, and labor systems.",
     "source": "SIS"
   },
   "STSO-4940": {
@@ -39791,6 +40099,13 @@
     "subj": "STSO",
     "crse": "4963",
     "name": "Topics In Sci & Tech Studies",
+    "description": "",
+    "source": "SIS"
+  },
+  "STSO-4964": {
+    "subj": "STSO",
+    "crse": "4964",
+    "name": "Topics In Stso",
     "description": "",
     "source": "SIS"
   },
@@ -40655,39 +40970,39 @@
     "description": "",
     "source": "SIS"
   },
-  "ISYE-6230": {
-    "subj": "ISYE",
-    "crse": "6230",
-    "name": "Quality Control And Reli",
-    "description": "",
+  "STSO-2400": {
+    "subj": "STSO",
+    "crse": "2400",
+    "name": "Public Health",
+    "description": "The course aims to equip students with the skills necessary to critically analyze health policies and to advocate for equitable health practices. Students will engage with critical scholarship that will cover not only the foundational principles of global health but also the contemporary debates on public health ethics and policy.",
     "source": "SIS"
   },
-  "ADMN-1100": {
-    "subj": "ADMN",
-    "crse": "1100",
-    "name": "Portfolio Development",
-    "description": "",
+  "ECSE-4470": {
+    "subj": "ECSE",
+    "crse": "4470",
+    "name": "Intro To Robot Programming",
+    "description": "This course provides an introduction to Robot Operating System (ROS), a widely used middleware for robot programming. Students will learn the basic components of ROS, how to utilize and write ROS packages, gain experience utilizing simulation software, and apply the concepts to physical platforms.",
     "source": "SIS"
   },
-  "BMED-4560": {
-    "subj": "BMED",
-    "crse": "4560",
-    "name": "Biomaterial Applications In Medicine",
-    "description": "",
+  "COGS-4410": {
+    "subj": "COGS",
+    "crse": "4410",
+    "name": "Programming For Cog Sci & Ai",
+    "description": "Research in Cognitive Science and Artificial Intelligence (AI) is driven by data. Researchers in these fields collect, manipulate, model and analyze data generated by real-world processes.  Since the amount of data available has grown exponentially, the ability to automate these tasks through computer programs is essential. Specifically, probabilistic and statistical computing are needed to learn from the data. The objectives of this course are for the student to perform exploratory data analysis and to acquire the basics of statistical and machine learning in order to model real-world datasets.",
     "source": "SIS"
   },
-  "BMED-6560": {
-    "subj": "BMED",
-    "crse": "6560",
-    "name": "Biomaterial Applications In Medicine",
-    "description": "",
+  "COGS-6410": {
+    "subj": "COGS",
+    "crse": "6410",
+    "name": "Programming For Cog Sci & Ai",
+    "description": "This course is a graduate course that teaches Cognitive Science and Artificial Intelligence concepts by enabling the student to develop and understand computer programs that implement them. It covers data collection and analysis, task environments, natural language, cognitive architectures, and learning. Some previous programming experience is very beneficial but not required.",
     "source": "SIS"
   },
-  "CSCI-ITWS": {
-    "crse": "ITWS",
-    "description": "A structured, intensive research experience for students interested in Machine Learning, AI and Data. Students will focus on a single research project through the semester to answer a novel research question within an open source, open science framework. Projects will use data from a variety of application domains including medical (e.g. disease modeling), environment, finance, text, image, etc. The primary outcomes for students will be open source tools and research publications in peer-reviewed venues.",
-    "name": "Machine Learning Open Source, Open Science -- Ml(Os)^2",
-    "source": "CSCI topics",
-    "subj": "CSCI"
+  "MATH-1620": {
+    "subj": "MATH",
+    "crse": "1620",
+    "name": "Contemporary Math Ideas",
+    "description": "An application-oriented course introducing contemporary mathematical concepts that pertain to areas of Architecture and Humanities, Arts, and Social Sciences. The course will cover growth and form, symmetry, patterns, tilings, linear programming, information coding, voting systems, game theory, logic, probability, and statistics.",
+    "source": "SIS"
   }
 }

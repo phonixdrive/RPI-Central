@@ -1029,7 +1029,7 @@
   },
   "35062": {
     "cross_list_courses": [
-      "MATH-2010"
+      "MATH-2012"
     ],
     "prerequisites": {
       "course": "MATH 1020",
@@ -7299,7 +7299,7 @@
   },
   "35884": {
     "cross_list_courses": [
-      "MATH-2010"
+      "MATH-2012"
     ],
     "prerequisites": {
       "course": "MATH 1020",
@@ -12087,6 +12087,15 @@
       "type": "and"
     }
   },
+  "36333": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
   "36334": {
     "restrictions": {
       "classification": {
@@ -13385,11 +13394,6 @@
   "36504": {},
   "36505": {
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -15697,11 +15701,6 @@
       "CHEM-4140"
     ],
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -16146,6 +16145,26 @@
     }
   },
   "36748": {},
+  "36751": {
+    "cross_list_courses": [
+      "MATH-2010"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 1020",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MATH 2011",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "and"
+    }
+  },
   "36753": {},
   "36754": {
     "prerequisites": {
@@ -23187,6 +23206,7 @@
     }
   },
   "37675": {},
+  "37676": {},
   "37679": {},
   "37680": {},
   "37681": {},
@@ -23255,6 +23275,7 @@
   "37769": {},
   "37771": {},
   "37774": {},
+  "37779": {},
   "37780": {},
   "37782": {},
   "37784": {},
@@ -23280,6 +23301,7 @@
   "37825": {},
   "37826": {},
   "37827": {},
+  "37828": {},
   "37834": {},
   "37835": {},
   "37838": {},
@@ -28150,5 +28172,179 @@
   "39153": {},
   "39155": {},
   "39156": {},
-  "39160": {}
+  "39160": {},
+  "39161": {},
+  "39162": {},
+  "39163": {},
+  "39164": {},
+  "39165": {},
+  "39166": {},
+  "39167": {},
+  "39170": {},
+  "39171": {},
+  "39172": {},
+  "39174": {
+    "prerequisites": {
+      "course": "PSYC 1200",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "39180": {},
+  "39181": {},
+  "39182": {},
+  "39183": {},
+  "39184": {},
+  "39186": {},
+  "39187": {},
+  "39191": {},
+  "39194": {},
+  "39195": {},
+  "39196": {},
+  "39197": {},
+  "39198": {},
+  "39199": {},
+  "39200": {},
+  "39201": {},
+  "39202": {},
+  "39205": {},
+  "39209": {},
+  "39210": {},
+  "39213": {},
+  "39214": {},
+  "39215": {},
+  "39216": {},
+  "39219": {},
+  "39220": {},
+  "39221": {},
+  "39222": {},
+  "39224": {},
+  "39226": {},
+  "39227": {},
+  "39228": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "39230": {},
+  "39231": {},
+  "39232": {},
+  "39233": {},
+  "39236": {},
+  "39237": {},
+  "39238": {},
+  "39239": {},
+  "39240": {},
+  "39241": {},
+  "39242": {},
+  "39243": {},
+  "39244": {},
+  "39245": {},
+  "39246": {},
+  "39247": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39253": {},
+  "39254": {},
+  "39255": {},
+  "39256": {},
+  "39257": {
+    "cross_list_courses": [
+      "MATH-2010"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 1020",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MATH 2011",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "and"
+    }
+  },
+  "39258": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "39259": {},
+  "39260": {},
+  "39262": {},
+  "39263": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39264": {},
+  "39265": {},
+  "39266": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "39267": {},
+  "39269": {},
+  "39270": {},
+  "39271": {
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Aeronautical Engineering",
+          "Biomedical Engineering",
+          "Chemical Engineering",
+          "Civil Engineering",
+          "Computer & Systems Engineering",
+          "Decision Sciences & Engr Syst",
+          "Electrical Engineering",
+          "Undeclared Engineering",
+          "Environmental Engineering",
+          "Electric Power Engr",
+          "Engineering Science",
+          "Information Technology",
+          "Materials Engineering",
+          "Mechanical Engineering",
+          "Manufacturing Systems Engr",
+          "Industrial & Management Engr",
+          "Engr Principles in Tech. Educ.",
+          "Nuclear Engineering",
+          "Nuclear Engineering & Science",
+          "Transportation Engineering"
+        ]
+      }
+    }
+  },
+  "39273": {},
+  "39275": {},
+  "39276": {}
 }
