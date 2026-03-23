@@ -374,10 +374,12 @@ struct AddEventView: View {
         let seriesID: UUID? = (frequency == .none) ? nil : UUID()
         let friendIDs = Array(selectedFriendIDs).sorted()
         let groupIDs = Array(selectedGroupIDs).sorted()
+        let createdEvents: [StoredPersonalEvent]
 
         switch frequency {
         case .none:
-            addSingleEvent(
+            createdEvents = [
+                addSingleEvent(
                 title: trimmedTitle,
                 location: location,
                 eventDate: selectedDate,
@@ -387,10 +389,11 @@ struct AddEventView: View {
                 friendIDs: friendIDs,
                 groupIDs: groupIDs
             )
+            ]
             isPresented = false
 
         case .daily:
-            addDailyEvents(
+            createdEvents = addDailyEvents(
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
@@ -402,7 +405,7 @@ struct AddEventView: View {
             isPresented = false
 
         case .weekly:
-            addWeeklyEvents(
+            createdEvents = addWeeklyEvents(
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
@@ -414,7 +417,7 @@ struct AddEventView: View {
             isPresented = false
 
         case .monthly:
-            addMonthlyEvents(
+            createdEvents = addMonthlyEvents(
                 title: trimmedTitle,
                 location: location,
                 startTime: startTime,
@@ -426,7 +429,14 @@ struct AddEventView: View {
             isPresented = false
         }
 
-        if socialManager.currentUser?.shareSchedule == true {
+        if shareMode != .none, socialManager.isAuthenticated {
+            Task {
+                await socialManager.sharePersonalEvents(createdEvents)
+                if socialManager.currentUser?.shareSchedule == true {
+                    await socialManager.syncSchedule(from: viewModel)
+                }
+            }
+        } else if socialManager.currentUser?.shareSchedule == true {
             Task {
                 await socialManager.syncSchedule(from: viewModel)
             }
@@ -442,7 +452,7 @@ struct AddEventView: View {
         seriesID: UUID?,
         friendIDs: [String],
         groupIDs: [String]
-    ) {
+    ) -> StoredPersonalEvent {
         viewModel.addEvent(
             title: title,
             location: location,
@@ -464,7 +474,7 @@ struct AddEventView: View {
         seriesID: UUID?,
         friendIDs: [String],
         groupIDs: [String]
-    ) {
+    ) -> [StoredPersonalEvent] {
         var cal = Calendar.current
         cal.timeZone = .current
 
@@ -472,12 +482,13 @@ struct AddEventView: View {
         let endDay = cal.startOfDay(for: repeatUntil)
 
         var cur = startDay
+        var created: [StoredPersonalEvent] = []
         while cur <= endDay {
             let weekday = cal.component(.weekday, from: cur) // 1=Sun ... 7=Sat
             let isWeekend = (weekday == 1 || weekday == 7)
 
             if !(dailyWeekdaysOnly && isWeekend) {
-                addSingleEvent(
+                created.append(addSingleEvent(
                     title: title,
                     location: location,
                     eventDate: cur,
@@ -486,12 +497,13 @@ struct AddEventView: View {
                     seriesID: seriesID,
                     friendIDs: friendIDs,
                     groupIDs: groupIDs
-                )
+                ))
             }
 
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
             cur = next
         }
+        return created
     }
 
     private func addWeeklyEvents(
@@ -502,7 +514,7 @@ struct AddEventView: View {
         seriesID: UUID?,
         friendIDs: [String],
         groupIDs: [String]
-    ) {
+    ) -> [StoredPersonalEvent] {
         var cal = Calendar.current
         cal.timeZone = .current
 
@@ -514,9 +526,10 @@ struct AddEventView: View {
         if days.isEmpty, let wk = weekdayEnum(for: selectedDate) { days = [wk] }
 
         var cur = startDay
+        var created: [StoredPersonalEvent] = []
         while cur <= endDay {
             if let wk = weekdayEnum(for: cur), days.contains(wk) {
-                addSingleEvent(
+                created.append(addSingleEvent(
                     title: title,
                     location: location,
                     eventDate: cur,
@@ -525,11 +538,12 @@ struct AddEventView: View {
                     seriesID: seriesID,
                     friendIDs: friendIDs,
                     groupIDs: groupIDs
-                )
+                ))
             }
             guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
             cur = next
         }
+        return created
     }
 
     private func addMonthlyEvents(
@@ -540,13 +554,14 @@ struct AddEventView: View {
         seriesID: UUID?,
         friendIDs: [String],
         groupIDs: [String]
-    ) {
+    ) -> [StoredPersonalEvent] {
         let cal = Calendar.current
         let day = dayOfMonth(selectedDate)
 
         var cur = selectedDate
+        var created: [StoredPersonalEvent] = []
         while cur <= repeatUntil {
-            addSingleEvent(
+            created.append(addSingleEvent(
                 title: title,
                 location: location,
                 eventDate: cur,
@@ -555,7 +570,7 @@ struct AddEventView: View {
                 seriesID: seriesID,
                 friendIDs: friendIDs,
                 groupIDs: groupIDs
-            )
+            ))
 
             guard let nextMonth = cal.date(byAdding: .month, value: 1, to: cur) else { break }
             var comps = cal.dateComponents([.year, .month], from: nextMonth)
@@ -574,6 +589,7 @@ struct AddEventView: View {
                 }
             }
         }
+        return created
     }
 
     // MARK: - Small helpers
