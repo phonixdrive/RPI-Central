@@ -416,6 +416,7 @@ struct HomeView: View {
                                     calendarViewModel.semesterGPAOverride(for: semCode) == nil ? "Set Semester GPA" : "Edit Semester GPA",
                                     systemImage: "slider.horizontal.3"
                                 )
+                                .foregroundStyle(calendarViewModel.themeColor)
                             }
                         } header: {
                             HStack {
@@ -511,12 +512,40 @@ struct HomeView: View {
     @ViewBuilder
     private func homeDashboardSection(_ section: HomeDashboardSection) -> some View {
         switch section {
+        case .shuttleTracker:
+            shuttleTrackerSection
         case .upcoming:
             upcomingSection
         case .mealSwipes:
             mealSwipesSection
         case .studyTimer:
             studyTimerSection
+        }
+    }
+
+    private var shuttleTrackerSection: some View {
+        Section {
+            NavigationLink {
+                ShuttleTrackerFeatureView()
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "bus.fill")
+                        .font(.title3)
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .frame(width: 30)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Shuttle Tracker")
+                            .font(.headline)
+                        Text("Open live campus shuttle map")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("Campus Tools")
         }
     }
 
@@ -571,6 +600,7 @@ struct HomeView: View {
                     showTaskEditor = true
                 } label: {
                     Label("Add", systemImage: "plus.circle.fill")
+                        .foregroundStyle(calendarViewModel.themeColor)
                 }
                 .buttonStyle(.borderless)
 
@@ -634,8 +664,10 @@ struct HomeView: View {
                 } label: {
                     Label("Undo", systemImage: "arrow.uturn.backward")
                         .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(calendarViewModel.themeColor)
                 }
                 .buttonStyle(.bordered)
+                .tint(calendarViewModel.themeColor)
 
                 Spacer()
 

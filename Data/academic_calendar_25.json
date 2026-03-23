@@ -616,6 +616,20 @@
       }
     },
     {
+      "title": "Registration for Fall 2026 reopens for currently enrolled students, readmitted students and new graduate students,",
+      "startDate": "2026-05-04",
+      "endDate": "2026-05-04",
+      "dow": "Mon",
+      "tags": {
+        "noClasses": false,
+        "holiday": false,
+        "followDay": false,
+        "finals": false,
+        "readingDays": false,
+        "break": false
+      }
+    },
+    {
       "title": "Final Exams",
       "startDate": "2026-05-04",
       "endDate": "2026-05-08",

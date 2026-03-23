@@ -58,6 +58,7 @@ struct SemesterGPAOverride: Codable, Equatable {
 }
 
 enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
+    case shuttleTracker
     case upcoming
     case mealSwipes
     case studyTimer
@@ -66,6 +67,7 @@ enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
+        case .shuttleTracker: return "Shuttle Tracker"
         case .upcoming: return "Upcoming Assignments"
         case .mealSwipes: return "Meal Swipes"
         case .studyTimer: return "Study Timer"
@@ -133,6 +135,8 @@ final class CalendarViewModel: ObservableObject {
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
+    private let socialNotificationsEnabledKey = "settings_social_notifications_enabled_v1"
+    private let socialFeedRefreshIntervalKey = "social.feedRefreshIntervalSeconds"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -181,6 +185,21 @@ final class CalendarViewModel: ObservableObject {
     @Published var socialDemoToolsEnabled: Bool = false {
         didSet {
             UserDefaults.standard.set(socialDemoToolsEnabled, forKey: socialDemoToolsEnabledKey)
+        }
+    }
+
+    @Published var socialNotificationsEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(socialNotificationsEnabled, forKey: socialNotificationsEnabledKey)
+            if socialNotificationsEnabled {
+                NotificationManager.requestAuthorization()
+            }
+        }
+    }
+
+    @Published var socialFeedRefreshIntervalSeconds: Int = SocialFeedRefreshOption.thirty.seconds {
+        didSet {
+            UserDefaults.standard.set(socialFeedRefreshIntervalSeconds, forKey: socialFeedRefreshIntervalKey)
         }
     }
 
@@ -288,6 +307,9 @@ final class CalendarViewModel: ObservableObject {
     private var hiddenAllDayEvents: Set<String> = []
     private let personalEventsStorageKey = "personal_events_v2"
     private var personalEvents: [StoredPersonalEvent] = []
+    private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
+    private var receivedSharedEvents: [ReceivedSharedCalendarEvent] = []
+    private var sharedEventsObserver: NSObjectProtocol?
 
     private let lightPalette: [Color] = [
         Color(red: 1.0,       green: 0.83529,  blue: 0.87451),
@@ -370,6 +392,15 @@ final class CalendarViewModel: ObservableObject {
         }
         self.semesterGPAOverrides = Self.loadSemesterGPAOverrides()
         self.socialDemoToolsEnabled = UserDefaults.standard.bool(forKey: socialDemoToolsEnabledKey)
+        if UserDefaults.standard.object(forKey: socialNotificationsEnabledKey) == nil {
+            UserDefaults.standard.set(true, forKey: socialNotificationsEnabledKey)
+        }
+        self.socialNotificationsEnabled = UserDefaults.standard.bool(forKey: socialNotificationsEnabledKey)
+        if UserDefaults.standard.object(forKey: socialFeedRefreshIntervalKey) == nil {
+            UserDefaults.standard.set(SocialFeedRefreshOption.thirty.seconds, forKey: socialFeedRefreshIntervalKey)
+        }
+        let storedFeedRefresh = UserDefaults.standard.integer(forKey: socialFeedRefreshIntervalKey)
+        self.socialFeedRefreshIntervalSeconds = SocialFeedRefreshOption(seconds: storedFeedRefresh).seconds
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -378,6 +409,7 @@ final class CalendarViewModel: ObservableObject {
             loadAssumedPrereqs()
             loadEnrollment()
             loadPersonalEvents()
+            loadReceivedSharedEvents()
             loadGrades()
             loadNotes()
 
@@ -392,10 +424,23 @@ final class CalendarViewModel: ObservableObject {
 
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
+        sharedEventsObserver = NotificationCenter.default.addObserver(
+            forName: .sharedCalendarEventsDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadReceivedSharedEventsFromStore()
+        }
 
         // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
         publishWidgetSnapshot()
         applyNotificationScheduling()
+    }
+
+    deinit {
+        if let sharedEventsObserver {
+            NotificationCenter.default.removeObserver(sharedEventsObserver)
+        }
     }
 
     func isHomeSectionEnabled(_ section: HomeDashboardSection) -> Bool {
@@ -1268,6 +1313,7 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Personal events
 
+    @discardableResult
     func addEvent(
         title: String,
         location: String,
@@ -1279,7 +1325,7 @@ final class CalendarViewModel: ObservableObject {
         shareMode: PersonalEventShareMode = .none,
         sharedFriendIDs: [String] = [],
         sharedGroupIDs: [String] = []
-    ) {
+    ) -> StoredPersonalEvent {
         let start = merge(date: date, time: startTime)
         let end = merge(date: date, time: endTime)
 
@@ -1313,6 +1359,7 @@ final class CalendarViewModel: ObservableObject {
         personalEvents.append(record)
         savePersonalEvents()
         events.append(new)
+        return record
     }
 
     func hideAllDayEvent(_ event: ClassEvent) {
@@ -1908,6 +1955,25 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    private func loadReceivedSharedEvents() {
+        guard let data = UserDefaults.standard.data(forKey: receivedSharedEventsStorageKey) else {
+            receivedSharedEvents = []
+            return
+        }
+
+        let decoder = JSONDecoder()
+        if let loaded = try? decoder.decode([ReceivedSharedCalendarEvent].self, from: data) {
+            receivedSharedEvents = loaded
+        } else {
+            receivedSharedEvents = []
+        }
+    }
+
+    private func reloadReceivedSharedEventsFromStore() {
+        loadReceivedSharedEvents()
+        rebuildEventsFromEnrollment()
+    }
+
     private func makePersonalEvent(from stored: StoredPersonalEvent) -> ClassEvent {
         let bg = lightPalette[2]
         let accent = darkPalette[2]
@@ -1922,6 +1988,29 @@ final class CalendarViewModel: ObservableObject {
             enrollmentID: nil,
             seriesID: stored.seriesID,
             persistentID: stored.id,
+            isAllDay: false,
+            kind: .personal
+        )
+    }
+
+    private func makeReceivedSharedEvent(from stored: ReceivedSharedCalendarEvent) -> ClassEvent {
+        let bg = lightPalette[3]
+        let accent = darkPalette[3]
+
+        let formatter = ISO8601DateFormatter()
+        let start = formatter.date(from: stored.startDate) ?? Date()
+        let end = formatter.date(from: stored.endDate) ?? start.addingTimeInterval(60 * 60)
+
+        return ClassEvent(
+            title: stored.title,
+            location: stored.location,
+            startDate: start,
+            endDate: end,
+            backgroundColor: bg,
+            accentColor: accent,
+            enrollmentID: nil,
+            seriesID: nil,
+            persistentID: nil,
             isAllDay: false,
             kind: .personal
         )
@@ -1957,6 +2046,7 @@ final class CalendarViewModel: ObservableObject {
             let fixed = events.filter { $0.enrollmentID == nil && $0.kind != .personal }
             events = fixed
             events.append(contentsOf: personalEvents.map(makePersonalEvent(from:)))
+            events.append(contentsOf: receivedSharedEvents.map(makeReceivedSharedEvent(from:)))
 
             for enrollment in enrolledCourses {
                 let course = enrollment.course
@@ -2031,7 +2121,8 @@ final class CalendarViewModel: ObservableObject {
 
     private func academicYearStart(for semester: Semester) -> Int {
         let year = semester.year
-        return semester.isFall ? year : (year - 1)
+        if semester.isSpring { return year - 1 }
+        return year
     }
 
     // MARK: - Hidden occurrences persistence

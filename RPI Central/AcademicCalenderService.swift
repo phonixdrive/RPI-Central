@@ -105,24 +105,13 @@ final class AcademicCalendarService {
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let yearToken = self.academicYearStart(for: semester)
-                let calendar = try self.loadCalendarForAcademicYearStart(yearToken)
-
-                let term: Term = semester.isFall ? calendar.terms.fall : calendar.terms.spring
-                guard
-                    let beginStr = term.classesBegin,
-                    let endStr = term.classesEnd,
-                    let begin = self.parseYMD(beginStr),
-                    let end = self.parseYMD(endStr)
-                else {
-                    throw NSError(
-                        domain: "AcademicCalendarService",
-                        code: 20,
-                        userInfo: [NSLocalizedDescriptionKey: "Missing classesBegin/classesEnd for \(semester.displayName) in academic calendar"]
-                    )
+                if let officialBounds = try self.loadOfficialTermBounds(for: semester) {
+                    completion(.success(officialBounds))
+                    return
                 }
 
-                completion(.success((start: begin, end: end)))
+                let fallbackBounds = try self.loadBundledCourseTermBounds(for: semester)
+                completion(.success(fallbackBounds))
             } catch {
                 completion(.failure(error))
             }
@@ -159,6 +148,9 @@ final class AcademicCalendarService {
                 }
 
                 completion(.success(out))
+            } catch let error as NSError where error.domain == "AcademicCalendarService" && error.code == 2 {
+                // Future planning terms can still work without a bundled academic-year file.
+                completion(.success([]))
             } catch {
                 completion(.failure(error))
             }
@@ -173,7 +165,96 @@ final class AcademicCalendarService {
     /// - Spring 2025 is in AY 2024–2025 => 2024
     private func academicYearStart(for semester: Semester) -> Int {
         let year = semester.year
-        return semester.isFall ? year : (year - 1)
+        if semester.isSpring { return year - 1 }
+        return year
+    }
+
+    private func loadOfficialTermBounds(for semester: Semester) throws -> (start: Date, end: Date)? {
+        guard semester.isFall || semester.isSpring else { return nil }
+
+        let yearToken = academicYearStart(for: semester)
+        let calendar = try loadCalendarForAcademicYearStart(yearToken)
+        let term: Term = semester.isFall ? calendar.terms.fall : calendar.terms.spring
+
+        guard
+            let beginStr = term.classesBegin,
+            let endStr = term.classesEnd,
+            let begin = parseYMD(beginStr),
+            let end = parseYMD(endStr)
+        else {
+            throw NSError(
+                domain: "AcademicCalendarService",
+                code: 20,
+                userInfo: [NSLocalizedDescriptionKey: "Missing classesBegin/classesEnd for \(semester.displayName) in academic calendar"]
+            )
+        }
+
+        return (start: begin, end: end)
+    }
+
+    private func loadBundledCourseTermBounds(for semester: Semester) throws -> (start: Date, end: Date) {
+        let subdir = "semester_data/\(semester.rawValue)"
+        guard let url = Bundle.main.url(forResource: "courses", withExtension: "json", subdirectory: subdir) else {
+            throw NSError(
+                domain: "AcademicCalendarService",
+                code: 21,
+                userInfo: [NSLocalizedDescriptionKey: "Missing courses.json in bundle at \(subdir)"]
+            )
+        }
+
+        let data = try Data(contentsOf: url)
+        let decoded = try JSONDecoder().decode([CourseBoundsSubject].self, from: data)
+
+        var earliest: Date?
+        var latest: Date?
+
+        for subject in decoded {
+            for course in subject.courses {
+                for section in course.sections {
+                    for timeslot in section.timeslots {
+                        guard let start = parseMonthDay(timeslot.dateStart, in: semester.year) else { continue }
+                        let end = parseMonthDay(timeslot.dateEnd, in: semester.year) ?? start
+
+                        if earliest == nil || start < earliest! {
+                            earliest = start
+                        }
+                        if latest == nil || end > latest! {
+                            latest = end
+                        }
+                    }
+                }
+            }
+        }
+
+        guard let earliest, let latest else {
+            throw NSError(
+                domain: "AcademicCalendarService",
+                code: 22,
+                userInfo: [NSLocalizedDescriptionKey: "Could not derive term bounds from bundled course data for \(semester.displayName)"]
+            )
+        }
+
+        return (start: earliest, end: latest)
+    }
+
+    private func parseMonthDay(_ value: String?, in year: Int) -> Date? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let parts = trimmed.split(separator: "/")
+        guard parts.count == 2,
+              let month = Int(parts[0]),
+              let day = Int(parts[1]) else {
+            return nil
+        }
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.timeZone = rpiTimeZone
+        return Calendar(identifier: .gregorian).date(from: components)
     }
 
     private func loadCalendarForAcademicYearStart(_ yearToken: Int) throws -> AcademicCalendar {
@@ -256,4 +337,21 @@ private extension Semester {
     var month: Int { Int(rawValue.suffix(2)) ?? 1 }
     var isFall: Bool { month == 9 }
     var isSpring: Bool { month == 1 }
+}
+
+private struct CourseBoundsSubject: Decodable {
+    let courses: [CourseBoundsCourse]
+}
+
+private struct CourseBoundsCourse: Decodable {
+    let sections: [CourseBoundsSection]
+}
+
+private struct CourseBoundsSection: Decodable {
+    let timeslots: [CourseBoundsTimeslot]
+}
+
+private struct CourseBoundsTimeslot: Decodable {
+    let dateStart: String?
+    let dateEnd: String?
 }

@@ -24,6 +24,10 @@ final class SocialManager: ObservableObject {
     @Published private(set) var isFirebaseAvailable: Bool
     @Published private(set) var setupMessage: String
 
+    private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
+    private let deliveredSocialAlertIDsKey = "social.delivered_alert_ids_v1"
+    private let socialNotificationsEnabledKey = "settings_social_notifications_enabled_v1"
+
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
     private var listenerRegistrations: [ListenerRegistration] = []
     private var activeListenerUserID: String?
@@ -59,6 +63,7 @@ final class SocialManager: ObservableObject {
             errorMessage = error.localizedDescription
         }
 #endif
+        clearLocalSharedCalendarEvents()
         currentUser = nil
         overview = nil
         friendGroups = []
@@ -481,29 +486,42 @@ final class SocialManager: ObservableObject {
             let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
             let data = snapshot.data() ?? [:]
             var posts = decodeFeedPosts(from: data)
-            posts.insert(
-                SocialFeedPost(
-                    id: UUID().uuidString,
-                    ownerID: viewer.id,
-                    ownerUsername: viewer.username,
-                    ownerDisplayName: viewer.displayName,
-                    title: normalizedTitle,
-                    location: normalizedLocation,
-                    details: normalizedDetails,
-                    createdAt: nowISO(),
-                    startsAt: ISO8601DateFormatter().string(from: startsAt),
-                    endedAt: nil,
-                    visibility: visibility,
-                    visibleGroupIDs: sanitizedGroupIDs
-                ),
-                at: 0
+            let createdPost = SocialFeedPost(
+                id: UUID().uuidString,
+                ownerID: viewer.id,
+                ownerUsername: viewer.username,
+                ownerDisplayName: viewer.displayName,
+                title: normalizedTitle,
+                location: normalizedLocation,
+                details: normalizedDetails,
+                createdAt: nowISO(),
+                startsAt: ISO8601DateFormatter().string(from: startsAt),
+                endedAt: nil,
+                visibility: visibility,
+                visibleGroupIDs: sanitizedGroupIDs
             )
+            posts.insert(createdPost, at: 0)
             posts = Array(posts.prefix(40))
 
             try await updateData([
                 "feedPosts": posts.map(feedPostData),
                 "lastFeedPostAt": posts.first?.createdAt ?? nowISO(),
             ], at: firestore.collection("users").document(viewer.id))
+
+            let recipients = try await recipientIDsForFeedPost(
+                ownerID: viewer.id,
+                visibility: visibility,
+                visibleGroupIDs: sanitizedGroupIDs
+            )
+            try await sendSocialAlert(
+                to: recipients,
+                type: "feedPost",
+                title: "\(viewer.displayName) posted an activity",
+                body: normalizedLocation.isEmpty
+                    ? "\(normalizedTitle) is up on the campus feed."
+                    : "\(normalizedTitle) at \(normalizedLocation).",
+                eventDate: startsAt
+            )
 
             try await refreshOverviewInternal()
             statusMessage = "Activity posted."
@@ -681,6 +699,51 @@ final class SocialManager: ObservableObject {
         }
     }
 
+    func sharePersonalEvents(_ events: [StoredPersonalEvent]) async {
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            let filteredEvents = events.filter { $0.shareMode != .none }
+            guard !filteredEvents.isEmpty else { return }
+
+            let groups = try await loadFriendGroups(ownerID: viewer.id)
+            let recipients = recipientIDsForSharedEvents(filteredEvents, groups: groups)
+            guard !recipients.isEmpty else { return }
+
+            for recipientID in recipients {
+                for event in filteredEvents {
+                    let sharedEvent = makeReceivedSharedCalendarEvent(from: event, owner: viewer)
+                    try await setData(
+                        sharedCalendarEventData(sharedEvent),
+                        at: firestore.collection("users")
+                            .document(recipientID)
+                            .collection("calendarShares")
+                            .document(sharedEvent.id)
+                    )
+                }
+            }
+
+            let summaryBody: String
+            if filteredEvents.count == 1, let first = filteredEvents.first {
+                let timeText = DateFormatter.localizedString(from: first.startDate, dateStyle: .medium, timeStyle: .short)
+                summaryBody = "\(first.title) on \(timeText)."
+            } else {
+                summaryBody = "\(filteredEvents.count) shared calendar events were sent to you."
+            }
+
+            try await sendSocialAlert(
+                to: recipients,
+                type: "sharedEvent",
+                title: "\(viewer.displayName) shared a calendar event",
+                body: summaryBody,
+                eventDate: filteredEvents.map(\.startDate).min()
+            )
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+    }
+
     func syncSchedule(from calendarViewModel: CalendarViewModel) async {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -807,6 +870,7 @@ final class SocialManager: ObservableObject {
 
                 guard user != nil else {
                     self.detachRealtimeListeners()
+                    self.clearLocalSharedCalendarEvents()
                     self.currentUser = nil
                     self.overview = nil
                     self.friendGroups = []
@@ -944,6 +1008,18 @@ final class SocialManager: ObservableObject {
                 .addSnapshotListener { [weak self] _, error in
                     self?.handleRealtimeEvent(error: error)
                 },
+            firestore.collection("users")
+                .document(userID)
+                .collection("calendarShares")
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleSharedCalendarListener(snapshot: snapshot, error: error)
+                },
+            firestore.collection("users")
+                .document(userID)
+                .collection("socialNotifications")
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleSocialAlertsListener(snapshot: snapshot, error: error)
+                },
         ]
     }
 
@@ -972,6 +1048,36 @@ final class SocialManager: ObservableObject {
                     self.errorMessage = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private func handleSharedCalendarListener(snapshot: QuerySnapshot?, error: Error?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error {
+                if !self.isPermissionDenied(error) {
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+
+            let events = (snapshot?.documents ?? []).compactMap(self.makeReceivedSharedCalendarEvent)
+            self.persistReceivedSharedCalendarEvents(events)
+        }
+    }
+
+    private func handleSocialAlertsListener(snapshot: QuerySnapshot?, error: Error?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error {
+                if !self.isPermissionDenied(error) {
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+
+            let alerts = (snapshot?.documents ?? []).compactMap(self.makeSocialAlert)
+            self.processIncomingSocialAlerts(alerts)
         }
     }
 
@@ -1227,13 +1333,17 @@ final class SocialManager: ObservableObject {
         guard let viewerID = currentUser?.id else { return counts }
         for user in users where user.shareSchedule {
             do {
+                let schedule = try await loadScheduleSnapshot(ownerID: user.id, viewerID: viewerID)
+                if !schedule.items.isEmpty {
+                    counts[user.id] = schedule.items.count
+                    continue
+                }
                 if let legacySnapshot = try await loadUserDocLegacyScheduleSnapshot(ownerID: user.id),
                    !legacySnapshot.items.isEmpty {
                     counts[user.id] = legacySnapshot.items.count
                     continue
                 }
-                let schedule = try await loadScheduleSnapshot(ownerID: user.id, viewerID: viewerID)
-                counts[user.id] = schedule.items.count
+                counts[user.id] = 0
             } catch {
                 // Preview counts are cosmetic. A missing or denied schedule should not break the entire social hub.
                 counts[user.id] = 0
@@ -1318,6 +1428,243 @@ final class SocialManager: ObservableObject {
             "generatedAt": generatedAt,
             "items": items.map(sharedScheduleItemData),
         ], at: friendViewReference(ownerID: ownerID, viewerID: viewerID))
+    }
+
+    private struct SocialAlert: Identifiable, Equatable {
+        let id: String
+        let senderID: String
+        let type: String
+        let title: String
+        let body: String
+        let createdAt: String
+        let eventDate: String?
+    }
+
+    private func loadFriendIDs(for userID: String) async throws -> [String] {
+        let friendshipsSnapshot = try await getDocuments(
+            firestore.collection("friendships").whereField("members", arrayContains: userID)
+        )
+        return friendshipsSnapshot.documents.compactMap { snapshot -> String? in
+            let members = snapshot.data()["members"] as? [String] ?? []
+            return members.first(where: { $0 != userID })
+        }
+    }
+
+    private func recipientIDsForFeedPost(
+        ownerID: String,
+        visibility: SocialFeedVisibility,
+        visibleGroupIDs: [String]
+    ) async throws -> [String] {
+        switch visibility {
+        case .everyone:
+            return []
+        case .friends:
+            return Array(Set(try await loadFriendIDs(for: ownerID))).sorted()
+        case .groups:
+            let groups = try await loadFriendGroups(ownerID: ownerID)
+            let selectedIDs = Set(visibleGroupIDs)
+            let recipients = groups
+                .filter { selectedIDs.contains($0.id) }
+                .flatMap(\.memberIDs)
+            return Array(Set(recipients)).sorted()
+        }
+    }
+
+    private func recipientIDsForSharedEvents(
+        _ events: [StoredPersonalEvent],
+        groups: [SocialFriendGroup]
+    ) -> [String] {
+        let groupsByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, Set($0.memberIDs)) })
+        var recipientIDs: Set<String> = []
+
+        for event in events {
+            switch event.shareMode {
+            case .none:
+                continue
+            case .friends:
+                recipientIDs.formUnion(event.sharedFriendIDs)
+            case .groups:
+                for groupID in event.sharedGroupIDs {
+                    recipientIDs.formUnion(groupsByID[groupID] ?? Set<String>())
+                }
+            }
+        }
+
+        return Array(recipientIDs).sorted()
+    }
+
+    private func makeReceivedSharedCalendarEvent(from event: StoredPersonalEvent, owner: SocialUser) -> ReceivedSharedCalendarEvent {
+        let formatter = ISO8601DateFormatter()
+        return ReceivedSharedCalendarEvent(
+            id: "\(owner.id)_\(event.id.uuidString)",
+            ownerID: owner.id,
+            ownerUsername: owner.username,
+            ownerDisplayName: owner.displayName,
+            title: event.title,
+            location: event.location,
+            startDate: formatter.string(from: event.startDate),
+            endDate: formatter.string(from: event.endDate),
+            createdAt: nowISO()
+        )
+    }
+
+    private func sharedCalendarEventData(_ event: ReceivedSharedCalendarEvent) -> [String: Any] {
+        [
+            "id": event.id,
+            "ownerID": event.ownerID,
+            "ownerUsername": event.ownerUsername,
+            "ownerDisplayName": event.ownerDisplayName,
+            "title": event.title,
+            "location": event.location,
+            "startDate": event.startDate,
+            "endDate": event.endDate,
+            "createdAt": event.createdAt,
+        ]
+    }
+
+    private func makeReceivedSharedCalendarEvent(from snapshot: DocumentSnapshot) -> ReceivedSharedCalendarEvent? {
+        guard let data = snapshot.data(),
+              let id = data["id"] as? String,
+              let ownerID = data["ownerID"] as? String,
+              let ownerUsername = data["ownerUsername"] as? String,
+              let ownerDisplayName = data["ownerDisplayName"] as? String,
+              let title = data["title"] as? String,
+              let location = data["location"] as? String,
+              let startDate = data["startDate"] as? String,
+              let endDate = data["endDate"] as? String,
+              let createdAt = data["createdAt"] as? String else {
+            return nil
+        }
+
+        return ReceivedSharedCalendarEvent(
+            id: id,
+            ownerID: ownerID,
+            ownerUsername: ownerUsername,
+            ownerDisplayName: ownerDisplayName,
+            title: title,
+            location: location,
+            startDate: startDate,
+            endDate: endDate,
+            createdAt: createdAt
+        )
+    }
+
+    private func persistReceivedSharedCalendarEvents(_ events: [ReceivedSharedCalendarEvent]) {
+        let sorted = events.sorted { lhs, rhs in
+            (isoDate(lhs.startDate) ?? .distantFuture) < (isoDate(rhs.startDate) ?? .distantFuture)
+        }
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(sorted) {
+            UserDefaults.standard.set(data, forKey: receivedSharedEventsStorageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: receivedSharedEventsStorageKey)
+        }
+        NotificationCenter.default.post(name: .sharedCalendarEventsDidUpdate, object: nil)
+    }
+
+    private func clearLocalSharedCalendarEvents() {
+        UserDefaults.standard.removeObject(forKey: receivedSharedEventsStorageKey)
+        NotificationCenter.default.post(name: .sharedCalendarEventsDidUpdate, object: nil)
+    }
+
+    private func makeSocialAlert(from snapshot: DocumentSnapshot) -> SocialAlert? {
+        guard let data = snapshot.data(),
+              let id = data["id"] as? String,
+              let senderID = data["senderID"] as? String,
+              let type = data["type"] as? String,
+              let title = data["title"] as? String,
+              let body = data["body"] as? String,
+              let createdAt = data["createdAt"] as? String else {
+            return nil
+        }
+
+        return SocialAlert(
+            id: id,
+            senderID: senderID,
+            type: type,
+            title: title,
+            body: body,
+            createdAt: createdAt,
+            eventDate: emptyToNil(data["eventDate"] as? String)
+        )
+    }
+
+    private func socialAlertData(
+        id: String,
+        senderID: String,
+        type: String,
+        title: String,
+        body: String,
+        eventDate: Date?
+    ) -> [String: Any] {
+        [
+            "id": id,
+            "senderID": senderID,
+            "type": type,
+            "title": title,
+            "body": body,
+            "createdAt": nowISO(),
+            "eventDate": eventDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+        ]
+    }
+
+    private func sendSocialAlert(
+        to recipientIDs: [String],
+        type: String,
+        title: String,
+        body: String,
+        eventDate: Date?
+    ) async throws {
+        guard let senderID = currentUser?.id else { return }
+        for recipientID in Set(recipientIDs).sorted() where recipientID != senderID {
+            let id = UUID().uuidString
+            try await setData(
+                socialAlertData(
+                    id: id,
+                    senderID: senderID,
+                    type: type,
+                    title: title,
+                    body: body,
+                    eventDate: eventDate
+                ),
+                at: firestore.collection("users")
+                    .document(recipientID)
+                    .collection("socialNotifications")
+                    .document(id)
+            )
+        }
+    }
+
+    private func processIncomingSocialAlerts(_ alerts: [SocialAlert]) {
+        var delivered = Set(UserDefaults.standard.stringArray(forKey: deliveredSocialAlertIDsKey) ?? [])
+        guard socialNotificationsEnabled else {
+            delivered.formUnion(alerts.map(\.id))
+            UserDefaults.standard.set(Array(delivered.sorted().suffix(400)), forKey: deliveredSocialAlertIDsKey)
+            return
+        }
+
+        NotificationManager.requestAuthorization()
+        for alert in alerts.sorted(by: { $0.createdAt < $1.createdAt }) {
+            guard !delivered.contains(alert.id) else { continue }
+            let triggerDate = isoDate(alert.eventDate) ?? Date()
+            NotificationManager.scheduleSocialNotification(
+                identifier: "social.\(alert.id)",
+                title: alert.title,
+                body: alert.body,
+                deliverAt: triggerDate > Date() ? min(triggerDate, Date().addingTimeInterval(60)) : nil
+            )
+            delivered.insert(alert.id)
+        }
+
+        let trimmed = Array(delivered.sorted().suffix(400))
+        UserDefaults.standard.set(trimmed, forKey: deliveredSocialAlertIDsKey)
+    }
+
+    private var socialNotificationsEnabled: Bool {
+        if UserDefaults.standard.object(forKey: socialNotificationsEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: socialNotificationsEnabledKey)
     }
 
     private func nextAvailableUsername(base: String, firestore: Firestore? = nil) async throws -> String {
@@ -1507,11 +1854,20 @@ final class SocialManager: ObservableObject {
     }
 
     private func shouldIncludeFeedPost(_ post: SocialFeedPost, now: Date) -> Bool {
-        if let endedAt = isoDate(post.endedAt) {
+        if let endedAt = effectiveFeedEndDate(for: post) {
             return endedAt >= now.addingTimeInterval(-12 * 60 * 60)
         }
 
         return true
+    }
+
+    private func effectiveFeedEndDate(for post: SocialFeedPost) -> Date? {
+        if let endedAt = isoDate(post.endedAt) {
+            return endedAt
+        }
+        guard let startsAt = isoDate(post.startsAt) else { return nil }
+        let autoExpireDate = startsAt.addingTimeInterval(6 * 60 * 60)
+        return autoExpireDate <= Date() ? autoExpireDate : nil
     }
 
     private func canViewerSeeFeedPost(

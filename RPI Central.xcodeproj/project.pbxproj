@@ -547,6 +547,20 @@
 				semester_data/202601/prerequisites.json,
 				semester_data/202601/registration_dates.json,
 				semester_data/202601/schools.json,
+				semester_data/202605/catalog.json,
+				semester_data/202605/courses.json,
+				semester_data/202605/csci_topics/catalog.json,
+				semester_data/202605/mod.rs,
+				semester_data/202605/prerequisites.json,
+				semester_data/202605/registration_dates.json,
+				semester_data/202605/schools.json,
+				semester_data/202609/catalog.json,
+				semester_data/202609/courses.json,
+				semester_data/202609/csci_topics/catalog.json,
+				semester_data/202609/mod.rs,
+				semester_data/202609/prerequisites.json,
+				semester_data/202609/registration_dates.json,
+				semester_data/202609/schools.json,
 			);
 			target = 0D3BAF132E909BB3006793BF /* RPI Central */;
 		};

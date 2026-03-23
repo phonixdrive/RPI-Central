@@ -4,7 +4,6 @@ struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
 
-    @AppStorage("social.feedRefreshIntervalSeconds") private var feedRefreshIntervalSeconds = 30
     @State private var selectedSection: SocialHubSection = .friends
     @State private var authMode: AuthMode = .login
     @State private var displayName: String = ""
@@ -21,7 +20,7 @@ struct SocialHubView: View {
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
     private var feedRefreshTaskID: String {
-        "\(selectedSection.rawValue)-\(feedRefreshIntervalSeconds)-\(socialManager.currentUser?.id ?? "none")"
+        "\(selectedSection.rawValue)-\(calendarViewModel.socialFeedRefreshIntervalSeconds)-\(socialManager.currentUser?.id ?? "none")"
     }
     private var scheduleSyncTaskID: String {
         [
@@ -42,6 +41,7 @@ struct SocialHubView: View {
             NavigationStack {
                 rootContent
             }
+            .tint(calendarViewModel.themeColor)
         )
 
         let decorated = AnyView(
@@ -89,7 +89,7 @@ struct SocialHubView: View {
     }
 
     private var rootContent: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             backgroundGradient
 
             VStack(spacing: 0) {
@@ -105,8 +105,15 @@ struct SocialHubView: View {
                         screenSections
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, selectedSection == .feed ? 96 : 18)
                 }
+            }
+
+            if socialManager.isAuthenticated && selectedSection == .feed {
+                feedFloatingButton
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 24)
             }
         }
     }
@@ -151,7 +158,6 @@ struct SocialHubView: View {
                 demoCard
             }
         case .feed:
-            feedHeaderCard
             feedListCard
         case .friends:
             friendToolsCard
@@ -740,50 +746,29 @@ struct SocialHubView: View {
                         .background(Circle().fill(Color.white.opacity(0.12)))
                 }
 
-                HStack(spacing: 10) {
-                    Button {
-                        showFeedComposer = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                            Text("Create activity")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Menu {
-                        ForEach(FeedRefreshOption.allCases) { option in
-                            Button {
-                                feedRefreshIntervalSeconds = option.seconds
-                            } label: {
-                                HStack {
-                                    Text(option.title)
-                                    if feedRefreshIntervalSeconds == option.seconds {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.clockwise")
-                            Text(FeedRefreshOption(seconds: feedRefreshIntervalSeconds).title)
-                                .font(.caption.weight(.semibold))
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.12)))
-                    }
-                    .foregroundStyle(.white)
-                }
-
-                Text("Double-tap-style behavior: tapping an active response again clears it.")
+                Text("Tap the floating plus button to post a study session, meal, or hangout.")
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.62))
             }
         }
+    }
+
+    private var feedFloatingButton: some View {
+        Button {
+            showFeedComposer = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 58, height: 58)
+                .background(
+                    Circle()
+                        .fill(calendarViewModel.themeColor)
+                        .shadow(color: calendarViewModel.themeColor.opacity(0.35), radius: 16, y: 8)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Create activity")
     }
 
     private var feedListCard: some View {
@@ -807,6 +792,10 @@ struct SocialHubView: View {
                     }
                     .buttonStyle(.bordered)
                 }
+
+                Text("Post quick plans, study sessions, and hangouts. Activities auto-end after 6 hours if nobody closes them first.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 if socialManager.feedItems.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -972,10 +961,10 @@ struct SocialHubView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.post.title)
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                         HStack(spacing: 8) {
                             Text(item.post.ownerDisplayName)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.caption.weight(.semibold))
                             Text("@\(item.post.ownerUsername)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -993,7 +982,7 @@ struct SocialHubView: View {
 
             if !item.post.location.isEmpty {
                 Label(item.post.location, systemImage: "mappin.and.ellipse")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -1003,7 +992,7 @@ struct SocialHubView: View {
 
             if !item.post.details.isEmpty {
                 Text(item.post.details)
-                    .font(.subheadline)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
@@ -1210,11 +1199,11 @@ struct SocialHubView: View {
 
     private func runFeedRefreshLoop() async {
         guard socialManager.isAuthenticated, selectedSection == .feed else { return }
-        guard feedRefreshIntervalSeconds > 0 else { return }
+        guard calendarViewModel.socialFeedRefreshIntervalSeconds > 0 else { return }
 
         while !Task.isCancelled {
             do {
-                try await Task.sleep(nanoseconds: UInt64(feedRefreshIntervalSeconds) * 1_000_000_000)
+                try await Task.sleep(nanoseconds: UInt64(calendarViewModel.socialFeedRefreshIntervalSeconds) * 1_000_000_000)
             } catch {
                 return
             }
@@ -1222,7 +1211,7 @@ struct SocialHubView: View {
             guard !Task.isCancelled,
                   socialManager.isAuthenticated,
                   selectedSection == .feed,
-                  feedRefreshIntervalSeconds > 0 else { return }
+                  calendarViewModel.socialFeedRefreshIntervalSeconds > 0 else { return }
 
             await socialManager.refreshOverview()
         }
@@ -1270,7 +1259,7 @@ struct SocialHubView: View {
 
     private func feedTimingText(for item: SocialFeedItem) -> String {
         let now = Date()
-        if let endedAt = feedDate(item.post.endedAt) {
+        if let endedAt = effectiveFeedEndedDate(for: item.post) {
             return "Ended \(FeedFormatters.relative.localizedString(for: endedAt, relativeTo: now))"
         }
         if let startsAt = feedDate(item.post.startsAt) {
@@ -1288,12 +1277,21 @@ struct SocialHubView: View {
     }
 
     private func feedIsEnded(_ item: SocialFeedItem) -> Bool {
-        feedDate(item.post.endedAt) != nil
+        effectiveFeedEndedDate(for: item.post) != nil
     }
 
     private func feedIsUpcoming(_ item: SocialFeedItem) -> Bool {
         guard let startsAt = feedDate(item.post.startsAt), !feedIsEnded(item) else { return false }
         return startsAt > Date()
+    }
+
+    private func effectiveFeedEndedDate(for post: SocialFeedPost) -> Date? {
+        if let endedAt = feedDate(post.endedAt) {
+            return endedAt
+        }
+        guard let startsAt = feedDate(post.startsAt) else { return nil }
+        let autoExpireDate = startsAt.addingTimeInterval(6 * 60 * 60)
+        return autoExpireDate <= Date() ? autoExpireDate : nil
     }
 }
 
@@ -1301,29 +1299,6 @@ private enum SocialHubSection: String {
     case friends
     case feed
     case profile
-}
-
-private enum FeedRefreshOption: Int, CaseIterable, Identifiable {
-    case off = 0
-    case fifteen = 15
-    case thirty = 30
-    case sixty = 60
-
-    var id: Int { rawValue }
-    var seconds: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .off: return "Refresh off"
-        case .fifteen: return "15s"
-        case .thirty: return "30s"
-        case .sixty: return "60s"
-        }
-    }
-
-    init(seconds: Int) {
-        self = FeedRefreshOption(rawValue: seconds) ?? .thirty
-    }
 }
 
 private struct FeedComposerView: View {

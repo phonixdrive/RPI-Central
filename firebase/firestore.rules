@@ -25,6 +25,38 @@ service cloud.firestore {
       allow create: if isSelf(userID);
       allow update: if isSelf(userID);
       allow delete: if false;
+
+      match /calendarShares/{shareID} {
+        allow read: if isSelf(userID);
+        allow create: if signedIn() &&
+          request.resource.data.ownerID == request.auth.uid &&
+          areFriends(request.auth.uid, userID);
+        allow update: if isSelf(userID) || (
+          signedIn() &&
+          resource.data.ownerID == request.auth.uid &&
+          areFriends(request.auth.uid, userID)
+        );
+        allow delete: if isSelf(userID) || (
+          signedIn() &&
+          resource.data.ownerID == request.auth.uid
+        );
+      }
+
+      match /socialNotifications/{notificationID} {
+        allow read: if isSelf(userID);
+        allow create: if signedIn() &&
+          request.resource.data.senderID == request.auth.uid &&
+          areFriends(request.auth.uid, userID);
+        allow update: if isSelf(userID) || (
+          signedIn() &&
+          resource.data.senderID == request.auth.uid &&
+          areFriends(request.auth.uid, userID)
+        );
+        allow delete: if isSelf(userID) || (
+          signedIn() &&
+          resource.data.senderID == request.auth.uid
+        );
+      }
     }
 
     match /friendRequests/{requestID} {
