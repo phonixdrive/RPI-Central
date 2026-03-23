@@ -209,3 +209,163 @@ struct ShuttleTrackerMapScreen: View {
     }
 }
 
+private struct ShuttleVehicleMarker: View {
+    let title: String?
+    let routeColor: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "bus.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(7)
+                .background(routeColor, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Color.black.opacity(0.85), lineWidth: 1.5)
+                }
+                .shadow(radius: 4)
+
+            if let title {
+                Text(title)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.thinMaterial, in: Capsule())
+            }
+        }
+    }
+}
+
+private struct MapControlButtonLabel: View {
+    let systemName: String
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 18, height: 18)
+            .padding(14)
+            .background(.regularMaterial, in: Circle())
+    }
+}
+
+private struct ShuttleRouteTimesSheet: View {
+    let routes: [ShuttleRouteOverlay]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedRouteID: String = ""
+
+    private var routeOptions: [ShuttleRouteOverlay] {
+        routes.filter { !$0.isHidden }
+    }
+
+    private var selectedRoute: ShuttleRouteOverlay? {
+        routeOptions.first(where: { $0.id == selectedRouteID }) ?? routeOptions.first
+    }
+
+    private var upcomingDepartures: [ShuttleScheduledDeparture] {
+        guard let selectedRoute else { return [] }
+        return ShuttleStaticScheduleProvider.shared.upcomingDepartures(for: selectedRoute, now: Date())
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if routeOptions.isEmpty {
+                    ContentUnavailableView(
+                        "No Route Data",
+                        systemImage: "bus",
+                        description: Text("Live shuttle route timing is not available right now.")
+                    )
+                } else {
+                    Section {
+                        Picker("Route", selection: $selectedRouteID) {
+                            ForEach(routeOptions) { route in
+                                Text(route.id.capitalized).tag(route.id)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    if selectedRoute != nil {
+                        if upcomingDepartures.isEmpty {
+                            Section {
+                                Text("No recent or upcoming departures were found for this route.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        ForEach(upcomingDepartures) { departure in
+                            Section {
+                                ForEach(departure.stopTimes) { stop in
+                                    HStack {
+                                        Text(stop.stopName)
+                                        Spacer()
+                                        Text(formattedTime(stop.scheduledTime))
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+                            } header: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(departure.startTime.formatted(date: .omitted, time: .shortened))
+                                    Text(departure.isCurrent ? "Current loop" : "Upcoming departure")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+            .navigationTitle("Route Times")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                if selectedRouteID.isEmpty {
+                    selectedRouteID = routeOptions.first?.id ?? ""
+                }
+            }
+        }
+    }
+
+    private func formattedTime(_ date: Date?) -> String {
+        guard let date else { return "--:--" }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+private extension Color {
+    init?(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if cleaned.count == 8, let value = UInt32(cleaned, radix: 16) {
+            let alpha = Double((value >> 24) & 0xFF) / 255.0
+            guard alpha > 0 else { return nil }
+
+            let red = Double((value >> 16) & 0xFF) / 255.0
+            let green = Double((value >> 8) & 0xFF) / 255.0
+            let blue = Double(value & 0xFF) / 255.0
+
+            self.init(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+            return
+        }
+
+        guard cleaned.count == 6, let value = Int(cleaned, radix: 16) else {
+            return nil
+        }
+
+        let red = Double((value >> 16) & 0xFF) / 255.0
+        let green = Double((value >> 8) & 0xFF) / 255.0
+        let blue = Double(value & 0xFF) / 255.0
+
+        self.init(red: red, green: green, blue: blue)
+    }
+}
