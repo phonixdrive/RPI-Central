@@ -21,6 +21,34 @@ enum OccurrenceBadge: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum PersonalEventShareMode: String, Codable, CaseIterable, Identifiable {
+    case none
+    case friends
+    case groups
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: return "None"
+        case .friends: return "Individual Friends"
+        case .groups: return "Friend Groups"
+        }
+    }
+}
+
+struct StoredPersonalEvent: Identifiable, Codable, Equatable {
+    let id: UUID
+    let title: String
+    let location: String
+    let startDate: Date
+    let endDate: Date
+    let seriesID: UUID?
+    let shareMode: PersonalEventShareMode
+    let sharedFriendIDs: [String]
+    let sharedGroupIDs: [String]
+}
+
 struct ClassEvent: Identifiable, Equatable {
     let id = UUID()
 
@@ -42,6 +70,9 @@ struct ClassEvent: Identifiable, Equatable {
     /// Optional recurrence group for manually-added events.
     /// If non-nil, all events in the recurrence share the same seriesID.
     let seriesID: UUID?
+
+    /// Stable ID for persisted personal events.
+    let persistentID: UUID?
 
     /// True for all-day / date-range events (academic calendar, holidays, breaks).
     let isAllDay: Bool
@@ -65,6 +96,7 @@ struct ClassEvent: Identifiable, Equatable {
         accentColor: Color,
         enrollmentID: String?,
         seriesID: UUID? = nil,
+        persistentID: UUID? = nil,
         isAllDay: Bool = false,
         kind: CalendarEventKind = .personal,
         badge: OccurrenceBadge? = nil,
@@ -78,6 +110,7 @@ struct ClassEvent: Identifiable, Equatable {
         self.accentColor = accentColor
         self.enrollmentID = enrollmentID
         self.seriesID = seriesID
+        self.persistentID = persistentID
         self.isAllDay = isAllDay
         self.kind = kind
         self.badge = badge
