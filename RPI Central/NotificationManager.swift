@@ -200,6 +200,40 @@ enum NotificationManager {
         }
     }
 
+    // MARK: - Social notifications
+
+    static func scheduleSocialNotification(
+        identifier: String,
+        title: String,
+        body: String,
+        deliverAt: Date? = nil
+    ) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let request: UNNotificationRequest
+        if let deliverAt, deliverAt > Date() {
+            let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: deliverAt)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        } else {
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+            request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        }
+
+        UNUserNotificationCenter.current().add(request) { err in
+            #if DEBUG
+            if let err {
+                print("❌ Social notification failed:", err)
+            } else {
+                print("✅ Social notification scheduled:", identifier)
+            }
+            #endif
+        }
+    }
+
     // MARK: - Helpers
 
     private static func taskNotificationPrefix(taskID: UUID) -> String {
