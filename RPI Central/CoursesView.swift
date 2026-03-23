@@ -7,12 +7,11 @@ import SwiftUI
 
 struct CoursesView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
-
-    // ✅ Singleton should be ObservedObject, not StateObject
     @ObservedObject private var catalog = CourseCatalogService.shared
 
     @State private var searchText: String = ""
-    @State private var selectedSubjectFilter: SubjectFilter? = nil
+    @State private var selectedSubjectFilter: SubjectOption? = nil
+    @State private var subjectBrowserPresentation: SubjectBrowserPresentation?
 
     private let filterColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -23,9 +22,16 @@ struct CoursesView: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var visibleSubjectFilters: [SubjectFilter] {
-        let availableSubjects = Set(catalog.courses.map(\.subject))
-        return SubjectFilter.featured.filter { availableSubjects.contains($0.subjectCode) }
+    private var availableSubjectCodes: Set<String> {
+        Set(catalog.courses.map(\.subject))
+    }
+
+    private var visibleSubjectCategories: [SubjectCategory] {
+        SubjectCategory.allCases.compactMap { category in
+            let availableSubjects = category.subjects.filter { availableSubjectCodes.contains($0.subjectCode) }
+            guard !availableSubjects.isEmpty else { return nil }
+            return SubjectCategory(id: category.id, title: category.title, subjects: availableSubjects)
+        }
     }
 
     private var rowCardFill: Color {
@@ -37,21 +43,22 @@ struct CoursesView: View {
     }
 
     private var filteredCourses: [Course] {
-        let all = catalog.courses
+        let allCourses = catalog.courses
+        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
         let baseCourses: [Course] = {
-            guard !isSearching, let selectedSubjectFilter else { return all }
-            return all.filter { $0.subject == selectedSubjectFilter.subjectCode }
+            guard !isSearching, let selectedSubjectFilter else { return allCourses }
+            return allCourses.filter { $0.subject == selectedSubjectFilter.subjectCode }
         }()
 
-        guard isSearching else {
+        guard !trimmedQuery.isEmpty else {
             return baseCourses.sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
         }
 
-        let query = searchText.lowercased()
-        return all.filter { course in
-            course.subject.lowercased().contains(query) ||
-            course.number.lowercased().contains(query) ||
-            course.title.lowercased().contains(query)
+        return allCourses.filter { course in
+            course.subject.lowercased().contains(trimmedQuery) ||
+            course.number.lowercased().contains(trimmedQuery) ||
+            course.title.lowercased().contains(trimmedQuery)
         }
         .sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
     }
@@ -71,162 +78,406 @@ struct CoursesView: View {
                 .ignoresSafeArea()
 
                 List {
-                    Section {
-                        HStack {
-                            Text("Term")
-                                .font(.subheadline)
+                    termSection
+
+                    if !isSearching {
+                        subjectBrowserShortcutSection
+                        subjectBrowseSection
+                    }
+
+                    coursesSection
+                }
+                .scrollContentBackground(.hidden)
+                .listStyle(.plain)
+            }
+            .navigationTitle("Courses")
+        }
+        .searchable(text: $searchText, prompt: "Search by subject, number, or title")
+        .sheet(item: $subjectBrowserPresentation) { presentation in
+            SubjectBrowserSheet(
+                presentation: presentation,
+                selectedSubject: $selectedSubjectFilter,
+                accent: calendarViewModel.themeColor
+            )
+        }
+        .onAppear {
+            catalog.syncFromCalendarViewModel(currentSemester: calendarViewModel.currentSemester)
+            clearUnavailableSubjectFilterIfNeeded()
+        }
+        .onChange(of: calendarViewModel.currentSemester) { _, newSem in
+            catalog.syncFromCalendarViewModel(currentSemester: newSem)
+        }
+        .onReceive(catalog.$courses) { _ in
+            clearUnavailableSubjectFilterIfNeeded()
+        }
+    }
+
+    private var termSection: some View {
+        Section {
+            HStack {
+                Text("Term")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Picker("", selection: $catalog.semester) {
+                    ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
+                        Text(sem.displayName).tag(sem)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(rowCardFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(rowCardStroke, lineWidth: 1)
+            )
+            .onChange(of: catalog.semester) { _, newValue in
+                calendarViewModel.changeSemester(to: newValue)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+    }
+
+    private var subjectBrowseSection: some View {
+        Section {
+            LazyVGrid(columns: filterColumns, spacing: 12) {
+                ForEach(visibleSubjectCategories) { category in
+                    Button {
+                        subjectBrowserPresentation = SubjectBrowserPresentation(
+                            title: category.title,
+                            categories: [category]
+                        )
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(category.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+
+                            Text("\(category.subjects.count) subjects")
+                                .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
-
-                            Spacer()
-
-                            Picker("", selection: $catalog.semester) {
-                                ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
-                                    Text(sem.displayName).tag(sem)
-                                }
-                            }
-                            .pickerStyle(.menu)
                         }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+                        .padding(12)
                         .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .fill(rowCardFill)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(rowCardStroke, lineWidth: 1)
                         )
-                        .onChange(of: catalog.semester) { _, newValue in
-                            calendarViewModel.changeSemester(to: newValue)
-                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        } header: {
+            Text("Browse by Area")
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+    }
 
-                    if !isSearching {
-                        Section {
-                            VStack(alignment: .leading, spacing: 14) {
-                                LazyVGrid(columns: filterColumns, spacing: 12) {
-                                    ForEach(visibleSubjectFilters) { filter in
-                                        Button {
-                                            if selectedSubjectFilter == filter {
-                                                selectedSubjectFilter = nil
-                                            } else {
-                                                selectedSubjectFilter = filter
-                                            }
-                                        } label: {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(filter.displayName)
-                                                    .font(.subheadline.weight(.semibold))
-                                                    .foregroundStyle(selectedSubjectFilter == filter ? .white : .primary)
+    private var subjectBrowserShortcutSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    subjectBrowserPresentation = SubjectBrowserPresentation(
+                        title: "All Subjects",
+                        categories: visibleSubjectCategories
+                    )
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.headline)
+                            .foregroundStyle(calendarViewModel.themeColor)
 
-                                                Text(filter.subjectCode)
-                                                    .font(.caption.weight(.medium))
-                                                    .foregroundStyle(selectedSubjectFilter == filter ? .white.opacity(0.8) : .secondary)
-                                            }
-                                            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                                            .padding(12)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                    .fill(selectedSubjectFilter == filter ? calendarViewModel.themeColor : rowCardFill)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                    .stroke(
-                                                        selectedSubjectFilter == filter ? calendarViewModel.themeColor.opacity(0.18) : rowCardStroke,
-                                                        lineWidth: 1
-                                                    )
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Browse all subjects")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
 
-                                if selectedSubjectFilter != nil {
-                                    Button("Clear subject filter") {
-                                        selectedSubjectFilter = nil
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                }
-                            }
-                        } header: {
-                            Text("Browse by Subject(and scroll down)")
+                            Text("Open the full subject list")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(rowCardFill)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(rowCardStroke, lineWidth: 1)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
 
-                    Section {
-                        ForEach(filteredCourses) { course in
-                            NavigationLink {
-                                CourseDetailView(course: course)
-                                    .environmentObject(calendarViewModel)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(course.title)
-                                        .font(.headline)
-                                    Text("\(course.subject) \(course.number)")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .fill(rowCardFill)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .stroke(rowCardStroke, lineWidth: 1)
-                                )
-                            }
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                if let currentSubjectFilter = selectedSubjectFilter {
+                    HStack(spacing: 10) {
+                        Text("Filtered by")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text("\(currentSubjectFilter.subjectCode) \(currentSubjectFilter.displayName)")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(calendarViewModel.themeColor.opacity(0.12))
+                            )
+
+                        Spacer()
+
+                        Button("Clear filter") {
+                            self.selectedSubjectFilter = nil
                         }
-                    } header: {
-                        if let selectedSubjectFilter, !isSearching {
-                            Text("\(selectedSubjectFilter.displayName) Courses")
-                        } else {
-                            Text("Courses")
-                        }
+                        .font(.caption.weight(.semibold))
                     }
                 }
-                .scrollContentBackground(.hidden)
             }
-            .navigationTitle("Courses")
-            .listStyle(.plain)
         }
-        .searchable(text: $searchText, prompt: "Search by subject, number, or title")
-        .onAppear {
-            // ✅ Force picker + loaded catalog term to match the app's current semester
-            catalog.syncFromCalendarViewModel(currentSemester: calendarViewModel.currentSemester)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+    }
+
+    private var coursesSection: some View {
+        Section {
+            ForEach(filteredCourses) { course in
+                NavigationLink {
+                    CourseDetailView(course: course)
+                        .environmentObject(calendarViewModel)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(course.title)
+                            .font(.headline)
+                        Text("\(course.subject) \(course.number)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(rowCardFill)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(rowCardStroke, lineWidth: 1)
+                    )
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            }
+        } header: {
+            if let selectedSubjectFilter, !isSearching {
+                Text("\(selectedSubjectFilter.displayName) Courses")
+            } else {
+                Text("Courses")
+            }
         }
-        .onChange(of: calendarViewModel.currentSemester) { _, newSem in
-            // ✅ Keep courses tab in sync if something else changes the semester
-            catalog.syncFromCalendarViewModel(currentSemester: newSem)
+    }
+
+    private func clearUnavailableSubjectFilterIfNeeded() {
+        guard let selectedSubjectFilter else { return }
+        if !availableSubjectCodes.contains(selectedSubjectFilter.subjectCode) {
+            self.selectedSubjectFilter = nil
         }
     }
 }
 
-private struct SubjectFilter: Identifiable, Equatable {
+private struct SubjectBrowserSheet: View {
+    let presentation: SubjectBrowserPresentation
+    @Binding var selectedSubject: SubjectOption?
+    let accent: Color
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if selectedSubject != nil {
+                    Section {
+                        Button("Clear subject filter") {
+                            selectedSubject = nil
+                            dismiss()
+                        }
+                    }
+                }
+
+                ForEach(presentation.categories) { category in
+                    Section(category.title) {
+                        ForEach(category.subjects) { subject in
+                            Button {
+                                selectedSubject = subject
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(subject.displayName)
+                                            .foregroundStyle(.primary)
+                                        Text(subject.subjectCode)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    if selectedSubject == subject {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(accent)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(presentation.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct SubjectBrowserPresentation: Identifiable {
+    let title: String
+    let categories: [SubjectCategory]
+    let id = UUID()
+}
+
+private struct SubjectCategory: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let subjects: [SubjectOption]
+
+    static let allCases: [SubjectCategory] = [
+        SubjectCategory(
+            id: "hass",
+            title: "Humanities, Arts, and Social Sciences",
+            subjects: [
+                SubjectOption(subjectCode: "ARTS", displayName: "Arts"),
+                SubjectOption(subjectCode: "COGS", displayName: "Cognitive Science"),
+                SubjectOption(subjectCode: "COMM", displayName: "Communication"),
+                SubjectOption(subjectCode: "ECON", displayName: "Economics"),
+                SubjectOption(subjectCode: "GSAS", displayName: "Games and Simulation Arts and Sciences"),
+                SubjectOption(subjectCode: "IHSS", displayName: "Interdisciplinary Humanities and Social Sciences"),
+                SubjectOption(subjectCode: "INQR", displayName: "HASS Inquiry"),
+                SubjectOption(subjectCode: "LANG", displayName: "Foreign Languages"),
+                SubjectOption(subjectCode: "LITR", displayName: "Literature"),
+                SubjectOption(subjectCode: "PHIL", displayName: "Philosophy"),
+                SubjectOption(subjectCode: "PSYC", displayName: "Psychology"),
+                SubjectOption(subjectCode: "STSO", displayName: "Science, Technology, and Society"),
+                SubjectOption(subjectCode: "WRIT", displayName: "Writing"),
+            ]
+        ),
+        SubjectCategory(
+            id: "interdisciplinary",
+            title: "Interdisciplinary and Other",
+            subjects: [
+                SubjectOption(subjectCode: "ADMN", displayName: "Administrative Courses"),
+                SubjectOption(subjectCode: "USAF", displayName: "Aerospace Studies (Air Force ROTC)"),
+                SubjectOption(subjectCode: "USAR", displayName: "Military Science (Army ROTC)"),
+                SubjectOption(subjectCode: "USNA", displayName: "Naval Science (Navy ROTC)"),
+            ]
+        ),
+        SubjectCategory(
+            id: "engineering",
+            title: "Engineering",
+            subjects: [
+                SubjectOption(subjectCode: "BMED", displayName: "Biomedical Engineering"),
+                SubjectOption(subjectCode: "CHME", displayName: "Chemical Engineering"),
+                SubjectOption(subjectCode: "CIVL", displayName: "Civil Engineering"),
+                SubjectOption(subjectCode: "ECSE", displayName: "Electrical, Computer, and Systems Engineering"),
+                SubjectOption(subjectCode: "ENGR", displayName: "General Engineering"),
+                SubjectOption(subjectCode: "ENVE", displayName: "Environmental Engineering"),
+                SubjectOption(subjectCode: "ESCI", displayName: "Engineering Science"),
+                SubjectOption(subjectCode: "ISYE", displayName: "Industrial and Systems Engineering"),
+                SubjectOption(subjectCode: "MANE", displayName: "Mechanical, Aerospace, and Nuclear Engineering"),
+                SubjectOption(subjectCode: "MTLE", displayName: "Materials Science and Engineering"),
+            ]
+        ),
+        SubjectCategory(
+            id: "architecture",
+            title: "Architecture",
+            subjects: [
+                SubjectOption(subjectCode: "ARCH", displayName: "Architecture"),
+                SubjectOption(subjectCode: "LGHT", displayName: "Lighting"),
+            ]
+        ),
+        SubjectCategory(
+            id: "itws",
+            title: "Information Technology and Web Science",
+            subjects: [
+                SubjectOption(subjectCode: "ITWS", displayName: "Information Technology and Web Science"),
+            ]
+        ),
+        SubjectCategory(
+            id: "science",
+            title: "Science",
+            subjects: [
+                SubjectOption(subjectCode: "ASTR", displayName: "Astronomy"),
+                SubjectOption(subjectCode: "BCBP", displayName: "Biochemistry and Biophysics"),
+                SubjectOption(subjectCode: "BIOL", displayName: "Biology"),
+                SubjectOption(subjectCode: "CHEM", displayName: "Chemistry"),
+                SubjectOption(subjectCode: "CSCI", displayName: "Computer Science"),
+                SubjectOption(subjectCode: "ERTH", displayName: "Earth and Environmental Science"),
+                SubjectOption(subjectCode: "ISCI", displayName: "Interdisciplinary Science"),
+                SubjectOption(subjectCode: "MATH", displayName: "Mathematics"),
+                SubjectOption(subjectCode: "MATP", displayName: "Mathematical Programming, Probability, and Statistics"),
+                SubjectOption(subjectCode: "PHYS", displayName: "Physics"),
+            ]
+        ),
+        SubjectCategory(
+            id: "management",
+            title: "Management",
+            subjects: [
+                SubjectOption(subjectCode: "BUSN", displayName: "Business (H)"),
+                SubjectOption(subjectCode: "MGMT", displayName: "Management"),
+            ]
+        ),
+        SubjectCategory(
+            id: "uncategorized",
+            title: "Uncategorized",
+            subjects: [
+                SubjectOption(subjectCode: "ILEA", displayName: "Independent Learning Experience"),
+            ]
+        ),
+    ]
+}
+
+private struct SubjectOption: Identifiable, Equatable, Hashable {
     let subjectCode: String
     let displayName: String
 
     var id: String { subjectCode }
-
-    static let featured: [SubjectFilter] = [
-        SubjectFilter(subjectCode: "CSCI", displayName: "Computer Science"),
-        SubjectFilter(subjectCode: "ECON", displayName: "Economics"),
-        SubjectFilter(subjectCode: "ENGR", displayName: "Engineering"),
-        SubjectFilter(subjectCode: "MATH", displayName: "Mathematics"),
-        SubjectFilter(subjectCode: "PHYS", displayName: "Physics"),
-        SubjectFilter(subjectCode: "ECSE", displayName: "Electrical & Computer"),
-        SubjectFilter(subjectCode: "MANE", displayName: "Mechanical & Aero"),
-        SubjectFilter(subjectCode: "BIOL", displayName: "Biology"),
-        SubjectFilter(subjectCode: "BMED", displayName: "Biomedical"),
-        SubjectFilter(subjectCode: "MGMT", displayName: "Management"),
-        SubjectFilter(subjectCode: "IHSS", displayName: "Humanities"),
-        SubjectFilter(subjectCode: "STSH", displayName: "Science & Tech")
-    ]
 }
