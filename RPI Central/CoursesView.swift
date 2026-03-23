@@ -28,6 +28,14 @@ struct CoursesView: View {
         return SubjectFilter.featured.filter { availableSubjects.contains($0.subjectCode) }
     }
 
+    private var rowCardFill: Color {
+        Color(.secondarySystemBackground).opacity(0.72)
+    }
+
+    private var rowCardStroke: Color {
+        calendarViewModel.themeColor.opacity(0.08)
+    }
+
     private var filteredCourses: [Course] {
         let all = catalog.courses
         let baseCourses: [Course] = {
@@ -50,91 +58,141 @@ struct CoursesView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    HStack {
-                        Text("Term")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                        Spacer()
-
-                        Picker("", selection: $catalog.semester) {
-                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
-                                Text(sem.displayName).tag(sem)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
-                    .onChange(of: catalog.semester) { _, newValue in
-                        calendarViewModel.changeSemester(to: newValue)
-                    }
-                }
-
-                if !isSearching {
+                List {
                     Section {
-                        LazyVGrid(columns: filterColumns, spacing: 12) {
-                            ForEach(visibleSubjectFilters) { filter in
-                                Button {
-                                    if selectedSubjectFilter == filter {
-                                        selectedSubjectFilter = nil
-                                    } else {
-                                        selectedSubjectFilter = filter
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(filter.displayName)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(selectedSubjectFilter == filter ? .white : .primary)
+                        HStack {
+                            Text("Term")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                                        Text(filter.subjectCode)
-                                            .font(.caption.weight(.medium))
-                                            .foregroundStyle(selectedSubjectFilter == filter ? .white.opacity(0.8) : .secondary)
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(selectedSubjectFilter == filter ? calendarViewModel.themeColor : Color(.secondarySystemBackground))
-                                    )
+                            Spacer()
+
+                            Picker("", selection: $catalog.semester) {
+                                ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
+                                    Text(sem.displayName).tag(sem)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .pickerStyle(.menu)
                         }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(rowCardFill)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(rowCardStroke, lineWidth: 1)
+                        )
+                        .onChange(of: catalog.semester) { _, newValue in
+                            calendarViewModel.changeSemester(to: newValue)
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-                        if selectedSubjectFilter != nil {
-                            Button("Clear subject filter") {
-                                selectedSubjectFilter = nil
+                    if !isSearching {
+                        Section {
+                            VStack(alignment: .leading, spacing: 14) {
+                                LazyVGrid(columns: filterColumns, spacing: 12) {
+                                    ForEach(visibleSubjectFilters) { filter in
+                                        Button {
+                                            if selectedSubjectFilter == filter {
+                                                selectedSubjectFilter = nil
+                                            } else {
+                                                selectedSubjectFilter = filter
+                                            }
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(filter.displayName)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(selectedSubjectFilter == filter ? .white : .primary)
+
+                                                Text(filter.subjectCode)
+                                                    .font(.caption.weight(.medium))
+                                                    .foregroundStyle(selectedSubjectFilter == filter ? .white.opacity(0.8) : .secondary)
+                                            }
+                                            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                                            .padding(12)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                    .fill(selectedSubjectFilter == filter ? calendarViewModel.themeColor : rowCardFill)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                    .stroke(
+                                                        selectedSubjectFilter == filter ? calendarViewModel.themeColor.opacity(0.18) : rowCardStroke,
+                                                        lineWidth: 1
+                                                    )
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+
+                                if selectedSubjectFilter != nil {
+                                    Button("Clear subject filter") {
+                                        selectedSubjectFilter = nil
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                }
                             }
-                            .font(.subheadline.weight(.semibold))
+                        } header: {
+                            Text("Browse by Subject(and scroll down)")
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+
+                    Section {
+                        ForEach(filteredCourses) { course in
+                            NavigationLink {
+                                CourseDetailView(course: course)
+                                    .environmentObject(calendarViewModel)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(course.title)
+                                        .font(.headline)
+                                    Text("\(course.subject) \(course.number)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(rowCardFill)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(rowCardStroke, lineWidth: 1)
+                                )
+                            }
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         }
                     } header: {
-                        Text("Browse by Subject(and scroll down)")
-                    }
-                }
-
-                Section {
-                    ForEach(filteredCourses) { course in
-                        NavigationLink {
-                            CourseDetailView(course: course)
-                                .environmentObject(calendarViewModel)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(course.title)
-                                    .font(.headline)
-                                Text("\(course.subject) \(course.number)")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
+                        if let selectedSubjectFilter, !isSearching {
+                            Text("\(selectedSubjectFilter.displayName) Courses")
+                        } else {
+                            Text("Courses")
                         }
                     }
-                } header: {
-                    if let selectedSubjectFilter, !isSearching {
-                        Text("\(selectedSubjectFilter.displayName) Courses")
-                    } else {
-                        Text("Courses")
-                    }
                 }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Courses")
             .listStyle(.plain)

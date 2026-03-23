@@ -320,107 +320,121 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // GPA
-                Section {
-                    HStack {
-                        Text("Overall GPA")
-                            .font(.headline)
-                        Spacer()
-                        Text(GPACalculator.format(calendarViewModel.overallGPA()))
-                            .font(.headline)
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                List {
+                    // GPA
+                    Section {
+                        HStack {
+                            Text("Overall GPA")
+                                .font(.headline)
+                            Spacer()
+                            Text(GPACalculator.format(calendarViewModel.overallGPA()))
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    ForEach(calendarViewModel.homeSectionOrder) { section in
+                        if calendarViewModel.isHomeSectionEnabled(section) {
+                            homeDashboardSection(section)
+                        }
+                    }
+
+                    // Your existing per-semester enrollment list
+                    ForEach(sortedSemesters) { semester in
+                        let semCode = semester.rawValue
+                        let enrollments = groupedBySemester[semCode] ?? []
+                        let semesterName = semester.displayName
+
+                        Section {
+                            ForEach(enrollments, id: \.id) { enrollment in
+                                HStack(spacing: 12) {
+                                    NavigationLink {
+                                        CourseDetailView(course: enrollment.course)
+                                            .environmentObject(calendarViewModel)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("\(enrollment.course.subject) \(enrollment.course.number)")
+                                                .font(.headline)
+                                                .lineLimit(1)
+
+                                            Text(enrollment.course.title)
+                                                .font(.subheadline)
+                                                .lineLimit(1)
+
+                                            if let firstMeeting = enrollment.section.meetings.first {
+                                                Text(firstMeeting.humanReadableSummary)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                            }
+
+                                            if !enrollment.section.instructor.isEmpty {
+                                                Text(enrollment.section.instructor)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .layoutPriority(1)
+
+                                    GradeBreakdownButton(enrollmentID: enrollment.id)
+                                        .environmentObject(calendarViewModel)
+                                        .fixedSize(horizontal: true, vertical: false)
+                                        .layoutPriority(2)
+                                }
+                            }
+                            .onDelete { offsets in
+                                let toDelete = offsets.map { enrollments[$0] }
+                                for e in toDelete {
+                                    calendarViewModel.removeEnrollment(e)
+                                }
+                            }
+
+                            if enrollments.isEmpty {
+                                Text("No courses recorded for this semester.")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Button {
+                                editingSemesterGPA = semester
+                            } label: {
+                                Label(
+                                    calendarViewModel.semesterGPAOverride(for: semCode) == nil ? "Set Semester GPA" : "Edit Semester GPA",
+                                    systemImage: "slider.horizontal.3"
+                                )
+                            }
+                        } header: {
+                            HStack {
+                                Text(semesterName)
+                                Spacer()
+                                let termGPA = calendarViewModel.gpa(for: semCode)
+                                Text("GPA \(GPACalculator.format(termGPA))")
+                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
+
+                    if calendarViewModel.enrolledCourses.isEmpty {
+                        Text("No courses yet. Add some from the Courses tab.")
                             .foregroundStyle(.secondary)
                     }
                 }
-
-                ForEach(calendarViewModel.homeSectionOrder) { section in
-                    if calendarViewModel.isHomeSectionEnabled(section) {
-                        homeDashboardSection(section)
-                    }
-                }
-
-                // Your existing per-semester enrollment list
-                ForEach(sortedSemesters) { semester in
-                    let semCode = semester.rawValue
-                    let enrollments = groupedBySemester[semCode] ?? []
-                    let semesterName = semester.displayName
-
-                    Section {
-                        ForEach(enrollments, id: \.id) { enrollment in
-                            HStack(spacing: 12) {
-                                NavigationLink {
-                                    CourseDetailView(course: enrollment.course)
-                                        .environmentObject(calendarViewModel)
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("\(enrollment.course.subject) \(enrollment.course.number)")
-                                            .font(.headline)
-                                            .lineLimit(1)
-
-                                        Text(enrollment.course.title)
-                                            .font(.subheadline)
-                                            .lineLimit(1)
-
-                                        if let firstMeeting = enrollment.section.meetings.first {
-                                            Text(firstMeeting.humanReadableSummary)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-
-                                        if !enrollment.section.instructor.isEmpty {
-                                            Text(enrollment.section.instructor)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .layoutPriority(1)
-
-                                GradeBreakdownButton(enrollmentID: enrollment.id)
-                                    .environmentObject(calendarViewModel)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                    .layoutPriority(2)
-                            }
-                        }
-                        .onDelete { offsets in
-                            let toDelete = offsets.map { enrollments[$0] }
-                            for e in toDelete {
-                                calendarViewModel.removeEnrollment(e)
-                            }
-                        }
-
-                        if enrollments.isEmpty {
-                            Text("No courses recorded for this semester.")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Button {
-                            editingSemesterGPA = semester
-                        } label: {
-                            Label(
-                                calendarViewModel.semesterGPAOverride(for: semCode) == nil ? "Set Semester GPA" : "Edit Semester GPA",
-                                systemImage: "slider.horizontal.3"
-                            )
-                        }
-                    } header: {
-                        HStack {
-                            Text(semesterName)
-                            Spacer()
-                            let termGPA = calendarViewModel.gpa(for: semCode)
-                            Text("GPA \(GPACalculator.format(termGPA))")
-                                .foregroundStyle(.secondary)
-                                .font(.subheadline)
-                        }
-                    }
-                }
-
-                if calendarViewModel.enrolledCourses.isEmpty {
-                    Text("No courses yet. Add some from the Courses tab.")
-                        .foregroundStyle(.secondary)
-                }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("RPI Central")
             .tint(calendarViewModel.themeColor)

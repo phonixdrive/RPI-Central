@@ -4,99 +4,227 @@ struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
 
+    @AppStorage("social.feedRefreshIntervalSeconds") private var feedRefreshIntervalSeconds = 30
+    @State private var selectedSection: SocialHubSection = .friends
     @State private var authMode: AuthMode = .login
     @State private var displayName: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var profileDisplayName: String = ""
     @State private var searchQuery: String = ""
+    @State private var showFriendTools = false
+    @State private var showCreateGroup = false
+    @State private var showFeedComposer = false
     @State private var selectedFriendSchedule: FriendScheduleResponse?
     @FocusState private var searchFieldFocused: Bool
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
+    private var feedRefreshTaskID: String {
+        "\(selectedSection.rawValue)-\(feedRefreshIntervalSeconds)-\(socialManager.currentUser?.id ?? "none")"
+    }
+    private var scheduleSyncTaskID: String {
+        [
+            socialManager.currentUser?.id ?? "none",
+            calendarViewModel.currentSemester.rawValue,
+            String(calendarViewModel.events.count),
+            String(calendarViewModel.enrolledCourses.count),
+            String(friendCount)
+        ].joined(separator: "|")
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(.systemGroupedBackground),
-                        calendarViewModel.themeColor.opacity(0.14),
-                        Color(.systemBackground),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+        socialHubScreen
+    }
+
+    private var socialHubScreen: AnyView {
+        let navigation = AnyView(
+            NavigationStack {
+                rootContent
+            }
+        )
+
+        let decorated = AnyView(
+            navigation
+                .navigationTitle("Social")
+                .toolbar { toolbarContent }
+                .refreshable {
+                    guard socialManager.isAuthenticated else { return }
+                    await socialManager.refreshOverview()
+                }
+                .sheet(item: $selectedFriendSchedule) { schedule in friendScheduleSheet(schedule) }
+                .sheet(isPresented: $showFriendTools) { friendToolsSheet }
+                .sheet(isPresented: $showCreateGroup) { createGroupSheet }
+                .sheet(isPresented: $showFeedComposer) { feedComposerSheet }
+        )
+
+        let withTasks = AnyView(
+            decorated
+                .task {
+                    if socialManager.isAuthenticated && socialManager.overview == nil {
+                        await socialManager.refreshOverview()
+                    }
+                    syncProfileDisplayName()
+                    await syncSharedScheduleIfNeeded()
+                }
+                .task(id: socialManager.currentUser?.displayName) {
+                    syncProfileDisplayName()
+                }
+                .task(id: socialManager.currentUser?.id) {
+                    syncProfileDisplayName()
+                }
+                .task(id: scheduleSyncTaskID) {
+                    await syncSharedScheduleIfNeeded()
+                }
+                .task(id: feedRefreshTaskID) {
+                    await runFeedRefreshLoop()
+                }
+                .task(id: selectedSection) {
+                    guard selectedSection == .feed else { return }
+                    await socialManager.refreshOverview()
+                }
+        )
+
+        return withTasks
+    }
+
+    private var rootContent: some View {
+        ZStack {
+            backgroundGradient
+
+            VStack(spacing: 0) {
+                if shouldShowSectionBar {
+                    sectionBar
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                }
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        heroCard
-                        setupCard
-
-                        if socialManager.isFirebaseAvailable && socialManager.isAuthenticated {
-                            profileCard
-                            sharingCard
-                            if calendarViewModel.socialDemoToolsEnabled {
-                                demoCard
-                            }
-                            findFriendsCard
-                            requestsCard
-                            friendsCard
-                        } else if socialManager.isFirebaseAvailable {
-                            authCard
-                        }
+                        screenSections
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 18)
                 }
             }
-            .navigationTitle("Social")
-            .toolbar {
-                if socialManager.isAuthenticated {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            Task { await socialManager.refreshOverview() }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                }
+        }
+    }
 
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        searchFieldFocused = false
-                    }
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemGroupedBackground),
+                calendarViewModel.themeColor.opacity(0.14),
+                Color(.systemBackground),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private var shouldShowSectionBar: Bool {
+        socialManager.isFirebaseAvailable && socialManager.isAuthenticated
+    }
+
+    @ViewBuilder
+    private var screenSections: some View {
+        if socialManager.isFirebaseAvailable && socialManager.isAuthenticated {
+            authenticatedSections
+        } else if socialManager.isFirebaseAvailable {
+            unauthenticatedSections
+        } else {
+            setupCard
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedSections: some View {
+        switch selectedSection {
+        case .profile:
+            heroCard
+            setupCard
+            profileCard
+            sharingCard
+            if calendarViewModel.socialDemoToolsEnabled {
+                demoCard
+            }
+        case .feed:
+            feedHeaderCard
+            feedListCard
+        case .friends:
+            friendToolsCard
+            groupsCard
+            friendsCard
+        }
+    }
+
+    @ViewBuilder
+    private var unauthenticatedSections: some View {
+        heroCard
+        setupCard
+        authCard
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if socialManager.isAuthenticated {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await socialManager.refreshOverview() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
                 }
             }
-            .refreshable {
-                guard socialManager.isAuthenticated else { return }
-                await socialManager.refreshOverview()
+        }
+
+        ToolbarItemGroup(placement: .keyboard) {
+            Spacer()
+            Button("Done") {
+                searchFieldFocused = false
             }
-            .sheet(item: $selectedFriendSchedule) { schedule in
-                FriendScheduleView(response: schedule)
-            }
-            .task {
-                if socialManager.isAuthenticated && socialManager.overview == nil {
-                    await socialManager.refreshOverview()
-                }
-                syncProfileDisplayName()
+        }
+    }
+
+    private var createGroupSheet: some View {
+        FriendGroupEditorView(
+            friends: socialManager.overview?.friends ?? [],
+            accent: calendarViewModel.themeColor
+        ) { name, memberIDs in
+            let created = await socialManager.createFriendGroup(name: name, memberIDs: memberIDs)
+            if created {
                 await syncSharedScheduleIfNeeded()
             }
-            .task(id: socialManager.currentUser?.displayName) {
-                syncProfileDisplayName()
-            }
-            .onChange(of: calendarViewModel.currentSemester) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
-            .onChange(of: calendarViewModel.events.count) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
-            .onChange(of: calendarViewModel.enrolledCourses.count) {
-                Task { await syncSharedScheduleIfNeeded() }
-            }
+            return created
+        }
+    }
+
+    private var feedComposerSheet: some View {
+        FeedComposerView(
+            groups: socialManager.friendGroups,
+            accent: calendarViewModel.themeColor
+        ) { title, location, details, startsAt, visibility, groupIDs in
+            await socialManager.createFeedPost(
+                title: title,
+                location: location,
+                details: details,
+                startsAt: startsAt,
+                visibility: visibility,
+                groupIDs: groupIDs
+            )
+        }
+    }
+
+    private func friendScheduleSheet(_ schedule: FriendScheduleResponse) -> some View {
+        FriendScheduleView(response: schedule)
+    }
+
+    private var sectionBar: some View {
+        HStack(spacing: 10) {
+            sectionButton(title: "Friends", section: .friends, badgeCount: incomingCount)
+            sectionButton(title: "Feed", section: .feed)
+            sectionButton(title: "Profile", section: .profile)
         }
     }
 
@@ -364,7 +492,53 @@ struct SocialHubView: View {
         }
     }
 
-    private var findFriendsCard: some View {
+    private var friendToolsCard: some View {
+        SocialCard(
+            background: Color(red: 0.20, green: 0.22, blue: 0.26),
+            stroke: Color.white.opacity(0.08)
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Friend Tools", systemImage: "person.badge.plus")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+
+                Text("Open friend search and review incoming or outgoing requests in one place.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.white.opacity(0.72))
+
+                HStack(spacing: 12) {
+                    statPill(
+                        title: "Incoming",
+                        value: "\(incomingCount)",
+                        background: Color.white.opacity(0.10),
+                        valueColor: .white,
+                        titleColor: Color.white.opacity(0.66)
+                    )
+                    statPill(
+                        title: "Outgoing",
+                        value: "\(socialManager.overview?.outgoingRequests.count ?? 0)",
+                        background: Color.white.opacity(0.10),
+                        valueColor: .white,
+                        titleColor: Color.white.opacity(0.66)
+                    )
+                }
+
+                Button {
+                    showFriendTools = true
+                } label: {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                        Text("Add Friends or Review Requests")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    private var findFriendsSearchCard: some View {
         SocialCard {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Find Friends", systemImage: "magnifyingglass")
@@ -466,6 +640,191 @@ struct SocialHubView: View {
                     Text("No friends yet.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var groupsCard: some View {
+        let groups = socialManager.friendGroups
+        let friends = socialManager.overview?.friends ?? []
+        let namesByID = Dictionary(uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) })
+
+        return SocialCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Friend Groups", systemImage: "person.3.fill")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Button {
+                        showCreateGroup = true
+                    } label: {
+                        Label("New Group", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(friends.isEmpty)
+                }
+
+                Text("Create smaller circles for personal-event sharing and future social features.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if groups.isEmpty {
+                    Text(friends.isEmpty ? "Add a friend first to start building groups." : "No groups yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(groups) { group in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(group.name)
+                                            .font(.headline)
+                                        Text("\(group.memberIDs.count) member\(group.memberIDs.count == 1 ? "" : "s")")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Button("Delete", role: .destructive) {
+                                        Task {
+                                            let deleted = await socialManager.deleteFriendGroup(group.id)
+                                            if deleted {
+                                                await syncSharedScheduleIfNeeded()
+                                            }
+                                        }
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                }
+
+                                Text(groupSummary(for: group, namesByID: namesByID))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var feedHeaderCard: some View {
+        SocialCard(
+            background: Color(red: 0.16, green: 0.18, blue: 0.23),
+            stroke: Color.white.opacity(0.08)
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Campus Feed")
+                            .font(.title3.bold())
+                            .foregroundStyle(.white)
+                        Text("Share what you are doing right now and let people join in.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.white.opacity(0.72))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .padding(12)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        showFeedComposer = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                            Text("Create activity")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Menu {
+                        ForEach(FeedRefreshOption.allCases) { option in
+                            Button {
+                                feedRefreshIntervalSeconds = option.seconds
+                            } label: {
+                                HStack {
+                                    Text(option.title)
+                                    if feedRefreshIntervalSeconds == option.seconds {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.clockwise")
+                            Text(FeedRefreshOption(seconds: feedRefreshIntervalSeconds).title)
+                                .font(.caption.weight(.semibold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.12)))
+                    }
+                    .foregroundStyle(.white)
+                }
+
+                Text("Double-tap-style behavior: tapping an active response again clears it.")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.62))
+            }
+        }
+    }
+
+    private var feedListCard: some View {
+        SocialCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Live Activity")
+                            .font(.headline)
+                        Text("Recent plans, meetups, and who is already there.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        Task { await socialManager.refreshOverview() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if socialManager.feedItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No activity yet.")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Start the feed with a study session, meal plan, or hangout.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                } else {
+                    LazyVStack(spacing: 12) {
+                        ForEach(socialManager.feedItems) { item in
+                            feedPostCard(item)
+                        }
+                    }
                 }
             }
         }
@@ -591,6 +950,113 @@ struct SocialHubView: View {
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
     }
 
+    private func feedPostCard(_ item: SocialFeedItem) -> some View {
+        let hereResponses = item.responses.filter { $0.status == .here }
+        let goingResponses = item.responses.filter { $0.status == .going }
+        let myStatus = item.responses.first { $0.userID == socialManager.currentUser?.id }?.status
+        let isOwnPost = item.post.ownerID == socialManager.currentUser?.id
+        let isEnded = feedIsEnded(item)
+        let isUpcoming = feedIsUpcoming(item)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(calendarViewModel.themeColor.opacity(0.14))
+                        .frame(width: 42, height: 42)
+                        .overlay(
+                            Text(String(item.post.ownerDisplayName.prefix(1)).uppercased())
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+                        )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.post.title)
+                            .font(.headline)
+                        HStack(spacing: 8) {
+                            Text(item.post.ownerDisplayName)
+                                .font(.subheadline.weight(.semibold))
+                            Text("@\(item.post.ownerUsername)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    badgeLabel(feedStateText(for: item), color: feedStateColor(for: item))
+                    badgeLabel(feedVisibilityText(for: item.post), color: .secondary)
+                }
+            }
+
+            if !item.post.location.isEmpty {
+                Label(item.post.location, systemImage: "mappin.and.ellipse")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Label(feedTimingText(for: item), systemImage: isEnded ? "checkmark.circle" : "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if !item.post.details.isEmpty {
+                Text(item.post.details)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                feedPresencePill("Going", count: goingResponses.count, names: goingResponses.map(\.displayName), color: .blue)
+                feedPresencePill("Here", count: hereResponses.count, names: hereResponses.map(\.displayName), color: .green)
+            }
+
+            if !isEnded {
+                HStack(spacing: 8) {
+                    feedActionButton("Going", icon: "figure.walk", isSelected: myStatus == .going) {
+                        Task {
+                            let nextStatus: SocialFeedPresenceStatus? = myStatus == .going ? nil : .going
+                            _ = await socialManager.setFeedPresence(postID: item.post.id, status: nextStatus)
+                        }
+                    }
+
+                    if !isUpcoming {
+                        feedActionButton("Here", icon: "location.fill", isSelected: myStatus == .here) {
+                            Task {
+                                let nextStatus: SocialFeedPresenceStatus? = myStatus == .here ? nil : .here
+                                _ = await socialManager.setFeedPresence(postID: item.post.id, status: nextStatus)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if isOwnPost {
+                HStack(spacing: 10) {
+                    if !isEnded {
+                        Button("Mark ended") {
+                            Task {
+                                _ = await socialManager.endFeedPost(item.post.id)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button("Delete post", role: .destructive) {
+                        Task {
+                            _ = await socialManager.deleteFeedPost(item.post.id)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+    }
+
     private func statPill(
         title: String,
         value: String,
@@ -620,6 +1086,35 @@ struct SocialHubView: View {
             .foregroundStyle(color)
     }
 
+    private func feedPresencePill(_ title: String, count: Int, names: [String], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(count) \(title.lowercased())")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+            if !names.isEmpty {
+                Text(names.prefix(2).joined(separator: ", "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 14).fill(color.opacity(0.08)))
+    }
+
+    private func feedActionButton(_ title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(isSelected ? calendarViewModel.themeColor : Color(.tertiarySystemFill))
+    }
+
     private func messageBanner(text: String, color: Color) -> some View {
         Text(text)
             .font(.caption)
@@ -627,6 +1122,80 @@ struct SocialHubView: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.08)))
+    }
+
+    private var friendToolsSheet: some View {
+        NavigationStack {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        findFriendsSearchCard
+                        requestsCard
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 18)
+                }
+            }
+            .navigationTitle("Friends")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        showFriendTools = false
+                    }
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        searchFieldFocused = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func sectionButton(title: String, section: SocialHubSection, badgeCount: Int = 0) -> some View {
+        let isSelected = selectedSection == section
+
+        return Button {
+            selectedSection = section
+        } label: {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                if badgeCount > 0 {
+                    Text("\(badgeCount)")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(isSelected ? Color.white.opacity(0.2) : calendarViewModel.themeColor.opacity(0.16)))
+                }
+            }
+            .foregroundStyle(isSelected ? .white : .primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? calendarViewModel.themeColor : Color(.secondarySystemBackground).opacity(0.78))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? calendarViewModel.themeColor.opacity(0.2) : Color.primary.opacity(0.05), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func syncSharedScheduleIfNeeded() async {
@@ -637,6 +1206,430 @@ struct SocialHubView: View {
 
     private func syncProfileDisplayName() {
         profileDisplayName = socialManager.currentUser?.displayName ?? ""
+    }
+
+    private func runFeedRefreshLoop() async {
+        guard socialManager.isAuthenticated, selectedSection == .feed else { return }
+        guard feedRefreshIntervalSeconds > 0 else { return }
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(feedRefreshIntervalSeconds) * 1_000_000_000)
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled,
+                  socialManager.isAuthenticated,
+                  selectedSection == .feed,
+                  feedRefreshIntervalSeconds > 0 else { return }
+
+            await socialManager.refreshOverview()
+        }
+    }
+
+    private func groupSummary(for group: SocialFriendGroup, namesByID: [String: String]) -> String {
+        let names = group.memberIDs.compactMap { namesByID[$0] }
+        if names.isEmpty {
+            return "Members unavailable"
+        }
+        if names.count <= 3 {
+            return names.joined(separator: ", ")
+        }
+        return "\(names.prefix(3).joined(separator: ", ")) +\(names.count - 3)"
+    }
+
+    private func feedStateText(for item: SocialFeedItem) -> String {
+        if feedIsEnded(item) {
+            return "Ended"
+        }
+        return feedIsUpcoming(item) ? "Upcoming" : "Ongoing"
+    }
+
+    private func feedStateColor(for item: SocialFeedItem) -> Color {
+        switch feedStateText(for: item) {
+        case "Upcoming":
+            return .blue
+        case "Ongoing":
+            return .green
+        default:
+            return .secondary
+        }
+    }
+
+    private func feedVisibilityText(for post: SocialFeedPost) -> String {
+        switch post.visibility {
+        case .friends:
+            return "Friends"
+        case .everyone:
+            return "Everybody"
+        case .groups:
+            return "Groups"
+        }
+    }
+
+    private func feedTimingText(for item: SocialFeedItem) -> String {
+        let now = Date()
+        if let endedAt = feedDate(item.post.endedAt) {
+            return "Ended \(FeedFormatters.relative.localizedString(for: endedAt, relativeTo: now))"
+        }
+        if let startsAt = feedDate(item.post.startsAt) {
+            if startsAt > now {
+                return "Starts \(FeedFormatters.shortDateTime.string(from: startsAt))"
+            }
+            return "Started \(FeedFormatters.relative.localizedString(for: startsAt, relativeTo: now))"
+        }
+        return "Recently posted"
+    }
+
+    private func feedDate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        return FeedFormatters.iso.date(from: value)
+    }
+
+    private func feedIsEnded(_ item: SocialFeedItem) -> Bool {
+        feedDate(item.post.endedAt) != nil
+    }
+
+    private func feedIsUpcoming(_ item: SocialFeedItem) -> Bool {
+        guard let startsAt = feedDate(item.post.startsAt), !feedIsEnded(item) else { return false }
+        return startsAt > Date()
+    }
+}
+
+private enum SocialHubSection: String {
+    case friends
+    case feed
+    case profile
+}
+
+private enum FeedRefreshOption: Int, CaseIterable, Identifiable {
+    case off = 0
+    case fifteen = 15
+    case thirty = 30
+    case sixty = 60
+
+    var id: Int { rawValue }
+    var seconds: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return "Refresh off"
+        case .fifteen: return "15s"
+        case .thirty: return "30s"
+        case .sixty: return "60s"
+        }
+    }
+
+    init(seconds: Int) {
+        self = FeedRefreshOption(rawValue: seconds) ?? .thirty
+    }
+}
+
+private struct FeedComposerView: View {
+    let groups: [SocialFriendGroup]
+    let accent: Color
+    let onSave: (
+        _ title: String,
+        _ location: String,
+        _ details: String,
+        _ startsAt: Date,
+        _ visibility: SocialFeedVisibility,
+        _ groupIDs: [String]
+    ) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: FeedComposerField?
+    @State private var title = ""
+    @State private var location = ""
+    @State private var details = ""
+    @State private var startsAt = Date()
+    @State private var visibility: SocialFeedVisibility = .friends
+    @State private var selectedGroupIDs: Set<String> = []
+    @State private var isSaving = false
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            (visibility != .groups || !selectedGroupIDs.isEmpty) &&
+            !isSaving
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    SocialCard(
+                        background: Color(red: 0.16, green: 0.18, blue: 0.23),
+                        stroke: Color.white.opacity(0.08)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Create Activity")
+                                .font(.title3.bold())
+                                .foregroundStyle(.white)
+                            Text("Post something people can join, keep it ongoing, and end it when you are done.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.white.opacity(0.72))
+                        }
+                    }
+
+                    SocialCard {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Activity")
+                                    .font(.subheadline.weight(.semibold))
+
+                                TextField("Studying at Union", text: $title)
+                                    .textInputAutocapitalization(.sentences)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .title)
+
+                                TextField("Location", text: $location)
+                                    .textInputAutocapitalization(.words)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .location)
+
+                                TextField("Optional details", text: $details, axis: .vertical)
+                                    .textInputAutocapitalization(.sentences)
+                                    .lineLimit(2...5)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .details)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Starts")
+                                    .font(.subheadline.weight(.semibold))
+
+                                DatePicker(
+                                    "Start time",
+                                    selection: $startsAt,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .datePickerStyle(.compact)
+                                .tint(accent)
+                            }
+
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Visibility")
+                                    .font(.subheadline.weight(.semibold))
+
+                                Picker("Visibility", selection: $visibility) {
+                                    ForEach(SocialFeedVisibility.allCases) { option in
+                                        Text(option.title).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                if visibility == .groups {
+                                    if groups.isEmpty {
+                                        Text("Create a friend group first before posting a group-only activity.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        VStack(spacing: 10) {
+                                            ForEach(groups) { group in
+                                                Button {
+                                                    toggle(group.id)
+                                                } label: {
+                                                    HStack(spacing: 10) {
+                                                        Image(systemName: selectedGroupIDs.contains(group.id) ? "checkmark.circle.fill" : "circle")
+                                                            .foregroundStyle(selectedGroupIDs.contains(group.id) ? accent : .secondary)
+                                                        VStack(alignment: .leading, spacing: 2) {
+                                                            Text(group.name)
+                                                                .foregroundStyle(.primary)
+                                                            Text("\(group.memberIDs.count) member\(group.memberIDs.count == 1 ? "" : "s")")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        Spacer()
+                                                    }
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        accent.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .navigationTitle("New Activity")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Post") {
+                        isSaving = true
+                        let selectedIDs = Array(selectedGroupIDs).sorted()
+                        Task {
+                            let didSave = await onSave(
+                                title.trimmingCharacters(in: .whitespacesAndNewlines),
+                                location.trimmingCharacters(in: .whitespacesAndNewlines),
+                                details.trimmingCharacters(in: .whitespacesAndNewlines),
+                                startsAt,
+                                visibility,
+                                selectedIDs
+                            )
+                            await MainActor.run {
+                                isSaving = false
+                                if didSave {
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                    .disabled(!canSave)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private func toggle(_ groupID: String) {
+        if selectedGroupIDs.contains(groupID) {
+            selectedGroupIDs.remove(groupID)
+        } else {
+            selectedGroupIDs.insert(groupID)
+        }
+    }
+}
+
+private enum FeedComposerField: Hashable {
+    case title
+    case location
+    case details
+}
+
+private struct FriendGroupEditorView: View {
+    let friends: [SocialFriend]
+    let accent: Color
+    let onSave: (_ name: String, _ memberIDs: [String]) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var groupName = ""
+    @State private var selectedMemberIDs: Set<String> = []
+    @State private var isSaving = false
+
+    private var sortedFriends: [SocialFriend] {
+        friends.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private var canSave: Bool {
+        !groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !selectedMemberIDs.isEmpty && !isSaving
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Group") {
+                    TextField("Group name", text: $groupName)
+                        .textInputAutocapitalization(.words)
+                }
+
+                Section("Members") {
+                    if sortedFriends.isEmpty {
+                        Text("No friends available yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(sortedFriends) { friend in
+                            Button {
+                                toggle(friend.id)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: selectedMemberIDs.contains(friend.id) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(selectedMemberIDs.contains(friend.id) ? accent : .secondary)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(friend.displayName)
+                                            .foregroundStyle(.primary)
+                                        Text("@\(friend.username)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        accent.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .navigationTitle("New Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        let trimmed = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let members = Array(selectedMemberIDs).sorted()
+                        isSaving = true
+                        Task {
+                            let didSave = await onSave(trimmed, members)
+                            await MainActor.run {
+                                isSaving = false
+                                if didSave {
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                    .disabled(!canSave)
+                }
+            }
+        }
+    }
+
+    private func toggle(_ friendID: String) {
+        if selectedMemberIDs.contains(friendID) {
+            selectedMemberIDs.remove(friendID)
+        } else {
+            selectedMemberIDs.insert(friendID)
+        }
     }
 }
 
@@ -730,6 +1723,23 @@ private enum AuthMode: String, CaseIterable, Identifiable {
             return !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
+}
+
+private enum FeedFormatters {
+    static let iso = ISO8601DateFormatter()
+
+    static let shortDateTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static let relative: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
 }
 
 private struct FriendScheduleView: View {
@@ -1044,7 +2054,7 @@ private struct FriendScheduleDayCell: View {
     var body: some View {
         let calendar = Calendar.current
         let inMonth = calendar.isDate(date, equalTo: monthStart, toGranularity: .month)
-        let hasAcademicDay = summary.markerStyles.contains(.academic)
+        let hasBreakDay = summary.markerStyles.contains(.breakDay)
 
         VStack(spacing: 3) {
             HStack(spacing: 3) {
@@ -1092,7 +2102,7 @@ private struct FriendScheduleDayCell: View {
             Group {
                 if isSelected {
                     Color.white
-                } else if hasAcademicDay {
+                } else if hasBreakDay {
                     Color.orange.opacity(0.22)
                 } else {
                     Color.clear
@@ -1115,7 +2125,13 @@ private struct FriendScheduleDayCell: View {
 private enum FriendScheduleMarkerStyle: Hashable {
     case classMeeting
     case assignment
-    case academic
+    case holiday
+    case breakDay
+    case readingDays
+    case finals
+    case noClasses
+    case followDay
+    case academicOther
     case personal
 
     init(kind: String) {
@@ -1124,8 +2140,20 @@ private enum FriendScheduleMarkerStyle: Hashable {
             self = .classMeeting
         case "assignment":
             self = .assignment
-        case "academic":
-            self = .academic
+        case "holiday":
+            self = .holiday
+        case "break":
+            self = .breakDay
+        case "readingDays":
+            self = .readingDays
+        case "finals":
+            self = .finals
+        case "noClasses":
+            self = .noClasses
+        case "followDay":
+            self = .followDay
+        case "academicOther", "academic":
+            self = .academicOther
         default:
             self = .personal
         }
@@ -1137,8 +2165,20 @@ private enum FriendScheduleMarkerStyle: Hashable {
             return accent
         case .assignment:
             return .blue
-        case .academic:
+        case .holiday:
+            return .red
+        case .breakDay:
             return .orange
+        case .readingDays:
+            return .blue
+        case .finals:
+            return .purple
+        case .noClasses:
+            return .gray
+        case .followDay:
+            return .teal
+        case .academicOther:
+            return .yellow
         case .personal:
             return accent.opacity(0.7)
         }
@@ -1150,7 +2190,19 @@ private enum FriendScheduleMarkerStyle: Hashable {
             return isExam ? "Class + Exam" : "Class"
         case .assignment:
             return "Assignment"
-        case .academic:
+        case .holiday:
+            return "Holiday"
+        case .breakDay:
+            return "Break"
+        case .readingDays:
+            return "Reading Days"
+        case .finals:
+            return "Finals"
+        case .noClasses:
+            return "No Classes"
+        case .followDay:
+            return "Follow Day"
+        case .academicOther:
             return "Academic"
         case .personal:
             return "Personal"

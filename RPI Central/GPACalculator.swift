@@ -505,6 +505,7 @@ private extension ButtonStyle where Self == ThemedPillButtonStyle {
 
 struct GradeBreakdownButton: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
+    @Environment(\.colorScheme) private var colorScheme
     let enrollmentID: String
 
     @State private var showBreakdown = false
@@ -531,8 +532,19 @@ struct GradeBreakdownButton: View {
             .frame(minWidth: 62, alignment: .trailing)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Color(.secondarySystemBackground))
-            .clipShape(Capsule())
+            .background(
+                Capsule()
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.14)
+                            : Color.black.opacity(0.06),
+                        lineWidth: 1
+                    )
+            )
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showBreakdown) {

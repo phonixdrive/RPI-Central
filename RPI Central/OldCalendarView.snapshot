@@ -23,56 +23,8 @@ enum CalendarDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
-fileprivate enum CalendarChrome {
-    static func backgroundGradient(theme: Color) -> LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(.systemGroupedBackground),
-                theme.opacity(0.14),
-                Color(.systemBackground),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    static func surface(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark
-            ? Color(.secondarySystemBackground).opacity(0.94)
-            : Color(.systemBackground).opacity(0.96)
-    }
-
-    static func elevatedSurface(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark
-            ? Color(.tertiarySystemBackground).opacity(0.88)
-            : Color.white.opacity(0.86)
-    }
-
-    static func line(_ colorScheme: ColorScheme) -> Color {
-        Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.10)
-    }
-
-    static func primaryText(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? .white : .primary
-    }
-
-    static func secondaryText(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white.opacity(0.70) : .secondary
-    }
-
-    static func selectedFill(theme: Color, colorScheme: ColorScheme) -> Color {
-        theme.opacity(colorScheme == .dark ? 0.28 : 0.16)
-    }
-
-    static func selectedText(_ colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? .white : .primary
-    }
-}
-
 struct CalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
-    @Environment(\.colorScheme) private var colorScheme
     @State private var displayMode: CalendarDisplayMode = .week
 
     // ✅ Add-event sheet
@@ -87,15 +39,16 @@ struct CalendarView: View {
     // ✅ NEW: when user presses Continue, suppress ALL loading overlays for this session
     @State private var suppressLoadingOverlays: Bool = false
 
+    private let backgroundColor = Color(red: 0x20/255.0, green: 0x22/255.0, blue: 0x24/255.0)
+    private let barColor        = Color(red: 0x2B/255.0, green: 0x2D/255.0, blue: 0x30/255.0)
+
     var body: some View {
         ZStack {
-            CalendarChrome.backgroundGradient(theme: viewModel.themeColor).ignoresSafeArea()
+            backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 topBar
-                Rectangle()
-                    .fill(CalendarChrome.line(colorScheme))
-                    .frame(height: 1)
+                Divider()
                 content
             }
             // ✅ Keep your background swipe navigation (overlap stacks use highPriorityGesture)
@@ -141,7 +94,6 @@ struct CalendarView: View {
             .sheet(isPresented: $showingAddEvent) {
                 AddEventView(date: viewModel.selectedDate, isPresented: $showingAddEvent)
                     .environmentObject(viewModel)
-                    .environmentObject(socialManager)
             }
 
             // ✅ Fullscreen boot overlay (shown only if NOT suppressed)
@@ -174,14 +126,14 @@ struct CalendarView: View {
                     Color.black.opacity(0.20).ignoresSafeArea()
                     HStack(spacing: 10) {
                         ProgressView()
-                            .tint(CalendarChrome.primaryText(colorScheme))
+                            .tint(.white)
                         Text("Loading calendar…")
-                            .foregroundColor(CalendarChrome.primaryText(colorScheme))
+                            .foregroundColor(.white)
                             .font(.callout)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(CalendarChrome.elevatedSurface(colorScheme))
+                    .background(Color.white.opacity(0.12))
                     .cornerRadius(12)
                 }
                 .zIndex(999)
@@ -284,22 +236,10 @@ struct CalendarView: View {
                 Image(systemName: "chevron.right")
             }
         }
-        .foregroundColor(CalendarChrome.primaryText(colorScheme))
+        .foregroundColor(.white)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            CalendarChrome.surface(colorScheme)
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            viewModel.themeColor.opacity(colorScheme == .dark ? 0.22 : 0.10),
-                            .clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
+        .background(barColor)
     }
 
     private var monthPicker: some View {
@@ -403,8 +343,6 @@ struct CalendarView: View {
 
 struct TimelineCalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
-    @Environment(\.colorScheme) private var colorScheme
 
     let days: [Date]
     let displayMode: CalendarDisplayMode
@@ -445,22 +383,15 @@ struct TimelineCalendarView: View {
                     VStack(spacing: 2) {
                         Text(day.formatted("EEE"))
                             .font(.subheadline.bold())
-                            .foregroundColor(isToday ? viewModel.themeColor : CalendarChrome.primaryText(colorScheme))
+                            .foregroundColor(isToday ? viewModel.themeColor : .white)
 
                         Text(day.formatted("MM/dd"))
                             .font(.caption)
-                            .foregroundColor(
-                                isToday
-                                    ? CalendarChrome.selectedText(colorScheme)
-                                    : CalendarChrome.secondaryText(colorScheme)
-                            )
+                            .foregroundColor(isToday ? .black.opacity(0.85) : .secondary)
                     }
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(isToday ? CalendarChrome.selectedFill(theme: viewModel.themeColor, colorScheme: colorScheme) : Color.clear)
-                    )
+                    .background(isToday ? Color.white : Color.clear)
                     .cornerRadius(10)
                 }
             }
@@ -494,11 +425,11 @@ struct TimelineCalendarView: View {
                                         Text(ev.title)
                                             .font(.caption2)
                                             .lineLimit(1)
-                                            .foregroundColor(CalendarChrome.primaryText(colorScheme))
+                                            .foregroundColor(.white)
                                     }
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 3)
-                                    .background(CalendarChrome.elevatedSurface(colorScheme))
+                                    .background(Color.white.opacity(0.10))
                                     .cornerRadius(6)
                                 }
 
@@ -543,13 +474,13 @@ struct TimelineCalendarView: View {
                                 path.move(to: CGPoint(x: gridLeftX, y: y))
                                 path.addLine(to: CGPoint(x: gridRightX, y: y))
                             }
-                            .stroke(CalendarChrome.line(colorScheme), lineWidth: 1.1)
+                            .stroke(Color.white.opacity(0.7), lineWidth: 1.1)
 
                             if idx < intervalCount {
                                 let hour = dayStartHour + idx
                                 Text(hourLabel(hour))
                                     .font(.caption)
-                                    .foregroundColor(CalendarChrome.secondaryText(colorScheme))
+                                    .foregroundColor(.white)
                                     .position(x: gridLeftX - 26, y: y + 8)
                             }
                         }
@@ -562,7 +493,7 @@ struct TimelineCalendarView: View {
                                     path.move(to: CGPoint(x: x, y: 0))
                                     path.addLine(to: CGPoint(x: x, y: totalHeight))
                                 }
-                                .stroke(CalendarChrome.line(colorScheme), lineWidth: 1.1)
+                                .stroke(Color.white.opacity(0.7), lineWidth: 1.1)
                             }
                         }
 
@@ -629,12 +560,10 @@ struct TimelineCalendarView: View {
         .sheet(item: $selectedEvent) { event in
             ClassEventDetailView(event: event)
                 .environmentObject(viewModel)
-                .environmentObject(socialManager)
         }
         .sheet(isPresented: $showAllDaySheet) {
             AllDayEventsListView(title: allDaySheetTitle, events: allDaySheetEvents)
                 .environmentObject(viewModel)
-                .environmentObject(socialManager)
         }
     }
 
@@ -645,7 +574,6 @@ struct TimelineCalendarView: View {
         if event.isAllDay {
             Button(role: .destructive) {
                 viewModel.hideAllDayEvent(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Hide all-day event", systemImage: "eye.slash")
             }
@@ -654,7 +582,6 @@ struct TimelineCalendarView: View {
         if event.kind == .personal {
             Button(role: .destructive) {
                 viewModel.removePersonalEvent(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Remove event", systemImage: "trash")
             }
@@ -662,7 +589,6 @@ struct TimelineCalendarView: View {
             if let sid = event.seriesID {
                 Button(role: .destructive) {
                     viewModel.removePersonalSeries(seriesID: sid)
-                    syncSharedScheduleIfNeeded()
                 } label: {
                     Label("Remove recurrence", systemImage: "trash.slash")
                 }
@@ -672,7 +598,6 @@ struct TimelineCalendarView: View {
         if event.kind == .classMeeting {
             Button(role: .destructive) {
                 viewModel.hideClassOccurrence(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Hide this occurrence", systemImage: "eye.slash")
             }
@@ -681,7 +606,6 @@ struct TimelineCalendarView: View {
                let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
                 Button(role: .destructive) {
                     viewModel.removeEnrollment(enrollment)
-                    syncSharedScheduleIfNeeded()
                 } label: {
                     Label("Remove course from calendar", systemImage: "trash")
                 }
@@ -837,13 +761,6 @@ struct TimelineCalendarView: View {
         return df.string(from: date)
     }
 
-    private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
-    }
-
     private func eventChip(_ event: ClassEvent) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -890,8 +807,6 @@ struct TimelineCalendarView: View {
 
 struct MonthWithScheduleView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
-    @Environment(\.colorScheme) private var colorScheme
     private let calendar = Calendar.current
 
     @State private var selectedEvent: ClassEvent?
@@ -958,18 +873,16 @@ struct MonthWithScheduleView: View {
                 } header: {
                     Text(selected.formatted("EEEE, MMM d"))
                         .font(.headline)
-                        .foregroundColor(CalendarChrome.primaryText(colorScheme))
+                        .foregroundColor(.white)
                         .textCase(nil)
                 }
             }
             .listStyle(.plain)
-            .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .sheet(item: $selectedEvent) { event in
             ClassEventDetailView(event: event)
                 .environmentObject(viewModel)
-                .environmentObject(socialManager)
         }
     }
 
@@ -978,7 +891,6 @@ struct MonthWithScheduleView: View {
         if event.isAllDay {
             Button(role: .destructive) {
                 viewModel.hideAllDayEvent(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Hide", systemImage: "eye.slash")
             }
@@ -987,7 +899,6 @@ struct MonthWithScheduleView: View {
         if event.kind == .personal {
             Button(role: .destructive) {
                 viewModel.removePersonalEvent(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Remove", systemImage: "trash")
             }
@@ -995,7 +906,6 @@ struct MonthWithScheduleView: View {
             if let sid = event.seriesID {
                 Button(role: .destructive) {
                     viewModel.removePersonalSeries(seriesID: sid)
-                    syncSharedScheduleIfNeeded()
                 } label: {
                     Label("Recurrence", systemImage: "trash.slash")
                 }
@@ -1005,7 +915,6 @@ struct MonthWithScheduleView: View {
         if event.kind == .classMeeting {
             Button(role: .destructive) {
                 viewModel.hideClassOccurrence(event)
-                syncSharedScheduleIfNeeded()
             } label: {
                 Label("Hide", systemImage: "eye.slash")
             }
@@ -1031,20 +940,12 @@ struct MonthWithScheduleView: View {
         df.timeStyle = .short
         return "\(df.string(from: event.startDate)) – \(df.string(from: event.endDate))"
     }
-
-    private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
-    }
 }
 
 // MARK: - Month grid (selects viewModel.selectedDate)
 
 struct MonthGridView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @Environment(\.colorScheme) private var colorScheme
     private let calendar = Calendar.current
 
     var body: some View {
@@ -1066,7 +967,7 @@ struct MonthGridView: View {
                 ForEach(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], id: \.self) { label in
                     Text(label)
                         .font(.caption)
-                        .foregroundColor(CalendarChrome.secondaryText(colorScheme))
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -1098,16 +999,12 @@ struct MonthGridView: View {
                                 HStack(spacing: 3) {
                                     Text("\(dayNumber)")
                                         .font(.caption)
-                                        .foregroundColor(
-                                            isSelected
-                                                ? CalendarChrome.selectedText(colorScheme)
-                                                : CalendarChrome.primaryText(colorScheme)
-                                        )
+                                        .foregroundColor(isSelected ? .black : .white)
 
                                     if hasExam {
                                         Image(systemName: "star.fill")
                                             .font(.system(size: 8))
-                                            .foregroundStyle(isSelected ? CalendarChrome.selectedText(colorScheme) : Color.yellow)
+                                            .foregroundStyle(isSelected ? Color.black : Color.yellow)
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
@@ -1131,7 +1028,7 @@ struct MonthGridView: View {
                             .background(
                                 ZStack {
                                     if isSelected {
-                                        CalendarChrome.selectedFill(theme: viewModel.themeColor, colorScheme: colorScheme)
+                                        Color.white
                                     } else if isBreakDay {
                                         Color.orange.opacity(0.22)
                                     } else {
@@ -1142,7 +1039,7 @@ struct MonthGridView: View {
                             .overlay(
                                 // ✅ Today highlight (outline)
                                 RoundedRectangle(cornerRadius: 7)
-                                    .stroke(isToday ? viewModel.themeColor.opacity(0.9) : Color.clear, lineWidth: 1.6)
+                                    .stroke(isToday ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1.6)
                             )
                             .cornerRadius(7)
                             .frame(height: 40)
@@ -1201,7 +1098,6 @@ struct MonthGridView: View {
 
 struct ClassEventDetailView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
     let event: ClassEvent
 
     @Environment(\.dismiss) private var dismiss
@@ -1330,7 +1226,6 @@ struct ClassEventDetailView: View {
             .confirmationDialog("Hide all-day event?", isPresented: $confirmHideAllDay, titleVisibility: .visible) {
                 Button("Hide", role: .destructive) {
                     viewModel.hideAllDayEvent(event)
-                    syncSharedScheduleIfNeeded()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -1338,7 +1233,6 @@ struct ClassEventDetailView: View {
             .confirmationDialog("Remove event?", isPresented: $confirmRemoveOne, titleVisibility: .visible) {
                 Button("Remove event", role: .destructive) {
                     viewModel.removePersonalEvent(event)
-                    syncSharedScheduleIfNeeded()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -1348,7 +1242,6 @@ struct ClassEventDetailView: View {
                     if let sid = event.seriesID {
                         viewModel.removePersonalSeries(seriesID: sid)
                     }
-                    syncSharedScheduleIfNeeded()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -1359,7 +1252,6 @@ struct ClassEventDetailView: View {
                        let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
                         viewModel.removeEnrollment(enrollment)
                     }
-                    syncSharedScheduleIfNeeded()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -1367,25 +1259,16 @@ struct ClassEventDetailView: View {
             .confirmationDialog("Hide this class meeting only?", isPresented: $confirmHideOccurrence, titleVisibility: .visible) {
                 Button("Hide this occurrence", role: .destructive) {
                     viewModel.hideClassOccurrence(event)
-                    syncSharedScheduleIfNeeded()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
             }
         }
     }
-
-    private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
-    }
 }
 
 struct AllDayEventsListView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
     let title: String
     let events: [ClassEvent]
 
@@ -1410,7 +1293,6 @@ struct AllDayEventsListView: View {
                         if ev.isAllDay {
                             Button(role: .destructive) {
                                 viewModel.hideAllDayEvent(ev)
-                                syncSharedScheduleIfNeeded()
                             } label: {
                                 Label("Hide", systemImage: "eye.slash")
                             }
@@ -1419,7 +1301,6 @@ struct AllDayEventsListView: View {
                         if ev.kind == .personal {
                             Button(role: .destructive) {
                                 viewModel.removePersonalEvent(ev)
-                                syncSharedScheduleIfNeeded()
                             } label: {
                                 Label("Remove", systemImage: "trash")
                             }
@@ -1427,7 +1308,6 @@ struct AllDayEventsListView: View {
                             if let sid = ev.seriesID {
                                 Button(role: .destructive) {
                                     viewModel.removePersonalSeries(seriesID: sid)
-                                    syncSharedScheduleIfNeeded()
                                 } label: {
                                     Label("Recurrence", systemImage: "trash.slash")
                                 }
@@ -1437,7 +1317,6 @@ struct AllDayEventsListView: View {
                         if ev.kind == .classMeeting {
                             Button(role: .destructive) {
                                 viewModel.hideClassOccurrence(ev)
-                                syncSharedScheduleIfNeeded()
                             } label: {
                                 Label("Hide", systemImage: "eye.slash")
                             }
@@ -1450,15 +1329,7 @@ struct AllDayEventsListView: View {
             .sheet(item: $selectedEvent) { ev in
                 ClassEventDetailView(event: ev)
                     .environmentObject(viewModel)
-                    .environmentObject(socialManager)
             }
-        }
-    }
-
-    private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
         }
     }
 }

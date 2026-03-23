@@ -47,14 +47,37 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    match /sharedSchedules/{userID} {
-      allow read: if signedIn() &&
-        areFriends(request.auth.uid, userID) &&
-        get(/databases/$(database)/documents/users/$(userID)).data.shareSchedule == true;
+    match /friendGroups/{groupID} {
+      allow read: if signedIn() && resource.data.ownerID == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.ownerID == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.ownerID == request.auth.uid &&
+        request.resource.data.ownerID == request.auth.uid;
+      allow delete: if signedIn() && resource.data.ownerID == request.auth.uid;
+    }
 
-      allow create: if isSelf(userID);
-      allow update: if isSelf(userID);
-      allow delete: if isSelf(userID);
+    match /sharedSchedules/{ownerID} {
+      allow read: if isSelf(ownerID) || (
+        signedIn() &&
+        areFriends(request.auth.uid, ownerID) &&
+        get(/databases/$(database)/documents/users/$(ownerID)).data.shareSchedule == true
+      );
+      allow create: if isSelf(ownerID);
+      allow update: if isSelf(ownerID);
+      allow delete: if isSelf(ownerID);
+
+      match /friendViews/{viewerID} {
+        allow read: if isSelf(ownerID) || (
+          signedIn() &&
+          request.auth.uid == viewerID &&
+          areFriends(request.auth.uid, ownerID) &&
+          get(/databases/$(database)/documents/users/$(ownerID)).data.shareSchedule == true
+        );
+
+        allow create: if isSelf(ownerID);
+        allow update: if isSelf(ownerID);
+        allow delete: if isSelf(ownerID);
+      }
     }
   }
 }
