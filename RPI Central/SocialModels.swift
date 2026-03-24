@@ -10,6 +10,8 @@ struct SocialUser: Codable, Identifiable, Equatable {
     let shareLocation: Bool
     let createdAt: String
     let lastScheduleAt: String?
+    let sharedCourseKeys: [String]
+    let sharedSectionKeys: [String]
 }
 
 struct SocialAuthResponse: Codable {
@@ -36,6 +38,8 @@ struct SocialFriend: Codable, Identifiable, Equatable {
     let lastScheduleAt: String?
     let canViewSchedule: Bool
     let schedulePreviewCount: Int
+    let sharedCourseKeys: [String]
+    let sharedSectionKeys: [String]
 }
 
 struct SocialFriendRequest: Codable, Identifiable, Equatable {
@@ -72,6 +76,95 @@ struct SocialFriendGroup: Codable, Identifiable, Equatable {
     let name: String
     let createdAt: String
     let memberIDs: [String]
+}
+
+enum SocialCourseCommunityKind: String, Codable, Equatable {
+    case course
+    case section
+}
+
+struct SocialCourseCommunity: Codable, Identifiable, Equatable {
+    let id: String
+    let kind: SocialCourseCommunityKind
+    let courseSubject: String
+    let courseNumber: String
+    let courseTitle: String
+    let semesterCode: String?
+    let sectionLabel: String?
+    let memberIDs: [String]
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct SocialCourseComment: Codable, Identifiable, Equatable {
+    let id: String
+    let communityID: String
+    let userID: String
+    let username: String
+    let displayName: String
+    let body: String
+    let createdAt: String
+}
+
+enum SocialGroupChatSourceKind: String, Codable, Equatable {
+    case manualGroup
+    case classGroup
+}
+
+struct SocialGroupChatReference: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let memberDisplayNames: [String]
+    let memberIDs: [String]
+    let sourceKind: SocialGroupChatSourceKind
+}
+
+struct SocialGroupChatMessage: Codable, Identifiable, Equatable {
+    let id: String
+    let threadID: String
+    let userID: String
+    let username: String
+    let displayName: String
+    let body: String
+    let createdAt: String
+}
+
+struct SocialCourseResource: Codable, Identifiable, Equatable {
+    let id: String
+    let communityID: String
+    let title: String
+    let kind: String
+    let url: String
+    let notes: String
+    let createdAt: String
+    let createdByUserID: String
+    let createdByDisplayName: String
+}
+
+struct SocialGroupPoll: Codable, Identifiable, Equatable {
+    let id: String
+    let threadID: String
+    let question: String
+    let options: [SocialGroupPollOption]
+    let votesByUserID: [String: String]
+    let createdAt: String
+    let createdByUserID: String
+    let createdByDisplayName: String
+    let isClosed: Bool
+}
+
+struct SocialGroupPollOption: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+struct SocialGroupPollItem: Identifiable, Equatable {
+    let poll: SocialGroupPoll
+    let voteCounts: [String: Int]
+    let selectedOptionID: String?
+
+    var id: String { poll.id }
 }
 
 enum SocialFeedRefreshOption: Int, CaseIterable, Identifiable, Codable {
