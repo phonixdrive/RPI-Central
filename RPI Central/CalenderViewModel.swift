@@ -1697,15 +1697,19 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func prerequisitesDisplayString(for course: Course) -> String? {
+        let texts = course.sections
+            .map { $0.prerequisitesText.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if let first = texts.first {
+            return first
+        }
+
         let prereqs = prerequisiteCourseIDs(for: course)
         if !prereqs.isEmpty {
             return prereqs.map { $0.replacingOccurrences(of: "-", with: " ") }.joined(separator: ", ")
         }
 
-        let texts = course.sections
-            .map { $0.prerequisitesText.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return texts.first
+        return nil
     }
 
     private func extractCourseIDs(from text: String) -> [String] {
@@ -1734,12 +1738,14 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Add/remove a course section
 
-    func addCourseSection(_ section: CourseSection, course: Course) {
+    func addCourseSection(_ section: CourseSection, course: Course, semester: Semester? = nil) {
+        let targetSemester = semester ?? currentSemester
+        let semesterCode = targetSemester.rawValue
         let id = enrollmentID(for: course, section: section)
-        if enrolledCourses.contains(where: { $0.id == id }) { return }
+        if enrolledCourses.contains(where: { $0.id == id && $0.semesterCode == semesterCode }) { return }
 
-        ensureTermBoundsLoaded(for: currentSemester)
-        if hasTimeConflict(for: section, semesterCode: currentSemester.rawValue) { return }
+        ensureTermBoundsLoaded(for: targetSemester)
+        if hasTimeConflict(for: section, semesterCode: semesterCode) { return }
 
         let missing = missingPrerequisites(for: course)
         if !missing.isEmpty {
@@ -1751,7 +1757,7 @@ final class CalendarViewModel: ObservableObject {
                 id: id,
                 course: course,
                 section: section,
-                semesterCode: currentSemester.rawValue
+                semesterCode: semesterCode
             )
             enrolledCourses.append(enrollment)
 
@@ -1988,6 +1994,55 @@ final class CalendarViewModel: ObservableObject {
         } catch {
             assumedBy = [:]
         }
+    }
+
+    private func loadBundledCourseTitlesIfNeeded() {
+        for semester in Semester.allCases where !loadedCatalogTerms.contains(semester.rawValue) {
+            defer { loadedCatalogTerms.insert(semester.rawValue) }
+
+            guard let url = Bundle.main.url(
+                forResource: "catalog",
+                withExtension: "json",
+                subdirectory: "semester_data/\(semester.rawValue)"
+            ) else { continue }
+
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = try? JSONDecoder().decode([String: BundledCatalogLookupItem].self, from: data) else {
+                continue
+            }
+
+            for (courseID, item) in decoded where cachedBundledCourseTitlesByID[courseID] == nil {
+                let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    cachedBundledCourseTitlesByID[courseID] = trimmed
+                }
+            }
+        }
+    }
+
+    private func loadBundledPrerequisiteExpressionsIfNeeded(for semester: Semester) {
+        let termCode = semester.rawValue
+        guard !loadedPrereqTerms.contains(termCode) else { return }
+        defer { loadedPrereqTerms.insert(termCode) }
+
+        guard let url = Bundle.main.url(
+            forResource: "prerequisites",
+            withExtension: "json",
+            subdirectory: "semester_data/\(termCode)"
+        ) else { return }
+
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: BundledPrerequisiteLookupEntry].self, from: data) else {
+            return
+        }
+
+        var expressionsByCRN: [String: PrerequisiteExpression] = [:]
+        for (crn, entry) in decoded {
+            if let expression = entry.prerequisites?.toExpression() {
+                expressionsByCRN[crn] = expression
+            }
+        }
+        cachedBundledPrereqExpressionsByTerm[termCode] = expressionsByCRN
     }
 
     // MARK: - Academic events
@@ -2441,6 +2496,61 @@ final class CalendarViewModel: ObservableObject {
         return key
     }
     
+}
+
+enum PrerequisiteStatus {
+    case missing
+    case assumedTaken
+    case completed
+}
+
+private struct BundledCatalogLookupItem: Decodable {
+    let name: String
+}
+
+private struct BundledPrerequisiteLookupEntry: Decodable {
+    let prerequisites: BundledPrerequisiteNode?
+}
+
+private indirect enum BundledPrerequisiteNode: Decodable {
+    case course(course: String, minGrade: String?)
+    case and([BundledPrerequisiteNode])
+    case or([BundledPrerequisiteNode])
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case course
+        case min_grade
+        case nested
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = (try? container.decode(String.self, forKey: .type)) ?? "and"
+
+        switch type {
+        case "course":
+            self = .course(
+                course: (try? container.decode(String.self, forKey: .course)) ?? "",
+                minGrade: try? container.decode(String.self, forKey: .min_grade)
+            )
+        case "or":
+            self = .or((try? container.decode([BundledPrerequisiteNode].self, forKey: .nested)) ?? [])
+        default:
+            self = .and((try? container.decode([BundledPrerequisiteNode].self, forKey: .nested)) ?? [])
+        }
+    }
+
+    func toExpression() -> PrerequisiteExpression {
+        switch self {
+        case .course(let course, let minGrade):
+            return .course(courseID: canonicalCourseID(course), minGrade: minGrade)
+        case .and(let children):
+            return .and(children.map { $0.toExpression() })
+        case .or(let children):
+            return .or(children.map { $0.toExpression() })
+        }
+    }
 }
 
 // MARK: - Semester helpers (file-local)
