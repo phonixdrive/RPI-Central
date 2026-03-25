@@ -1245,33 +1245,38 @@ final class SocialManager: ObservableObject {
     }
 
     @discardableResult
-    func endFeedPost(_ postID: String) async -> Bool {
+    func endFeedPost(_ post: SocialFeedPost) async -> Bool {
         var didSucceed = false
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
-            let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
+            let targetOwnerID = post.ownerID
+            guard targetOwnerID == viewer.id || canModerateSocialContent else {
+                throw SocialError.api("You cannot end that activity.")
+            }
+
+            let snapshot = try await getDocument(firestore.collection("users").document(targetOwnerID))
             let data = snapshot.data() ?? [:]
             let posts = decodeFeedPosts(from: data)
             var didUpdate = false
-            let updatedPosts = posts.map { post -> SocialFeedPost in
-                guard post.id == postID, post.ownerID == viewer.id, post.endedAt == nil else {
-                    return post
+            let updatedPosts = posts.map { existingPost -> SocialFeedPost in
+                guard existingPost.id == post.id, existingPost.ownerID == targetOwnerID, existingPost.endedAt == nil else {
+                    return existingPost
                 }
                 didUpdate = true
                 return SocialFeedPost(
-                    id: post.id,
-                    ownerID: post.ownerID,
-                    ownerUsername: post.ownerUsername,
-                    ownerDisplayName: post.ownerDisplayName,
-                    title: post.title,
-                    location: post.location,
-                    details: post.details,
-                    createdAt: post.createdAt,
-                    startsAt: post.startsAt,
+                    id: existingPost.id,
+                    ownerID: existingPost.ownerID,
+                    ownerUsername: existingPost.ownerUsername,
+                    ownerDisplayName: existingPost.ownerDisplayName,
+                    title: existingPost.title,
+                    location: existingPost.location,
+                    details: existingPost.details,
+                    createdAt: existingPost.createdAt,
+                    startsAt: existingPost.startsAt,
                     endedAt: nowISO(),
-                    visibility: post.visibility,
-                    visibleGroupIDs: post.visibleGroupIDs
+                    visibility: existingPost.visibility,
+                    visibleGroupIDs: existingPost.visibleGroupIDs
                 )
             }
 
@@ -1282,7 +1287,7 @@ final class SocialManager: ObservableObject {
             try await updateData([
                 "feedPosts": updatedPosts.map(feedPostData),
                 "lastFeedPostAt": updatedPosts.first?.createdAt ?? "",
-            ], at: firestore.collection("users").document(viewer.id))
+            ], at: firestore.collection("users").document(targetOwnerID))
 
             try await refreshOverviewInternal()
             statusMessage = "Activity ended."
@@ -1399,7 +1404,9 @@ final class SocialManager: ObservableObject {
                 shareSchedule: shareSchedule,
                 shareLocation: shareLocation,
                 createdAt: viewer.createdAt,
-                lastScheduleAt: viewer.lastScheduleAt
+                lastScheduleAt: viewer.lastScheduleAt,
+                sharedCourseKeys: viewer.sharedCourseKeys,
+                sharedSectionKeys: viewer.sharedSectionKeys
             )
             currentUser = updated
             try await refreshOverviewInternal()
@@ -1500,6 +1507,8 @@ final class SocialManager: ObservableObject {
                 "sharedScheduleLegacySemesterCode": calendarViewModel.currentSemester.rawValue,
                 "sharedScheduleLegacyGeneratedAt": now,
                 "sharedScheduleLegacyItems": legacyItems.map(sharedScheduleItemData),
+                "sharedCourseKeys": sharedCourseKeys(from: calendarViewModel),
+                "sharedSectionKeys": sharedSectionKeys(from: calendarViewModel),
             ], at: firestore.collection("users").document(viewer.id))
 
             if var current = currentUser {
@@ -1512,7 +1521,9 @@ final class SocialManager: ObservableObject {
                     shareSchedule: current.shareSchedule,
                     shareLocation: current.shareLocation,
                     createdAt: current.createdAt,
-                    lastScheduleAt: now
+                    lastScheduleAt: now,
+                    sharedCourseKeys: sharedCourseKeys(from: calendarViewModel),
+                    sharedSectionKeys: sharedSectionKeys(from: calendarViewModel)
                 )
                 currentUser = current
             }
@@ -1585,6 +1596,8 @@ final class SocialManager: ObservableObject {
                     self.currentUser = nil
                     self.overview = nil
                     self.friendGroups = []
+                    self.courseCommunities = []
+                    self.courseCommentsByCommunityID = [:]
                     self.feedItems = []
                     self.searchResults = []
                     self.loadedFriendSchedule = nil
@@ -1646,7 +1659,9 @@ final class SocialManager: ObservableObject {
                     createdAt: user.createdAt,
                     lastScheduleAt: user.lastScheduleAt,
                     canViewSchedule: user.shareSchedule,
-                    schedulePreviewCount: scheduleCounts[user.id] ?? 0
+                    schedulePreviewCount: scheduleCounts[user.id] ?? 0,
+                    sharedCourseKeys: user.sharedCourseKeys,
+                    sharedSectionKeys: user.sharedSectionKeys
                 )
             }
 
@@ -1665,10 +1680,22 @@ final class SocialManager: ObservableObject {
         let outgoing = try await makeRequestSummaries(from: outgoingSnapshot.documents)
 
         do {
-            friendGroups = try await loadFriendGroups(ownerID: viewer.id)
+            let ownedGroups = try await loadFriendGroups(ownerID: viewer.id)
+            try await persistOwnedFriendGroupsToCollection(ownedGroups, ownerID: viewer.id)
+            friendGroups = try await loadVisibleFriendGroups(viewerID: viewer.id, fallbackOwnedGroups: ownedGroups)
         } catch {
             if isPermissionDenied(error) {
                 friendGroups = []
+            } else {
+                throw error
+            }
+        }
+
+        do {
+            courseCommunities = try await loadCourseCommunities(memberID: viewer.id)
+        } catch {
+            if isPermissionDenied(error) {
+                courseCommunities = []
             } else {
                 throw error
             }
@@ -1807,6 +1834,7 @@ final class SocialManager: ObservableObject {
         let preservedUser = currentUser
         let preservedOverview = overview
         let preservedGroups = friendGroups
+        let preservedCourseCommunities = courseCommunities
         let preservedFeed = feedItems
 
         do {
@@ -1818,6 +1846,7 @@ final class SocialManager: ObservableObject {
             currentUser = preservedUser ?? currentUser
             overview = preservedOverview
             friendGroups = preservedGroups
+            courseCommunities = preservedCourseCommunities
             feedItems = preservedFeed
             errorMessage = "Social access was denied. Pull to retry. If it keeps happening, refresh Firestore rules or sign in again."
         }
@@ -1847,6 +1876,73 @@ final class SocialManager: ObservableObject {
                     continuation.resume(throwing: SocialError.invalidResponse)
                 }
             }
+        }
+    }
+
+    private func handleCurrentUserChange(previousUserID: String?, currentUserID: String?) async {
+        guard previousUserID != currentUserID else {
+            if currentUserID != nil {
+                await syncPushRegistrationIfPossible()
+            }
+            return
+        }
+
+        if let previousUserID {
+            await unregisterPushRegistration(for: previousUserID)
+        }
+
+        NotificationManager.setActiveSocialContextID(nil)
+
+        guard currentUserID != nil else { return }
+        NotificationManager.registerForRemoteNotificationsIfAuthorized()
+        await syncPushRegistrationIfPossible()
+    }
+
+    private func syncPushRegistrationIfPossible() async {
+        guard let viewer = currentUser else { return }
+        guard let fcmToken = NotificationManager.currentFCMToken else {
+            await unregisterPushRegistration(for: viewer.id)
+            return
+        }
+
+        let tokenData: [String: Any] = [
+            "installationID": NotificationManager.pushInstallationID,
+            "fcmToken": fcmToken,
+            "platform": "ios",
+            "bundleID": Bundle.main.bundleIdentifier ?? "RPI Central",
+            "feedNotificationsEnabled": socialFeedNotificationsEnabled,
+            "groupNotificationsEnabled": false,
+            "remoteNotificationsRegistered": NotificationManager.canReceiveRemotePush,
+            "updatedAt": nowISO(),
+        ]
+
+        do {
+            try await setData(
+                tokenData,
+                at: firestore.collection("users")
+                    .document(viewer.id)
+                    .collection("deviceTokens")
+                    .document(NotificationManager.pushInstallationID)
+            )
+        } catch {
+            #if DEBUG
+            print("❌ Push token sync failed:", error)
+            #endif
+        }
+    }
+
+    private func unregisterPushRegistration(for userID: String) async {
+        do {
+            try await deleteDocument(
+                firestore.collection("users")
+                    .document(userID)
+                    .collection("deviceTokens")
+                    .document(NotificationManager.pushInstallationID)
+            )
+        } catch {
+            #if DEBUG
+            print("⚠️ Push token cleanup skipped:", error)
+            #endif
         }
     }
 
@@ -1898,6 +1994,8 @@ final class SocialManager: ObservableObject {
             "shareLocation": shareLocation,
             "createdAt": createdAt,
             "lastScheduleAt": lastScheduleAt,
+            "sharedCourseKeys": existing?.sharedCourseKeys ?? [],
+            "sharedSectionKeys": existing?.sharedSectionKeys ?? [],
         ], at: ref)
 
         return SocialUser(
@@ -1909,7 +2007,9 @@ final class SocialManager: ObservableObject {
             shareSchedule: shareSchedule,
             shareLocation: shareLocation,
             createdAt: createdAt,
-            lastScheduleAt: lastScheduleAt.isEmpty ? nil : lastScheduleAt
+            lastScheduleAt: lastScheduleAt.isEmpty ? nil : lastScheduleAt,
+            sharedCourseKeys: existing?.sharedCourseKeys ?? [],
+            sharedSectionKeys: existing?.sharedSectionKeys ?? []
         )
     }
 
@@ -1964,7 +2064,9 @@ final class SocialManager: ObservableObject {
             shareSchedule: shareSchedule,
             shareLocation: false,
             createdAt: createdAt,
-            lastScheduleAt: shareSchedule ? createdAt : nil
+            lastScheduleAt: shareSchedule ? createdAt : nil,
+            sharedCourseKeys: [],
+            sharedSectionKeys: []
         )
 
         var profileData: [String: Any] = [
@@ -1978,6 +2080,8 @@ final class SocialManager: ObservableObject {
             "shareLocation": user.shareLocation,
             "createdAt": user.createdAt,
             "lastScheduleAt": user.lastScheduleAt ?? "",
+            "sharedCourseKeys": user.sharedCourseKeys,
+            "sharedSectionKeys": user.sharedSectionKeys,
         ]
 
         if shareSchedule {
@@ -2064,32 +2168,116 @@ final class SocialManager: ObservableObject {
     }
 
     private func loadFriendGroups(ownerID: String) async throws -> [SocialFriendGroup] {
-        let userSnapshot = try await getDocument(firestore.collection("users").document(ownerID))
-        if let data = userSnapshot.data(), data["friendGroups"] != nil {
-            return decodeFriendGroups(from: data)
-        }
-
         do {
             let snapshot = try await getDocuments(
                 firestore.collection("friendGroups")
                     .whereField("ownerID", isEqualTo: ownerID)
             )
 
-            return snapshot.documents
+            let collectionGroups = snapshot.documents
                 .compactMap(makeFriendGroup)
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        } catch {
-            if isPermissionDenied(error) {
-                return []
+            if !collectionGroups.isEmpty {
+                return collectionGroups
             }
-            throw error
+        } catch {
+            if !isPermissionDenied(error) {
+                throw error
+            }
         }
+
+        let userSnapshot = try await getDocument(firestore.collection("users").document(ownerID))
+        if let data = userSnapshot.data(), data["friendGroups"] != nil {
+            return decodeFriendGroups(from: data)
+        }
+        return []
     }
 
     private func saveFriendGroups(_ groups: [SocialFriendGroup], ownerID: String) async throws {
         try await updateData([
             "friendGroups": groups.map(friendGroupData)
         ], at: firestore.collection("users").document(ownerID))
+        try await persistOwnedFriendGroupsToCollection(groups, ownerID: ownerID)
+    }
+
+    private func loadCourseCommunities(memberID: String) async throws -> [SocialCourseCommunity] {
+        let snapshot = try await getDocuments(
+            firestore.collection("courseCommunities")
+                .whereField("memberIDs", arrayContains: memberID)
+        )
+
+        return snapshot.documents
+            .compactMap(makeCourseCommunity)
+            .sorted { lhs, rhs in
+                if lhs.courseTitle == rhs.courseTitle {
+                    if lhs.kind == rhs.kind {
+                        return (lhs.sectionLabel ?? "") < (rhs.sectionLabel ?? "")
+                    }
+                    return lhs.kind == .course && rhs.kind == .section
+                }
+                return lhs.courseTitle.localizedCaseInsensitiveCompare(rhs.courseTitle) == .orderedAscending
+            }
+    }
+
+    private func loadVisibleFriendGroups(
+        viewerID: String,
+        fallbackOwnedGroups: [SocialFriendGroup] = []
+    ) async throws -> [SocialFriendGroup] {
+        let ownedSnapshot = try await getDocuments(
+            firestore.collection("friendGroups")
+                .whereField("ownerID", isEqualTo: viewerID)
+        )
+        let memberSnapshot = try await getDocuments(
+            firestore.collection("friendGroups")
+                .whereField("memberIDs", arrayContains: viewerID)
+        )
+
+        let merged = Dictionary(
+            uniqueKeysWithValues: (ownedSnapshot.documents + memberSnapshot.documents)
+                .compactMap { snapshot in
+                    makeFriendGroup(from: snapshot).map { ($0.id, $0) }
+                }
+        )
+
+        let visibleGroups = Array(merged.values)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        if !visibleGroups.isEmpty {
+            return visibleGroups
+        }
+        return fallbackOwnedGroups
+    }
+
+    private func persistOwnedFriendGroupsToCollection(_ groups: [SocialFriendGroup], ownerID: String) async throws {
+        let snapshot = try await getDocuments(
+            firestore.collection("friendGroups")
+                .whereField("ownerID", isEqualTo: ownerID)
+        )
+        let existingIDs = Set(snapshot.documents.map(\.documentID))
+        let targetIDs = Set(groups.map(\.id))
+
+        for group in groups {
+            try await setData(friendGroupData(group), at: firestore.collection("friendGroups").document(group.id))
+        }
+
+        for removedID in existingIDs.subtracting(targetIDs) {
+            try await deleteDocument(firestore.collection("friendGroups").document(removedID))
+        }
+    }
+
+    private func isModeratorIdentity(_ user: SocialUser?) -> Bool {
+        let username = normalizedModeratorHandle(user?.username)
+        let displayName = user?.displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return username == "neilshrestha20061" || displayName == "phonixdrive"
+    }
+
+    private func normalizedModeratorHandle(_ username: String?) -> String {
+        (username ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "@", with: "")
+            .lowercased()
     }
 
     private func pendingRequestExists(from fromUserID: String, to toUserID: String) async throws -> Bool {
