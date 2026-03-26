@@ -2337,6 +2337,7 @@ final class SocialManager: ObservableObject {
         let body: String
         let createdAt: String
         let eventDate: String?
+        let contextID: String?
     }
 
     private func loadFriendIDs(for userID: String) async throws -> [String] {
@@ -2484,7 +2485,8 @@ final class SocialManager: ObservableObject {
             title: title,
             body: body,
             createdAt: createdAt,
-            eventDate: emptyToNil(data["eventDate"] as? String)
+            eventDate: emptyToNil(data["eventDate"] as? String),
+            contextID: emptyToNil(data["contextID"] as? String)
         )
     }
 
@@ -2494,7 +2496,8 @@ final class SocialManager: ObservableObject {
         type: String,
         title: String,
         body: String,
-        eventDate: Date?
+        eventDate: Date?,
+        contextID: String? = nil
     ) -> [String: Any] {
         [
             "id": id,
@@ -2504,6 +2507,7 @@ final class SocialManager: ObservableObject {
             "body": body,
             "createdAt": nowISO(),
             "eventDate": eventDate.map { ISO8601DateFormatter().string(from: $0) } ?? "",
+            "contextID": contextID ?? "",
         ]
     }
 
@@ -2512,7 +2516,8 @@ final class SocialManager: ObservableObject {
         type: String,
         title: String,
         body: String,
-        eventDate: Date?
+        eventDate: Date?,
+        contextID: String? = nil
     ) async throws {
         guard let senderID = currentUser?.id else { return }
         for recipientID in Set(recipientIDs).sorted() where recipientID != senderID {
@@ -2524,7 +2529,8 @@ final class SocialManager: ObservableObject {
                     type: type,
                     title: title,
                     body: body,
-                    eventDate: eventDate
+                    eventDate: eventDate,
+                    contextID: contextID
                 ),
                 at: firestore.collection("users")
                     .document(recipientID)
@@ -2536,21 +2542,26 @@ final class SocialManager: ObservableObject {
 
     private func processIncomingSocialAlerts(_ alerts: [SocialAlert]) {
         var delivered = Set(UserDefaults.standard.stringArray(forKey: deliveredSocialAlertIDsKey) ?? [])
-        guard socialNotificationsEnabled else {
-            delivered.formUnion(alerts.map(\.id))
-            UserDefaults.standard.set(Array(delivered.sorted().suffix(400)), forKey: deliveredSocialAlertIDsKey)
-            return
-        }
-
-        NotificationManager.requestAuthorization()
         for alert in alerts.sorted(by: { $0.createdAt < $1.createdAt }) {
             guard !delivered.contains(alert.id) else { continue }
-            let triggerDate = isoDate(alert.eventDate) ?? Date()
+            if alert.type == "groupMessage", alert.contextID == activeGroupChatID, isAppActive {
+                delivered.insert(alert.id)
+                continue
+            }
+            if usesRemotePushForSocialAlerts {
+                delivered.insert(alert.id)
+                continue
+            }
+            guard shouldDeliverSocialAlert(alert) else {
+                delivered.insert(alert.id)
+                continue
+            }
+
+            NotificationManager.requestAuthorization()
             NotificationManager.scheduleSocialNotification(
                 identifier: "social.\(alert.id)",
                 title: alert.title,
-                body: alert.body,
-                deliverAt: triggerDate > Date() ? min(triggerDate, Date().addingTimeInterval(60)) : nil
+                body: alert.body
             )
             delivered.insert(alert.id)
         }
@@ -2559,11 +2570,32 @@ final class SocialManager: ObservableObject {
         UserDefaults.standard.set(trimmed, forKey: deliveredSocialAlertIDsKey)
     }
 
-    private var socialNotificationsEnabled: Bool {
-        if UserDefaults.standard.object(forKey: socialNotificationsEnabledKey) == nil {
+    private func shouldDeliverSocialAlert(_ alert: SocialAlert) -> Bool {
+        switch alert.type {
+        case "groupMessage":
+            return false
+        default:
+            return socialFeedNotificationsEnabled
+        }
+    }
+
+    private var socialFeedNotificationsEnabled: Bool {
+        if UserDefaults.standard.object(forKey: socialFeedNotificationsEnabledKey) == nil {
             return true
         }
-        return UserDefaults.standard.bool(forKey: socialNotificationsEnabledKey)
+        return UserDefaults.standard.bool(forKey: socialFeedNotificationsEnabledKey)
+    }
+
+    private var isAppActive: Bool {
+#if canImport(UIKit)
+        UIApplication.shared.applicationState == .active
+#else
+        true
+#endif
+    }
+
+    private var usesRemotePushForSocialAlerts: Bool {
+        NotificationManager.canReceiveRemotePush
     }
 
     private func nextAvailableUsername(base: String, firestore: Firestore? = nil) async throws -> String {
@@ -2638,7 +2670,9 @@ final class SocialManager: ObservableObject {
             shareSchedule: data["shareSchedule"] as? Bool ?? false,
             shareLocation: data["shareLocation"] as? Bool ?? false,
             createdAt: data["createdAt"] as? String ?? "",
-            lastScheduleAt: emptyToNil(data["lastScheduleAt"] as? String)
+            lastScheduleAt: emptyToNil(data["lastScheduleAt"] as? String),
+            sharedCourseKeys: (data["sharedCourseKeys"] as? [String] ?? []).sorted(),
+            sharedSectionKeys: (data["sharedSectionKeys"] as? [String] ?? []).sorted()
         )
     }
 
@@ -2682,6 +2716,378 @@ final class SocialManager: ObservableObject {
             "createdAt": group.createdAt,
             "memberIDs": group.memberIDs.sorted(),
         ]
+    }
+
+    private func makeCourseCommunity(
+        kind: SocialCourseCommunityKind,
+        course: Course,
+        section: CourseSection?,
+        semesterCode: String?,
+        viewerID: String
+    ) -> SocialCourseCommunity {
+        let now = nowISO()
+
+        return SocialCourseCommunity(
+            id: courseCommunityID(kind: kind, course: course, section: section, semesterCode: semesterCode),
+            kind: kind,
+            courseSubject: course.subject.uppercased(),
+            courseNumber: course.number,
+            courseTitle: course.title,
+            semesterCode: semesterCode,
+            sectionLabel: section.map { sectionCommunityLabel(section: $0, semesterCode: semesterCode) },
+            memberIDs: [viewerID],
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
+    private func ensureCourseCommunityMembership(_ community: SocialCourseCommunity, viewerID: String) async throws {
+        let ref = firestore.collection("courseCommunities").document(community.id)
+        do {
+            try await updateData([
+                "kind": community.kind.rawValue,
+                "courseSubject": community.courseSubject,
+                "courseNumber": community.courseNumber,
+                "courseTitle": community.courseTitle,
+                "semesterCode": community.semesterCode ?? "",
+                "sectionLabel": community.sectionLabel ?? "",
+                "memberIDs": FieldValue.arrayUnion([viewerID]),
+                "updatedAt": nowISO(),
+            ], at: ref)
+        } catch {
+            if isDocumentMissing(error) {
+                try await setData(courseCommunityData(community), at: ref)
+            } else {
+                throw error
+            }
+        }
+    }
+
+    private func makeCourseCommunity(from snapshot: DocumentSnapshot) -> SocialCourseCommunity? {
+        guard let data = snapshot.data(),
+              let kindRaw = data["kind"] as? String,
+              let kind = SocialCourseCommunityKind(rawValue: kindRaw),
+              let courseSubject = data["courseSubject"] as? String,
+              let courseNumber = data["courseNumber"] as? String,
+              let courseTitle = data["courseTitle"] as? String,
+              let createdAt = data["createdAt"] as? String,
+              let updatedAt = data["updatedAt"] as? String else {
+            return nil
+        }
+
+        return SocialCourseCommunity(
+            id: snapshot.documentID,
+            kind: kind,
+            courseSubject: courseSubject,
+            courseNumber: courseNumber,
+            courseTitle: courseTitle,
+            semesterCode: emptyToNil(data["semesterCode"] as? String),
+            sectionLabel: emptyToNil(data["sectionLabel"] as? String),
+            memberIDs: (data["memberIDs"] as? [String] ?? []).sorted(),
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    private func isDocumentMissing(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == "FIRFirestoreErrorDomain",
+           nsError.code == FirestoreErrorCode.notFound.rawValue {
+            return true
+        }
+
+        let message = nsError.localizedDescription.lowercased()
+        return message.contains("no document to update") || message.contains("not found")
+    }
+    
+
+    private func loadCourseComments(communityRef: DocumentReference) async throws -> [SocialCourseComment] {
+        let snapshot = try await getDocuments(
+            communityRef.collection("comments")
+                .order(by: "createdAt", descending: true)
+                .limit(to: 80)
+        )
+
+        return snapshot.documents.compactMap(makeCourseComment)
+    }
+
+    private func courseCommunityID(
+        kind: SocialCourseCommunityKind,
+        course: Course,
+        section: CourseSection?,
+        semesterCode: String?
+    ) -> String {
+        switch kind {
+        case .course:
+            return overallCourseCommunityID(for: course)
+        case .section:
+            let sectionToken = normalizedSectionToken(section, semesterCode: semesterCode)
+            return "section_\(normalizedCourseToken(subject: course.subject, number: course.number))_\(sectionToken)"
+        }
+    }
+
+    private func normalizedCourseToken(subject: String, number: String) -> String {
+        let raw = "\(subject)_\(number)"
+        return String(raw.uppercased().map { $0.isLetter || $0.isNumber ? $0 : "_" })
+    }
+
+    private func normalizedSectionToken(_ section: CourseSection?, semesterCode: String?) -> String {
+        let raw = [
+            semesterCode ?? "none",
+            section?.section ?? "NA",
+            section?.crn.map(String.init) ?? "NA"
+        ].joined(separator: "_")
+
+        return String(raw.uppercased().map { $0.isLetter || $0.isNumber ? $0 : "_" })
+    }
+
+    private func sectionCommunityLabel(section: CourseSection, semesterCode: String?) -> String {
+        let semesterName = semesterCode.flatMap(Semester.init(rawValue:))?.displayName ?? semesterCode ?? "Unknown Term"
+        return "\(semesterName) • Sec \(section.section)"
+    }
+
+    private func courseCommunityData(_ community: SocialCourseCommunity) -> [String: Any] {
+        [
+            "kind": community.kind.rawValue,
+            "courseSubject": community.courseSubject,
+            "courseNumber": community.courseNumber,
+            "courseTitle": community.courseTitle,
+            "semesterCode": community.semesterCode ?? "",
+            "sectionLabel": community.sectionLabel ?? "",
+            "memberIDs": community.memberIDs,
+            "createdAt": community.createdAt,
+            "updatedAt": community.updatedAt,
+        ]
+    }
+
+    private func courseCommentData(_ comment: SocialCourseComment) -> [String: Any] {
+        [
+            "communityID": comment.communityID,
+            "userID": comment.userID,
+            "username": comment.username,
+            "displayName": comment.displayName,
+            "body": comment.body,
+            "createdAt": comment.createdAt,
+        ]
+    }
+
+    private func makeCourseComment(from snapshot: DocumentSnapshot) -> SocialCourseComment? {
+        guard let data = snapshot.data(),
+              let communityID = data["communityID"] as? String,
+              let userID = data["userID"] as? String,
+              let username = data["username"] as? String,
+              let displayName = data["displayName"] as? String,
+              let body = data["body"] as? String,
+              let createdAt = data["createdAt"] as? String else {
+            return nil
+        }
+
+        return SocialCourseComment(
+            id: snapshot.documentID,
+            communityID: communityID,
+            userID: userID,
+            username: username,
+            displayName: displayName,
+            body: body,
+            createdAt: createdAt
+        )
+    }
+
+    private func courseResourceData(_ resource: SocialCourseResource) -> [String: Any] {
+        [
+            "communityID": resource.communityID,
+            "title": resource.title,
+            "kind": resource.kind,
+            "url": resource.url,
+            "notes": resource.notes,
+            "createdAt": resource.createdAt,
+            "createdByUserID": resource.createdByUserID,
+            "createdByDisplayName": resource.createdByDisplayName,
+        ]
+    }
+
+    private func makeCourseResource(from snapshot: DocumentSnapshot) -> SocialCourseResource? {
+        guard let data = snapshot.data(),
+              let communityID = data["communityID"] as? String,
+              let title = data["title"] as? String,
+              let kind = data["kind"] as? String,
+              let url = data["url"] as? String,
+              let notes = data["notes"] as? String,
+              let createdAt = data["createdAt"] as? String,
+              let createdByUserID = data["createdByUserID"] as? String,
+              let createdByDisplayName = data["createdByDisplayName"] as? String else {
+            return nil
+        }
+
+        return SocialCourseResource(
+            id: snapshot.documentID,
+            communityID: communityID,
+            title: title,
+            kind: kind,
+            url: url,
+            notes: notes,
+            createdAt: createdAt,
+            createdByUserID: createdByUserID,
+            createdByDisplayName: createdByDisplayName
+        )
+    }
+
+    private func groupPollData(_ poll: SocialGroupPoll) -> [String: Any] {
+        [
+            "threadID": poll.threadID,
+            "question": poll.question,
+            "options": poll.options.map(groupPollOptionData),
+            "votesByUserID": poll.votesByUserID,
+            "createdAt": poll.createdAt,
+            "createdByUserID": poll.createdByUserID,
+            "createdByDisplayName": poll.createdByDisplayName,
+            "isClosed": poll.isClosed,
+        ]
+    }
+
+    private func groupPollOptionData(_ option: SocialGroupPollOption) -> [String: Any] {
+        [
+            "id": option.id,
+            "title": option.title,
+        ]
+    }
+
+    private func makeGroupPoll(from snapshot: DocumentSnapshot) -> SocialGroupPoll? {
+        guard let data = snapshot.data(),
+              let threadID = data["threadID"] as? String,
+              let question = data["question"] as? String,
+              let rawOptions = data["options"] as? [[String: Any]],
+              let createdAt = data["createdAt"] as? String,
+              let createdByUserID = data["createdByUserID"] as? String,
+              let createdByDisplayName = data["createdByDisplayName"] as? String else {
+            return nil
+        }
+
+        let options = rawOptions.compactMap { raw -> SocialGroupPollOption? in
+            guard let id = raw["id"] as? String,
+                  let title = raw["title"] as? String else {
+                return nil
+            }
+            return SocialGroupPollOption(id: id, title: title)
+        }
+
+        return SocialGroupPoll(
+            id: snapshot.documentID,
+            threadID: threadID,
+            question: question,
+            options: options,
+            votesByUserID: data["votesByUserID"] as? [String: String] ?? [:],
+            createdAt: createdAt,
+            createdByUserID: createdByUserID,
+            createdByDisplayName: createdByDisplayName,
+            isClosed: data["isClosed"] as? Bool ?? false
+        )
+    }
+
+    private func makeGroupPollItem(_ poll: SocialGroupPoll, viewerID: String) -> SocialGroupPollItem {
+        var voteCounts: [String: Int] = [:]
+        for option in poll.options {
+            voteCounts[option.id] = poll.votesByUserID.values.filter { $0 == option.id }.count
+        }
+
+        return SocialGroupPollItem(
+            poll: poll,
+            voteCounts: voteCounts,
+            selectedOptionID: poll.votesByUserID[viewerID]
+        )
+    }
+
+    private func sharedCourseKey(subject: String, number: String, semesterCode: String) -> String {
+        "\(semesterCode)|\(normalizedCourseToken(subject: subject, number: number))"
+    }
+
+    private func sharedSectionKey(course: Course, section: CourseSection, semesterCode: String) -> String {
+        "\(semesterCode)|\(normalizedCourseToken(subject: course.subject, number: course.number))|\(normalizedSectionToken(section, semesterCode: semesterCode))"
+    }
+
+    private func sharedCourseKeys(from viewModel: CalendarViewModel) -> [String] {
+        Array(
+            Set(
+                viewModel.enrolledCourses.map {
+                    sharedCourseKey(subject: $0.course.subject, number: $0.course.number, semesterCode: $0.semesterCode)
+                }
+            )
+        )
+        .sorted()
+    }
+
+    private func sharedSectionKeys(from viewModel: CalendarViewModel) -> [String] {
+        Array(
+            Set(
+                viewModel.enrolledCourses.map {
+                    sharedSectionKey(course: $0.course, section: $0.section, semesterCode: $0.semesterCode)
+                }
+            )
+        )
+        .sorted()
+    }
+
+    private func ensureGroupChat(_ reference: SocialGroupChatReference) async throws {
+        let ref = firestore.collection("groupChats").document(reference.id)
+        do {
+            try await updateData([
+                "title": reference.title,
+                "subtitle": reference.subtitle,
+                "sourceKind": reference.sourceKind.rawValue,
+                "memberIDs": reference.memberIDs,
+                "updatedAt": nowISO(),
+            ], at: ref)
+        } catch {
+            if isDocumentMissing(error) {
+                try await setData(groupChatThreadData(reference), at: ref)
+            } else {
+                throw error
+            }
+        }
+    }
+
+    private func groupChatThreadData(_ reference: SocialGroupChatReference) -> [String: Any] {
+        [
+            "title": reference.title,
+            "subtitle": reference.subtitle,
+            "sourceKind": reference.sourceKind.rawValue,
+            "memberIDs": reference.memberIDs,
+            "createdAt": nowISO(),
+            "updatedAt": nowISO(),
+        ]
+    }
+
+    private func groupChatMessageData(_ message: SocialGroupChatMessage) -> [String: Any] {
+        [
+            "threadID": message.threadID,
+            "userID": message.userID,
+            "username": message.username,
+            "displayName": message.displayName,
+            "body": message.body,
+            "createdAt": message.createdAt,
+        ]
+    }
+
+    private func makeGroupChatMessage(from snapshot: DocumentSnapshot) -> SocialGroupChatMessage? {
+        guard let data = snapshot.data(),
+              let threadID = data["threadID"] as? String,
+              let userID = data["userID"] as? String,
+              let username = data["username"] as? String,
+              let displayName = data["displayName"] as? String,
+              let body = data["body"] as? String,
+              let createdAt = data["createdAt"] as? String else {
+            return nil
+        }
+
+        return SocialGroupChatMessage(
+            id: snapshot.documentID,
+            threadID: threadID,
+            userID: userID,
+            username: username,
+            displayName: displayName,
+            body: body,
+            createdAt: createdAt
+        )
     }
 
     private func loadFeedItems(friendOwnerIDs: [String]) async throws -> [SocialFeedItem] {
