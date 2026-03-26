@@ -482,6 +482,409 @@ struct CourseDetailView: View {
         )
     }
 
+    private var friendChipColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 110), spacing: 8, alignment: .leading)]
+    }
+
+    private func prerequisiteExpressionView(_ expression: PrerequisiteExpression, depth: Int = 0) -> AnyView {
+        switch expression {
+        case .course(let courseID, let minGrade):
+            return AnyView(prerequisiteCourseRow(courseID: courseID, minGrade: minGrade, depth: depth))
+        case .and(let children):
+            return AnyView(
+                prerequisiteGroupView(
+                    title: depth == 0 ? "All of these" : "And",
+                    expression: expression,
+                    children: children,
+                    depth: depth
+                )
+            )
+        case .or(let children):
+            return AnyView(
+                prerequisiteGroupView(
+                    title: "One of these options",
+                    expression: expression,
+                    children: children,
+                    depth: depth
+                )
+            )
+        }
+    }
+
+    private func prerequisiteGroupView(
+        title: String,
+        expression: PrerequisiteExpression,
+        children: [PrerequisiteExpression],
+        depth: Int
+    ) -> some View {
+        let satisfied = calendarViewModel.isSatisfied(expression)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(satisfied ? "Satisfied" : "Needed")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(satisfied ? .green : .orange)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(children.enumerated()), id: \.offset) { pair in
+                    prerequisiteExpressionView(pair.element, depth: depth + 1)
+                }
+            }
+        }
+        .padding(.leading, depth == 0 ? 0 : 12)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+
+    private func prerequisiteCourseRow(courseID: String, minGrade: String?, depth: Int) -> some View {
+        let status = calendarViewModel.prerequisiteStatus(for: courseID, course: course)
+        let tint: Color = {
+            switch status {
+            case .missing:
+                return .red
+            case .assumedTaken:
+                return .orange
+            case .completed:
+                return .green
+            }
+        }()
+
+        let statusText: String = {
+            switch status {
+            case .missing:
+                return "Missing"
+            case .assumedTaken:
+                return "Marked taken"
+            case .completed:
+                return "Satisfied"
+            }
+        }()
+
+        let title = calendarViewModel.courseTitle(for: courseID)
+
+        return Button {
+            selectedPrerequisiteID = courseID
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(calendarViewModel.formattedCourseID(courseID))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    if let title, !title.isEmpty {
+                        Text(title)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let minGrade, !minGrade.isEmpty {
+                        Text("Minimum grade: \(minGrade)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                Text(statusText)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(tint)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(tint.opacity(0.10))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(tint.opacity(0.35), lineWidth: 1)
+            )
+            .padding(.leading, depth == 0 ? 0 : 12)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func prerequisitePills(_ prerequisiteIDs: [String]) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 150), spacing: 8, alignment: .leading)],
+            alignment: .leading,
+            spacing: 8
+        ) {
+            ForEach(prerequisiteIDs, id: \.self) { prereqID in
+                Button {
+                    selectedPrerequisiteID = prereqID
+                } label: {
+                    prerequisitePillLabel(for: prereqID)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func prerequisitePillLabel(for prereqID: String) -> some View {
+        let status = calendarViewModel.prerequisiteStatus(for: prereqID, course: course)
+        let tint: Color = {
+            switch status {
+            case .missing:
+                return .red
+            case .assumedTaken:
+                return .orange
+            case .completed:
+                return .green
+            }
+        }()
+
+        let statusText: String = {
+            switch status {
+            case .missing:
+                return "Missing"
+            case .assumedTaken:
+                return "Marked taken"
+            case .completed:
+                return "Satisfied"
+            }
+        }()
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(calendarViewModel.formattedCourseID(prereqID))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text(statusText)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(tint.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(tint.opacity(0.45), lineWidth: 1)
+        )
+    }
+
+    private var selectedPrerequisiteDetails: Binding<PrerequisiteAlertItem?> {
+        Binding(
+            get: {
+                guard let selectedPrerequisiteID else { return nil }
+                return PrerequisiteAlertItem(courseID: selectedPrerequisiteID)
+            },
+            set: { newValue in
+                selectedPrerequisiteID = newValue?.courseID
+            }
+        )
+    }
+
+    private func prerequisiteAlert(for prereq: PrerequisiteAlertItem) -> Alert {
+        let status = calendarViewModel.prerequisiteStatus(for: prereq.courseID, course: course)
+        let title = Text(calendarViewModel.formattedCourseID(prereq.courseID))
+        let courseTitle = calendarViewModel.courseTitle(for: prereq.courseID) ?? "Course title unavailable"
+        let message = Text(courseTitle)
+
+        switch status {
+        case .missing:
+            return Alert(
+                title: title,
+                message: message,
+                primaryButton: .default(Text("Mark as already taken")) {
+                    calendarViewModel.setAssumedPrerequisite(prereq.courseID, for: course, assumed: true)
+                },
+                secondaryButton: .cancel()
+            )
+
+        case .assumedTaken:
+            return Alert(
+                title: title,
+                message: message,
+                primaryButton: .default(Text("Undo already taken")) {
+                    calendarViewModel.setAssumedPrerequisite(prereq.courseID, for: course, assumed: false)
+                },
+                secondaryButton: .cancel()
+            )
+
+        case .completed:
+            return Alert(
+                title: title,
+                message: message,
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+
+    private var courseDiscussionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Class Discussion")
+                .font(.headline)
+
+            Text("Comments here are shared with the overall class group, separate from the semester-specific section group.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if !socialManager.isAuthenticated {
+                discussionPlaceholder("Sign in on the Social tab to unlock class discussion.")
+            } else if enrollmentsForThisCourse.isEmpty {
+                discussionPlaceholder("Add one of this course’s sections to join the discussion.")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    commentComposerCard
+
+                    if socialManager.courseComments(for: course).isEmpty {
+                        discussionPlaceholder("No comments yet. Start the conversation.")
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(socialManager.courseComments(for: course)) { comment in
+                                courseCommentRow(comment)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var commentComposerCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Post to the class")
+                .font(.subheadline.weight(.semibold))
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+
+                TextEditor(text: $courseCommentDraft)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 100)
+                    .focused($commentFieldFocused)
+                    .textInputAutocapitalization(.sentences)
+
+                if courseCommentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Share something with the class")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 18)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(calendarViewModel.themeColor.opacity(0.16), lineWidth: 1)
+            )
+
+            HStack {
+                Text("Visible to the overall class group")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Post") {
+                    let trimmedComment = courseCommentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedComment.isEmpty else { return }
+
+                    Task {
+                        let posted = await socialManager.postCourseComment(for: course, body: trimmedComment)
+                        if posted {
+                            await MainActor.run {
+                                courseCommentDraft = ""
+                                commentFieldFocused = false
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(courseCommentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+
+    private func discussionPlaceholder(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.secondarySystemBackground))
+            )
+    }
+
+    private func courseCommentRow(_ comment: SocialCourseComment) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(comment.displayName)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(formattedCourseCommentDate(comment.createdAt))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                if socialManager.canDeleteCourseComment(comment) {
+                    Button(role: .destructive) {
+                        Task {
+                            _ = await socialManager.deleteCourseComment(for: course, comment: comment)
+                        }
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+
+            Text(comment.body)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+
+    private func formattedCourseCommentDate(_ isoString: String) -> String {
+        if let date = ISO8601DateFormatter().date(from: isoString) {
+            return courseCommentDateFormatter.string(from: date)
+        }
+        return "Recently"
+    }
+
+}
+
+private let courseCommentDateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter
+}()
+
+private struct PrerequisiteAlertItem: Identifiable {
+    let courseID: String
+    var id: String { courseID }
 }
 
 // MARK: - Exam dates editor sheet (no MultiDatePicker)
