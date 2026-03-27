@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
+    @EnvironmentObject var socialManager: SocialManager
 
     @AppStorage("shuttle_tracker_refresh_interval_seconds") private var shuttleTrackerRefreshIntervalSeconds = 5
     @State private var selectedTheme: AppThemeColor = .blue
@@ -49,12 +50,54 @@ struct SettingsView: View {
                         }
                     }
 
+                    Section(
+                        header: Text("Home Dashboard"),
+                        footer: Text("Tap Edit, then drag with the handle on the right to reorder your Home blocks.")
+                    ) {
+                        ForEach(calendarViewModel.homeSectionOrder) { section in
+                            HStack(spacing: 12) {
+                                Toggle(
+                                    section.title,
+                                    isOn: Binding(
+                                        get: { calendarViewModel.isHomeSectionEnabled(section) },
+                                        set: { calendarViewModel.setHomeSection(section, enabled: $0) }
+                                    )
+                                )
+                                .toggleStyle(.switch)
+
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onMove { source, destination in
+                            calendarViewModel.moveHomeSections(from: source, to: destination)
+                        }
+                    }
+
                     // PREREQS
                     Section(header: Text("Courses")) {
                         Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
                         Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    Section(
+                        header: Text("Visible Term"),
+                        footer: Text("Controls which term Home and the main calendar treat as current. Terms up through this one will show on Home.")
+                    ) {
+                        Picker(
+                            "Home and calendar term",
+                            selection: Binding(
+                                get: { calendarViewModel.currentSemester },
+                                set: { calendarViewModel.changeSemester(to: $0) }
+                            )
+                        ) {
+                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                                Text(semester.displayName).tag(semester)
+                            }
+                        }
                     }
 
                     Section(header: Text("Academic History")) {
@@ -80,7 +123,7 @@ struct SettingsView: View {
 
                     Section(header: Text("Notifications")) {
                         Toggle("Enable calendar reminders", isOn: $calendarViewModel.notificationsEnabled)
-                        Toggle("Enable feed and shared-event alerts", isOn: $calendarViewModel.socialNotificationsEnabled)
+                        Toggle("Enable feed and shared-event alerts", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
 
                         if calendarViewModel.notificationsEnabled {
                             HStack {
@@ -109,7 +152,7 @@ struct SettingsView: View {
 
                     Section(
                         header: Text("Shuttle Tracker"),
-                        footer: Text("Shorter refresh intervals feel more live, but they use more battery and network. The Home Dashboard controls below can also enable, disable, or reorder the shuttle tile.")
+                        footer: Text("Shorter refresh intervals feel more live, but they use more battery and network.")
                     ) {
                         Picker("Refresh interval", selection: $shuttleTrackerRefreshIntervalSeconds) {
                             Text("1 second").tag(1)
@@ -117,36 +160,6 @@ struct SettingsView: View {
                             Text("5 seconds").tag(5)
                             Text("10 seconds").tag(10)
                         }
-                    }
-
-                    Section(
-                        header: Text("Home Dashboard"),
-                        footer: Text("Toggle sections on or off, then use Edit to rearrange them.")
-                    ) {
-                        ForEach(calendarViewModel.homeSectionOrder) { section in
-                            HStack {
-                                Toggle(
-                                    section.title,
-                                    isOn: Binding(
-                                        get: { calendarViewModel.isHomeSectionEnabled(section) },
-                                        set: { calendarViewModel.setHomeSection(section, enabled: $0) }
-                                    )
-                                )
-                                .toggleStyle(.switch)
-
-                                if editMode == .active {
-                                    Image(systemName: "line.3.horizontal")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .onMove { source, destination in
-                            calendarViewModel.moveHomeSections(from: source, to: destination)
-                        }
-                    }
-
-                    Section(footer: Text("You can move the order by pressing and holding the section by the way")) {
-                        EmptyView()
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -168,6 +181,11 @@ struct SettingsView: View {
         }
         .onChange(of: selectedAppearance) {
             calendarViewModel.appearanceMode = selectedAppearance
+        }
+        .onChange(of: calendarViewModel.socialFeedNotificationsEnabled) {
+            Task {
+                await socialManager.syncPushNotificationPreferences()
+            }
         }
     }
 }
