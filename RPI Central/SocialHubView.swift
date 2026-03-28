@@ -906,18 +906,39 @@ struct SocialHubView: View {
         Button {
             showFeedComposer = true
         } label: {
-            Image(systemName: "plus")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background(
-                    Circle()
-                        .fill(calendarViewModel.themeColor)
-                        .shadow(color: calendarViewModel.themeColor.opacity(0.35), radius: 16, y: 8)
-                )
+            floatingActionCircle(
+                icon: "plus",
+                fill: calendarViewModel.themeColor
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Create activity")
+    }
+
+    private var friendToolsFloatingButton: some View {
+        Button {
+            showFriendTools = true
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                floatingActionCircle(
+                    icon: "person.badge.plus",
+                    fill: Color(red: 0.20, green: 0.22, blue: 0.26)
+                )
+
+                if incomingCount > 0 {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 12, height: 12)
+                        .overlay(
+                            Circle()
+                                .stroke(Color(.systemBackground), lineWidth: 2)
+                        )
+                        .offset(x: 1, y: -1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Friend tools")
     }
 
     private var feedListCard: some View {
@@ -1093,6 +1114,7 @@ struct SocialHubView: View {
         let goingResponses = item.responses.filter { $0.status == .going }
         let myStatus = item.responses.first { $0.userID == socialManager.currentUser?.id }?.status
         let isOwnPost = item.post.ownerID == socialManager.currentUser?.id
+        let canEndPost = isOwnPost || socialManager.canModerateSocialContent
         let isEnded = feedIsEnded(item)
         let isUpcoming = feedIsUpcoming(item)
 
@@ -1170,23 +1192,25 @@ struct SocialHubView: View {
                 }
             }
 
-            if isOwnPost {
+            if isOwnPost || canEndPost {
                 HStack(spacing: 10) {
-                    if !isEnded {
-                        Button("Mark ended") {
+                    if !isEnded && canEndPost {
+                        Button("End activity") {
                             Task {
-                                _ = await socialManager.endFeedPost(item.post.id)
+                                _ = await socialManager.endFeedPost(item.post)
                             }
                         }
                         .buttonStyle(.bordered)
                     }
 
-                    Button("Delete post", role: .destructive) {
-                        Task {
-                            _ = await socialManager.deleteFeedPost(item.post.id)
+                    if isOwnPost {
+                        Button("Delete post", role: .destructive) {
+                            Task {
+                                _ = await socialManager.deleteFeedPost(item.post.id)
+                            }
                         }
+                        .font(.caption.weight(.semibold))
                     }
-                    .font(.caption.weight(.semibold))
                 }
             }
         }
@@ -1222,6 +1246,39 @@ struct SocialHubView: View {
             .padding(.vertical, 6)
             .background(Capsule().fill(color.opacity(0.14)))
             .foregroundStyle(color)
+    }
+
+    private func collapsibleHeader(
+        title: String,
+        systemImage: String,
+        countText: String,
+        isExpanded: Binding<Bool>
+    ) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.wrappedValue.toggle()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text(countText)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(calendarViewModel.themeColor.opacity(0.12)))
+                    .foregroundStyle(calendarViewModel.themeColor)
+
+                Spacer()
+
+                Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func feedPresencePill(_ title: String, count: Int, names: [String], color: Color) -> some View {
@@ -1260,6 +1317,18 @@ struct SocialHubView: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.08)))
+    }
+
+    private func floatingActionCircle(icon: String, fill: Color) -> some View {
+        Image(systemName: icon)
+            .font(.title3.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 58, height: 58)
+            .background(
+                Circle()
+                    .fill(fill)
+                    .shadow(color: fill.opacity(0.30), radius: 16, y: 8)
+            )
     }
 
     private var friendToolsSheet: some View {
@@ -1337,8 +1406,9 @@ struct SocialHubView: View {
     }
 
     private func syncSharedScheduleIfNeeded() async {
-        guard socialManager.isAuthenticated,
-              socialManager.currentUser?.shareSchedule == true else { return }
+        guard socialManager.isAuthenticated else { return }
+        await socialManager.syncCourseCommunities(from: calendarViewModel)
+        guard socialManager.currentUser?.shareSchedule == true else { return }
         await socialManager.syncSchedule(from: calendarViewModel)
     }
 
@@ -1367,7 +1437,7 @@ struct SocialHubView: View {
     }
 
     private func groupSummary(for group: SocialFriendGroup, namesByID: [String: String]) -> String {
-        let names = group.memberIDs.compactMap { namesByID[$0] }
+        let names = ([group.ownerID] + group.memberIDs).compactMap { namesByID[$0] }
         if names.isEmpty {
             return "Members unavailable"
         }
@@ -1375,6 +1445,117 @@ struct SocialHubView: View {
             return names.joined(separator: ", ")
         }
         return "\(names.prefix(3).joined(separator: ", ")) +\(names.count - 3)"
+    }
+
+    private func groupMembersPresentation(for group: SocialFriendGroup, namesByID: [String: String]) -> GroupMembersPresentation {
+        let orderedIDs = [group.ownerID] + group.memberIDs
+        var seen: Set<String> = []
+        let uniqueIDs = orderedIDs.filter { seen.insert($0).inserted }
+        let names = uniqueIDs.compactMap { namesByID[$0] }
+        let addableFriends = (socialManager.overview?.friends ?? [])
+            .filter { !uniqueIDs.contains($0.id) }
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        return GroupMembersPresentation(
+            title: group.name,
+            subtitle: "\(uniqueIDs.count) members",
+            memberNames: names,
+            group: group,
+            addableFriends: addableFriends
+        )
+    }
+
+    private func groupHubPresentation(for community: SocialCourseCommunity) -> GroupHubPresentation {
+        let reference = socialManager.chatReference(for: community)
+        let memberNames = reference.memberDisplayNames.isEmpty ? [reference.subtitle] : reference.memberDisplayNames
+        return GroupHubPresentation(
+            id: "course-\(community.id)",
+            title: reference.title,
+            subtitle: reference.subtitle,
+            memberNames: memberNames,
+            reference: reference,
+            courseCommunity: community
+        )
+    }
+
+    private var availableClassGroupSemesterCodes: [String] {
+        let groupCodes = socialManager.courseCommunities.compactMap(\.semesterCode)
+        let enrollmentCodes = calendarViewModel.enrolledCourses.map(\.semesterCode)
+        return Array(Set(groupCodes + enrollmentCodes)).sorted(by: >)
+    }
+
+    private func classGroupFilterTitle(for filter: ClassGroupFilter) -> String {
+        switch filter {
+        case .currentOverall:
+            return "Current • Overall"
+        case .currentAll:
+            return "Current • All"
+        case .allOverall:
+            return "All • Overall"
+        case .all:
+            return "All • All"
+        case .semesterOverall(let code):
+            return "\(Semester(rawValue: code)?.displayName ?? code) • Overall"
+        case .semesterAll(let code):
+            return "\(Semester(rawValue: code)?.displayName ?? code) • All"
+        }
+    }
+
+    private func filteredClassGroups(from groups: [SocialCourseCommunity]) -> [SocialCourseCommunity] {
+        let semesterCode: String?
+        switch classGroupFilter {
+        case .currentOverall, .currentAll:
+            semesterCode = calendarViewModel.currentSemester.rawValue
+        case .allOverall, .all:
+            semesterCode = nil
+        case .semesterOverall(let code), .semesterAll(let code):
+            semesterCode = code
+        }
+
+        let showsSectionGroups: Bool
+        switch classGroupFilter {
+        case .currentAll, .all, .semesterAll:
+            showsSectionGroups = true
+        default:
+            showsSectionGroups = false
+        }
+
+        guard let semesterCode else {
+            return groups
+                .filter { group in
+                    group.kind == .course || showsSectionGroups
+                }
+                .sorted(by: sortClassGroups)
+        }
+
+        let matchingCourseTokens = Set(
+            calendarViewModel.enrolledCourses
+                .filter { $0.semesterCode == semesterCode }
+                .map { classGroupCourseToken(subject: $0.course.subject, number: $0.course.number) }
+        )
+
+        return groups.filter { group in
+            if group.kind == .section {
+                return showsSectionGroups && group.semesterCode == semesterCode
+            }
+            return matchingCourseTokens.contains(
+                classGroupCourseToken(subject: group.courseSubject, number: group.courseNumber)
+            )
+        }
+        .sorted(by: sortClassGroups)
+    }
+
+    private func sortClassGroups(_ lhs: SocialCourseCommunity, _ rhs: SocialCourseCommunity) -> Bool {
+        if lhs.courseTitle == rhs.courseTitle {
+            if lhs.kind == rhs.kind {
+                return (lhs.sectionLabel ?? "") < (rhs.sectionLabel ?? "")
+            }
+            return lhs.kind == .course && rhs.kind == .section
+        }
+        return lhs.courseTitle.localizedCaseInsensitiveCompare(rhs.courseTitle) == .orderedAscending
+    }
+
+    private func classGroupCourseToken(subject: String, number: String) -> String {
+        "\(subject.uppercased())-\(number)"
     }
 
     private func feedStateText(for item: SocialFeedItem) -> String {
