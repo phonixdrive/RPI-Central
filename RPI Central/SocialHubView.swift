@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(FirebaseFirestore)
+import FirebaseFirestore
+#endif
 
 struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
@@ -15,6 +18,13 @@ struct SocialHubView: View {
     @State private var showCreateGroup = false
     @State private var showFeedComposer = false
     @State private var selectedFriendSchedule: FriendScheduleResponse?
+    @State private var selectedGroupChat: SocialGroupChatReference?
+    @State private var selectedGroupHub: GroupHubPresentation?
+    @State private var selectedGroupMembers: GroupMembersPresentation?
+    @State private var friendsExpanded = true
+    @State private var groupsExpanded = true
+    @State private var classGroupsExpanded = false
+    @State private var classGroupFilter: ClassGroupFilter = .currentOverall
     @FocusState private var searchFieldFocused: Bool
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
@@ -53,6 +63,9 @@ struct SocialHubView: View {
                     await socialManager.refreshOverview()
                 }
                 .sheet(item: $selectedFriendSchedule) { schedule in friendScheduleSheet(schedule) }
+                .sheet(item: $selectedGroupChat) { reference in groupChatSheet(reference) }
+                .sheet(item: $selectedGroupHub) { presentation in groupHubSheet(presentation) }
+                .sheet(item: $selectedGroupMembers) { presentation in groupMembersSheet(presentation) }
                 .sheet(isPresented: $showFriendTools) { friendToolsSheet }
                 .sheet(isPresented: $showCreateGroup) { createGroupSheet }
                 .sheet(isPresented: $showFeedComposer) { feedComposerSheet }
@@ -106,12 +119,18 @@ struct SocialHubView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 18)
-                    .padding(.bottom, selectedSection == .feed ? 96 : 18)
+                    .padding(.bottom, selectedSection == .feed || selectedSection == .friends ? 96 : 18)
                 }
             }
 
             if socialManager.isAuthenticated && selectedSection == .feed {
                 feedFloatingButton
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 24)
+            }
+
+            if socialManager.isAuthenticated && selectedSection == .friends {
+                friendToolsFloatingButton
                     .padding(.trailing, 20)
                     .padding(.bottom, 24)
             }
@@ -160,9 +179,9 @@ struct SocialHubView: View {
         case .feed:
             feedListCard
         case .friends:
-            friendToolsCard
-            groupsCard
             friendsCard
+            groupsCard
+            classGroupsCard
         }
     }
 
@@ -226,9 +245,22 @@ struct SocialHubView: View {
         FriendScheduleView(response: schedule)
     }
 
+    private func groupChatSheet(_ reference: SocialGroupChatReference) -> some View {
+        GroupChatSheet(reference: reference)
+            .interactiveDismissDisabled()
+    }
+
+    private func groupHubSheet(_ presentation: GroupHubPresentation) -> some View {
+        GroupHubSheet(presentation: presentation)
+    }
+
+    private func groupMembersSheet(_ presentation: GroupMembersPresentation) -> some View {
+        GroupMembersSheet(presentation: presentation)
+    }
+
     private var sectionBar: some View {
         HStack(spacing: 10) {
-            sectionButton(title: "Friends", section: .friends, badgeCount: incomingCount)
+            sectionButton(title: "Friends", section: .friends)
             sectionButton(title: "Feed", section: .feed)
             sectionButton(title: "Profile", section: .profile)
         }
@@ -498,52 +530,6 @@ struct SocialHubView: View {
         }
     }
 
-    private var friendToolsCard: some View {
-        SocialCard(
-            background: Color(red: 0.20, green: 0.22, blue: 0.26),
-            stroke: Color.white.opacity(0.08)
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Friend Tools", systemImage: "person.badge.plus")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-
-                Text("Open friend search and review incoming or outgoing requests in one place.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.white.opacity(0.72))
-
-                HStack(spacing: 12) {
-                    statPill(
-                        title: "Incoming",
-                        value: "\(incomingCount)",
-                        background: Color.white.opacity(0.10),
-                        valueColor: .white,
-                        titleColor: Color.white.opacity(0.66)
-                    )
-                    statPill(
-                        title: "Outgoing",
-                        value: "\(socialManager.overview?.outgoingRequests.count ?? 0)",
-                        background: Color.white.opacity(0.10),
-                        valueColor: .white,
-                        titleColor: Color.white.opacity(0.66)
-                    )
-                }
-
-                Button {
-                    showFriendTools = true
-                } label: {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                        Text("Add Friends or Review Requests")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
-    }
-
     private var findFriendsSearchCard: some View {
         SocialCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -633,19 +619,25 @@ struct SocialHubView: View {
     private var friendsCard: some View {
         SocialCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Friends", systemImage: "person.2.fill")
-                    .font(.headline)
+                collapsibleHeader(
+                    title: "Friends",
+                    systemImage: "person.2.fill",
+                    countText: "\(socialManager.overview?.friends.count ?? 0)",
+                    isExpanded: $friendsExpanded
+                )
 
-                if let friends = socialManager.overview?.friends, !friends.isEmpty {
-                    VStack(spacing: 10) {
-                        ForEach(friends) { friend in
-                            friendCard(friend)
+                if friendsExpanded {
+                    if let friends = socialManager.overview?.friends, !friends.isEmpty {
+                        VStack(spacing: 10) {
+                            ForEach(friends) { friend in
+                                friendCard(friend)
+                            }
                         }
+                    } else {
+                        Text("No friends yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("No friends yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -654,15 +646,20 @@ struct SocialHubView: View {
     private var groupsCard: some View {
         let groups = socialManager.friendGroups
         let friends = socialManager.overview?.friends ?? []
-        let namesByID = Dictionary(uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) })
+        let namesByID = Dictionary(
+            uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) } +
+            [(socialManager.currentUser?.id ?? "self", socialManager.currentUser?.displayName ?? "You")]
+        )
 
         return SocialCard {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("Friend Groups", systemImage: "person.3.fill")
-                        .font(.headline)
-
-                    Spacer()
+                HStack(alignment: .center, spacing: 12) {
+                    collapsibleHeader(
+                        title: "Groups",
+                        systemImage: "person.3.fill",
+                        countText: "\(groups.count)",
+                        isExpanded: $groupsExpanded
+                    )
 
                     Button {
                         showCreateGroup = true
@@ -673,47 +670,199 @@ struct SocialHubView: View {
                     .disabled(friends.isEmpty)
                 }
 
-                Text("Create smaller circles for personal-event sharing and future social features.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if groups.isEmpty {
-                    Text(friends.isEmpty ? "Add a friend first to start building groups." : "No groups yet.")
-                        .font(.caption)
+                if groupsExpanded {
+                    Text("Create smaller circles for personal-event sharing and quick coordination.")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
-                } else {
-                    VStack(spacing: 10) {
-                        ForEach(groups) { group in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(group.name)
-                                            .font(.headline)
-                                        Text("\(group.memberIDs.count) member\(group.memberIDs.count == 1 ? "" : "s")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
 
-                                    Spacer()
+                    if groups.isEmpty {
+                        Text(friends.isEmpty ? "Add a friend first to start building groups." : "No groups yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(groups) { group in
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Button {
+                                        selectedGroupMembers = groupMembersPresentation(for: group, namesByID: namesByID)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack(alignment: .top) {
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    Text(group.name)
+                                                        .font(.headline)
+                                                    Text("\(group.memberIDs.count + 1) members")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
 
-                                    Button("Delete", role: .destructive) {
-                                        Task {
-                                            let deleted = await socialManager.deleteFriendGroup(group.id)
-                                            if deleted {
-                                                await syncSharedScheduleIfNeeded()
+                                                Spacer()
+
+                                                Image(systemName: "chevron.right")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(.secondary)
                                             }
+
+                                            Text(groupSummary(for: group, namesByID: namesByID))
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    HStack(spacing: 10) {
+                                        if let reference = socialManager.chatReference(for: group) {
+                                            Button {
+                                                selectedGroupChat = reference
+                                            } label: {
+                                                Label("Open chat", systemImage: "bubble.left.and.bubble.right")
+                                                    .frame(maxWidth: .infinity)
+                                                    .lineLimit(1)
+                                            }
+                                            .buttonStyle(.bordered)
+                                        }
+
+                                        if group.ownerID == socialManager.currentUser?.id {
+                                            Button(role: .destructive) {
+                                                Task {
+                                                    let deleted = await socialManager.deleteFriendGroup(group.id)
+                                                    if deleted {
+                                                        await syncSharedScheduleIfNeeded()
+                                                    }
+                                                }
+                                            } label: {
+                                                Text("Delete")
+                                                    .frame(maxWidth: .infinity)
+                                                    .lineLimit(1)
+                                            }
+                                            .buttonStyle(.bordered)
+                                        } else {
+                                            Button(role: .destructive) {
+                                                Task {
+                                                    _ = await socialManager.leaveFriendGroup(group)
+                                                }
+                                            } label: {
+                                                Text("Leave")
+                                                    .frame(maxWidth: .infinity)
+                                                    .lineLimit(1)
+                                            }
+                                            .buttonStyle(.bordered)
                                         }
                                     }
-                                    .font(.caption.weight(.semibold))
                                 }
-
-                                Text(groupSummary(for: group, namesByID: namesByID))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
                             }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var classGroupsCard: some View {
+        let classGroups = filteredClassGroups(from: socialManager.courseCommunities)
+
+        return SocialCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    collapsibleHeader(
+                        title: "Class Groups",
+                        systemImage: "books.vertical.fill",
+                        countText: "\(classGroups.count)",
+                        isExpanded: $classGroupsExpanded
+                    )
+
+                    Menu {
+                        Button("Current Semester · Overall Class") {
+                            classGroupFilter = .currentOverall
+                        }
+
+                        Button("Current Semester · All Groups") {
+                            classGroupFilter = .currentAll
+                        }
+
+                        Button("All Semesters · Overall Class") {
+                            classGroupFilter = .allOverall
+                        }
+
+                        Button("All Semesters · All Groups") {
+                            classGroupFilter = .all
+                        }
+
+                        if !availableClassGroupSemesterCodes.isEmpty {
+                            Divider()
+                            ForEach(availableClassGroupSemesterCodes, id: \.self) { semesterCode in
+                                Button(classGroupFilterTitle(for: .semesterOverall(semesterCode))) {
+                                    classGroupFilter = .semesterOverall(semesterCode)
+                                }
+                                Button(classGroupFilterTitle(for: .semesterAll(semesterCode))) {
+                                    classGroupFilter = .semesterAll(semesterCode)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(classGroupFilterTitle(for: classGroupFilter), systemImage: "line.3.horizontal.decrease.circle")
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if classGroupsExpanded {
+                    Text("These are created automatically from the sections you add, including one overall class group and one section group.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    if classGroups.isEmpty {
+                        Text("Enroll in a course to see class groups here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(classGroups) { group in
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(alignment: .top) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(group.courseTitle)
+                                                .font(.headline)
+                                            Text("\(group.courseSubject) \(group.courseNumber)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        badgeLabel(
+                                            group.kind == .course ? "Overall class" : "Section",
+                                            color: group.kind == .course ? calendarViewModel.themeColor : .secondary
+                                        )
+                                    }
+
+                                    HStack(spacing: 10) {
+                                        Button {
+                                            selectedGroupHub = groupHubPresentation(for: group)
+                                        } label: {
+                                            Label("Open hub", systemImage: "rectangle.grid.2x2")
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+
+                                        Button {
+                                            selectedGroupChat = socialManager.chatReference(for: group)
+                                        } label: {
+                                            Label("Open chat", systemImage: "bubble.left.and.bubble.right")
+                                                .frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                }
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                            }
                         }
                     }
                 }
