@@ -1730,7 +1730,7 @@ private struct FeedComposerView: View {
 
                                 if visibility == .groups {
                                     if groups.isEmpty {
-                                        Text("Create a friend group first before posting a group-only activity.")
+                                        Text("Create a group first before posting a group-only activity.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     } else {
@@ -1938,7 +1938,404 @@ private struct FriendGroupEditorView: View {
     }
 }
 
-private struct SocialCard<Content: View>: View {
+private struct GroupChatSheet: View {
+    let reference: SocialGroupChatReference
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var composerFocused: Bool
+
+    @State private var messages: [SocialGroupChatMessage] = []
+    @State private var draftMessage: String = ""
+    @State private var isSending = false
+    @State private var didPerformInitialScroll = false
+#if canImport(FirebaseFirestore)
+    @State private var chatListener: ListenerRegistration?
+#endif
+
+    private let bottomAnchorID = "group-chat-bottom-anchor"
+
+    var body: some View {
+        NavigationStack {
+            ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    conversationHeader
+
+                    ZStack {
+                        if messages.isEmpty {
+                            VStack(spacing: 10) {
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(calendarViewModel.themeColor)
+                                Text("No messages yet.")
+                                    .font(.headline)
+                                Text("Start the chat for this group.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding()
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                composerFocused = false
+                            }
+                        } else {
+                            ScrollView {
+                                LazyVStack(spacing: 12) {
+                                    ForEach(messages) { message in
+                                        chatMessageRow(message)
+                                    }
+
+                                    Color.clear
+                                        .frame(height: 1)
+                                        .id(bottomAnchorID)
+                                }
+                                .padding(16)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                composerFocused = false
+                            }
+                            .scrollDismissesKeyboard(.interactively)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(.systemGroupedBackground),
+                            calendarViewModel.themeColor.opacity(0.14),
+                            Color(.systemBackground),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .safeAreaInset(edge: .bottom) {
+                    composerBar(proxy: proxy)
+                }
+                .navigationTitle(reference.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Label("Back", systemImage: "chevron.left")
+                        }
+                    }
+                }
+                .task(id: reference.id) {
+                    socialManager.setActiveGroupChat(id: reference.id)
+                    await startListening(proxy: proxy)
+                }
+                .onChange(of: messages.count) { _, newCount in
+                    guard newCount > 0 else { return }
+                    if !didPerformInitialScroll {
+                        didPerformInitialScroll = true
+                        scrollToBottom(proxy, animated: false)
+                        DispatchQueue.main.async {
+                            scrollToBottom(proxy, animated: false)
+                        }
+                    }
+                }
+                .onDisappear {
+                    socialManager.setActiveGroupChat(id: nil)
+                    stopListening()
+                }
+            }
+        }
+    }
+
+    private var conversationHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !reference.memberDisplayNames.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(reference.memberDisplayNames, id: \.self) { name in
+                            Text(name)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(calendarViewModel.themeColor.opacity(0.12))
+                                )
+                        }
+                    }
+                }
+            } else {
+                Text(reference.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private func composerBar(proxy: ScrollViewProxy) -> some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("Send a message", text: $draftMessage, axis: .vertical)
+                .textFieldStyle(.plain)
+                .textInputAutocapitalization(.sentences)
+                .lineLimit(1...5)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(calendarViewModel.themeColor.opacity(0.16), lineWidth: 1)
+                )
+                .focused($composerFocused)
+
+            Button {
+                let trimmed = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, !isSending else { return }
+                isSending = true
+                Task {
+                    let didSend = await socialManager.sendGroupChatMessage(for: reference, body: trimmed)
+                    if didSend {
+                        let refreshedMessages = await socialManager.loadGroupChatMessages(for: reference)
+                        await MainActor.run {
+                            draftMessage = ""
+                            messages = refreshedMessages
+                            scrollToBottom(proxy, animated: true)
+                        }
+                    }
+                    await MainActor.run {
+                        isSending = false
+                    }
+                }
+            } label: {
+                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        Circle()
+                            .fill(
+                                draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending
+                                    ? Color(.tertiarySystemFill)
+                                    : calendarViewModel.themeColor
+                            )
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private func chatMessageRow(_ message: SocialGroupChatMessage) -> some View {
+        let isMine = message.userID == socialManager.currentUser?.id
+
+        return HStack {
+            if isMine { Spacer(minLength: 50) }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(message.displayName)
+                        .font(.caption.weight(.semibold))
+                    Spacer(minLength: 0)
+                    Text(chatTimestamp(message.createdAt))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(message.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(isMine ? calendarViewModel.themeColor.opacity(0.16) : Color(.secondarySystemBackground))
+            )
+
+            if !isMine { Spacer(minLength: 50) }
+        }
+    }
+
+    private func startListening(proxy: ScrollViewProxy) async {
+        await MainActor.run {
+            didPerformInitialScroll = false
+        }
+        let initialMessages = await socialManager.loadGroupChatMessages(for: reference)
+        await MainActor.run {
+            messages = initialMessages
+            if !initialMessages.isEmpty {
+                didPerformInitialScroll = true
+                scrollToBottom(proxy, animated: false)
+                DispatchQueue.main.async {
+                    scrollToBottom(proxy, animated: false)
+                }
+            }
+        }
+
+#if canImport(FirebaseFirestore)
+        chatListener?.remove()
+        chatListener = await socialManager.observeGroupChatMessages(for: reference) { updatedMessages in
+            let shouldScroll = updatedMessages.last?.id != messages.last?.id
+            messages = updatedMessages
+            if !didPerformInitialScroll && !updatedMessages.isEmpty {
+                didPerformInitialScroll = true
+                scrollToBottom(proxy, animated: false)
+                DispatchQueue.main.async {
+                    scrollToBottom(proxy, animated: false)
+                }
+                return
+            }
+            if shouldScroll {
+                scrollToBottom(proxy, animated: true)
+            }
+        }
+#endif
+    }
+
+    private func stopListening() {
+#if canImport(FirebaseFirestore)
+        chatListener?.remove()
+        chatListener = nil
+#endif
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard !messages.isEmpty else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.18)) {
+                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+            }
+        } else {
+            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+        }
+    }
+
+    private func chatTimestamp(_ isoString: String) -> String {
+        if let date = ISO8601DateFormatter().date(from: isoString) {
+            return groupChatTimestampFormatter.string(from: date)
+        }
+        return "Now"
+    }
+}
+
+private enum ClassGroupFilter: Equatable {
+    case currentOverall
+    case currentAll
+    case allOverall
+    case all
+    case semesterOverall(String)
+    case semesterAll(String)
+}
+
+private struct GroupMembersPresentation: Identifiable {
+    let title: String
+    let subtitle: String
+    let memberNames: [String]
+    let group: SocialFriendGroup?
+    let addableFriends: [SocialFriend]
+
+    var id: String { title + subtitle }
+}
+
+private struct GroupMembersSheet: View {
+    let presentation: GroupMembersPresentation
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var memberNames: [String]
+    @State private var addableFriends: [SocialFriend]
+    @State private var isUpdating = false
+
+    init(presentation: GroupMembersPresentation) {
+        self.presentation = presentation
+        _memberNames = State(initialValue: presentation.memberNames)
+        _addableFriends = State(initialValue: presentation.addableFriends)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("\(memberNames.count) members")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Members") {
+                    ForEach(memberNames, id: \.self) { name in
+                        Text(name)
+                    }
+                }
+
+                if let group = presentation.group,
+                   group.ownerID == socialManager.currentUser?.id,
+                   !addableFriends.isEmpty {
+                    Section("Add People") {
+                        ForEach(addableFriends) { friend in
+                            Button {
+                                Task {
+                                    guard !isUpdating else { return }
+                                    isUpdating = true
+                                    let added = await socialManager.addMembersToFriendGroup(
+                                        groupID: group.id,
+                                        memberIDs: [friend.id]
+                                    )
+                                    if added {
+                                        await MainActor.run {
+                                            memberNames.append(friend.displayName)
+                                            memberNames.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+                                            addableFriends.removeAll { $0.id == friend.id }
+                                        }
+                                    }
+                                    await MainActor.run {
+                                        isUpdating = false
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(friend.displayName)
+                                        Text("@\(friend.username)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundStyle(calendarViewModel.themeColor)
+                                }
+                            }
+                            .disabled(isUpdating)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(presentation.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SocialCard<Content: View>: View {
     var background: Color = Color(.systemBackground)
     var stroke: Color = Color.primary.opacity(0.06)
     let content: Content
@@ -2046,6 +2443,13 @@ private enum FeedFormatters {
         return formatter
     }()
 }
+
+private let groupChatTimestampFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter
+}()
 
 private struct FriendScheduleView: View {
     let response: FriendScheduleResponse
