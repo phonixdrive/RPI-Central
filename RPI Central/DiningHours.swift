@@ -324,3 +324,187 @@ enum DiningHoursData {
     }
 }
 
+enum DiningHoursFormat {
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    static func timeString(from minutes: Int) -> String {
+        let date = Calendar.current.startOfDay(for: Date()).addingTimeInterval(TimeInterval(minutes * 60))
+        return timeFormatter.string(from: date)
+    }
+
+    static func shortWeekdayName(for date: Date) -> String {
+        weekdayFormatter.string(from: date)
+    }
+}
+
+enum DiningFavoritesStore {
+    static let storageKey = "dining.favoriteVenueNames.v1"
+
+    static func decode(_ rawValue: String) -> [String] {
+        guard let data = rawValue.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return decoded.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    static func encode(_ names: [String]) -> String {
+        let unique = Array(Set(names)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        guard let data = try? JSONEncoder().encode(unique),
+              let value = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return value
+    }
+}
+
+struct DiningHoursView: View {
+    let themeColor: Color
+    @AppStorage(DiningFavoritesStore.storageKey) private var favoriteVenueNamesStorage = "[]"
+
+    private var favoriteVenueNames: [String] {
+        DiningFavoritesStore.decode(favoriteVenueNamesStorage)
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let now = context.date
+            let favoriteVenueSet = Set(favoriteVenueNames)
+            let favoriteVenues = DiningHoursData.venues
+                .filter { favoriteVenueSet.contains($0.name) }
+                .sorted { lhs, rhs in
+                    let lhsOpen = lhs.status(at: now).isOpen
+                    let rhsOpen = rhs.status(at: now).isOpen
+                    if lhsOpen != rhsOpen { return lhsOpen && !rhsOpen }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+            let totalOpenCount = DiningHoursData.venues
+                .filter { $0.status(at: now).isOpen }
+                .count
+            let openVenues = DiningHoursData.venues
+                .filter { $0.status(at: now).isOpen && !favoriteVenueSet.contains($0.name) }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            let closedVenues = DiningHoursData.venues
+                .filter { !$0.status(at: now).isOpen && !favoriteVenueSet.contains($0.name) }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        DiningHoursSummaryCard(
+                            openCount: totalOpenCount,
+                            totalCount: DiningHoursData.venues.count,
+                            themeColor: themeColor
+                        )
+
+                        diningSection(title: "Favorites", venues: favoriteVenues, now: now)
+                        diningSection(title: "Open Now", venues: openVenues, now: now)
+                        diningSection(title: "Closed", venues: closedVenues, now: now)
+
+                        Text("Hours loaded from the week of 3/23/2026 to 3/29/2026.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 18)
+                }
+            }
+        }
+        .navigationTitle("Dining Hours")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func diningSection(title: String, venues: [DiningVenue], now: Date) -> some View {
+        if !venues.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                ForEach(venues) { venue in
+                    DiningVenueCard(
+                        venue: venue,
+                        now: now,
+                        themeColor: themeColor,
+                        isFavorite: favoriteVenueNames.contains(venue.name),
+                        onToggleFavorite: {
+                            toggleFavorite(venue.name)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private func toggleFavorite(_ venueName: String) {
+        var names = Set(favoriteVenueNames)
+        if names.contains(venueName) {
+            names.remove(venueName)
+        } else {
+            names.insert(venueName)
+        }
+        favoriteVenueNamesStorage = DiningFavoritesStore.encode(Array(names))
+    }
+}
+
+private struct DiningHoursSummaryCard: View {
+    let openCount: Int
+    let totalCount: Int
+    let themeColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Campus Dining")
+                        .font(.title3.bold())
+                    Text(openCount == 1 ? "1 of \(totalCount) locations is open right now." : "\(openCount) of \(totalCount) locations are open right now.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "fork.knife.circle.fill")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(themeColor)
+                    .padding(12)
+                    .background(Circle().fill(themeColor.opacity(0.12)))
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(.systemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
