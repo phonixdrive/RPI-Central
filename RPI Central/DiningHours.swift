@@ -508,3 +508,114 @@ private struct DiningHoursSummaryCard: View {
     }
 }
 
+private struct DiningVenueCard: View {
+    let venue: DiningVenue
+    let now: Date
+    let themeColor: Color
+    let isFavorite: Bool
+    let onToggleFavorite: () -> Void
+
+    @State private var isExpanded = false
+
+    private var status: DiningVenueStatus {
+        venue.status(at: now)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(venue.name)
+                        .font(.headline)
+                    Text(status.detailText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button(action: onToggleFavorite) {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .foregroundStyle(isFavorite ? .yellow : .secondary)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text(status.badgeText)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill((status.isOpen ? Color.green : Color.secondary).opacity(0.12))
+                        )
+                        .foregroundStyle(status.isOpen ? Color.green : Color.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Today")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(themeColor)
+
+                if status.todayPeriods.isEmpty {
+                    Text("Closed today")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(status.todayPeriods) { period in
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            if let label = period.label {
+                                Text(label)
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text(period.timeRangeText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(period.timeRangeText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(venue.scheduleGroups) { group in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(group.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(group.periods) { period in
+                                Text(period.fullText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.top, 10)
+            } label: {
+                Text(isExpanded ? "Hide full week" : "Show full week")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(themeColor)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(.systemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
