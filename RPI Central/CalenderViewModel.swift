@@ -1017,7 +1017,6 @@ final class CalendarViewModel: ObservableObject {
     private func refreshSemesterWindow(anchorPreferred: Semester?) {
         let anchor: Semester = {
             if let pref = anchorPreferred { return pref }
-            if let sem = semesterContaining(date: selectedDate) { return sem }
             return currentSemester
         }()
 
