@@ -7,12 +7,10 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @State private var selectedTab: RootTab = .home
-    @State private var homeRefreshToken = UUID()
 
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
-                .id(homeRefreshToken)
                 .tag(RootTab.home)
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
@@ -48,12 +46,6 @@ struct ContentView: View {
         }
         .onChange(of: calendarViewModel.themeColor) { _, _ in
             applyThemeTintToUIKitChrome()
-        }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            if oldValue == .social && newValue == .home {
-                applyThemeTintToUIKitChrome()
-                homeRefreshToken = UUID()
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openCalendarTab)) { _ in
             selectedTab = .calendar

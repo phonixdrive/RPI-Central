@@ -101,8 +101,12 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    // default is now spring2026
-    @Published var currentSemester: Semester = .spring2026
+    // default visible term is now fall2026
+    @Published var currentSemester: Semester = .fall2026 {
+        didSet {
+            UserDefaults.standard.set(currentSemester.rawValue, forKey: currentSemesterKey)
+        }
+    }
 
     @Published private(set) var semesterWindow: [Semester] = []
 
@@ -136,6 +140,7 @@ final class CalendarViewModel: ObservableObject {
     private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
     private let homeSectionOrderKey = "settings_home_section_order_v1"
     private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
+    private let currentSemesterKey = "settings_visible_term_v1"
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
@@ -390,6 +395,13 @@ final class CalendarViewModel: ObservableObject {
 
         let savedMinutes = UserDefaults.standard.integer(forKey: minutesBeforeClassKey)
         self.minutesBeforeClass = savedMinutes == 0 ? 10 : savedMinutes
+        if let raw = UserDefaults.standard.string(forKey: currentSemesterKey),
+           let semester = Semester(rawValue: raw) {
+            self.currentSemester = semester
+        } else {
+            self.currentSemester = .fall2026
+            UserDefaults.standard.set(Semester.fall2026.rawValue, forKey: currentSemesterKey)
+        }
         self.homeSectionOrder = Self.loadHomeSectionOrder()
         self.hiddenHomeSections = Self.loadHiddenHomeSections()
         if let raw = UserDefaults.standard.string(forKey: academicHistoryStartSemesterKey),
