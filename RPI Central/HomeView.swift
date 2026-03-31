@@ -296,9 +296,6 @@ struct HomeView: View {
     @State private var showTimer = false
     @State private var editingSemesterGPA: Semester? = nil
 
-    // ✅ force refresh when meeting-block exam dates change (CalendarViewModel sends objectWillChange)
-    @State private var upcomingRefreshToken = UUID()
-
     private var groupedBySemester: [String: [EnrolledCourse]] {
         Dictionary(grouping: calendarViewModel.enrolledCourses, by: { $0.semesterCode })
     }
@@ -455,10 +452,7 @@ struct HomeView: View {
             .tint(calendarViewModel.themeColor)
             .task(id: calendarViewModel.currentSemester.rawValue) {
                 calendarViewModel.ensureTermBoundsLoaded(for: calendarViewModel.currentSemester)
-            }
-
-            .onReceive(calendarViewModel.objectWillChange) { _ in
-                upcomingRefreshToken = UUID()
+                normalizeExistingExamTasksIfNeeded()
             }
 
             // Prevent “View all” closing from auto-opening the task editor
@@ -488,10 +482,11 @@ struct HomeView: View {
                         enrollments: currentSemesterEnrollments,
                         existing: editingTask,
                         onSave: { saved in
-                            if tasksManager.tasks.contains(where: { $0.id == saved.id }) {
-                                tasksManager.update(saved)
+                            let normalized = normalizedExamTask(saved)
+                            if tasksManager.tasks.contains(where: { $0.id == normalized.id }) {
+                                tasksManager.update(normalized)
                             } else {
-                                tasksManager.add(saved)
+                                tasksManager.add(normalized)
                             }
                             showTaskEditor = false
                         },
@@ -660,10 +655,10 @@ struct HomeView: View {
                         onDeleteTask: { t in
                             tasksManager.delete(t)
                         },
-                        onImportExamReminder: { examTitle, examDate in
+                        onImportExamReminder: { examTitle, examDate, enrollmentID in
                             let prefill = CourseTask(
                                 id: UUID(),
-                                enrollmentID: nil,
+                                enrollmentID: enrollmentID,
                                 title: examTitle,
                                 kind: .exam,
                                 dueDate: examDate,
@@ -710,7 +705,6 @@ struct HomeView: View {
         } header: {
             Text("Upcoming (Assignments + Exams)")
         }
-        .id(upcomingRefreshToken)
     }
 
     private var mealSwipesSection: some View {
@@ -891,7 +885,7 @@ struct HomeView: View {
 
     fileprivate enum UpcomingSource: Equatable {
         case task(CourseTask)
-        case calendarExam(title: String, date: Date)
+        case calendarExam(title: String, date: Date, enrollmentID: String?)
     }
 
     fileprivate struct UpcomingItem: Identifiable {
@@ -925,8 +919,17 @@ struct HomeView: View {
     private func combinedUpcomingItems(days: Int) -> [UpcomingItem] {
         let examItems = upcomingExamItems(days: days)
 
-        // De-dupe: if user created an Exam task with exact same timestamp as an exam block, show the task only
+        // De-dupe custom exams when an official exam block already exists.
         let examTimes: Set<Int> = Set(examItems.map { Int($0.due.timeIntervalSince1970) })
+        let officialExamDayKeys: Set<String> = Set(
+            examItems.compactMap { item in
+                guard case .calendarExam(_, _, let enrollmentID) = item.source,
+                      let enrollmentID else {
+                    return nil
+                }
+                return examDayKey(enrollmentID: enrollmentID, date: item.due)
+            }
+        )
 
         let taskItems: [UpcomingItem] = tasksManager.upcomingTasks(withinDays: days)
             // ✅ hide tasks from other semesters in "Upcoming"
@@ -935,7 +938,11 @@ struct HomeView: View {
             }
             .filter { t in
                 guard t.kind == .exam else { return true }
-                return !examTimes.contains(Int(t.dueDate.timeIntervalSince1970))
+                if examTimes.contains(Int(t.dueDate.timeIntervalSince1970)) {
+                    return false
+                }
+                guard let enrollmentID = t.enrollmentID else { return true }
+                return !officialExamDayKeys.contains(examDayKey(enrollmentID: enrollmentID, date: t.dueDate))
             }
             .map { t in
                 let subtitle = subtitleForTask(t)
@@ -999,7 +1006,7 @@ struct HomeView: View {
                         subtitle: subtitle,
                         due: ev.startDate,
                         icon: "star.circle.fill",
-                        source: .calendarExam(title: cleanTitle, date: ev.startDate)
+                        source: .calendarExam(title: cleanTitle, date: ev.startDate, enrollmentID: ev.enrollmentID)
                     )
                 )
             }
@@ -1015,6 +1022,45 @@ struct HomeView: View {
         df.timeStyle = .short
         return "\(df.string(from: start))–\(df.string(from: end))"
     }
+
+    private func officialExamStartDate(for enrollmentID: String, onSameDayAs date: Date) -> Date? {
+        let calendar = Calendar.current
+        return calendarViewModel.events
+            .filter { event in
+                event.kind == .classMeeting &&
+                event.title.hasPrefix("★") &&
+                event.enrollmentID == enrollmentID &&
+                calendar.isDate(event.startDate, inSameDayAs: date)
+            }
+            .map(\.startDate)
+            .min()
+    }
+
+    private func normalizedExamTask(_ task: CourseTask) -> CourseTask {
+        guard task.kind == .exam,
+              let enrollmentID = task.enrollmentID,
+              let officialExamStart = officialExamStartDate(for: enrollmentID, onSameDayAs: task.dueDate) else {
+            return task
+        }
+
+        var normalized = task
+        normalized.dueDate = officialExamStart
+        return normalized
+    }
+
+    private func examDayKey(enrollmentID: String, date: Date) -> String {
+        let startOfDay = Calendar.current.startOfDay(for: date)
+        return "\(enrollmentID)|\(Int(startOfDay.timeIntervalSince1970))"
+    }
+
+    private func normalizeExistingExamTasksIfNeeded() {
+        for task in tasksManager.tasks where task.kind == .exam {
+            let normalized = normalizedExamTask(task)
+            if normalized != task {
+                tasksManager.update(normalized)
+            }
+        }
+    }
 }
 
 // MARK: - Upcoming Row (Home screen)
@@ -1025,7 +1071,7 @@ private struct UpcomingRow: View {
 
     let onEditTask: (CourseTask) -> Void
     let onDeleteTask: (CourseTask) -> Void
-    let onImportExamReminder: (_ title: String, _ date: Date) -> Void
+    let onImportExamReminder: (_ title: String, _ date: Date, _ enrollmentID: String?) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1081,9 +1127,9 @@ private struct UpcomingRow: View {
             }
 
             // ✅ Only the bell opens the editor for exam blocks
-            if case .calendarExam(let title, let date) = item.source {
+            if case .calendarExam(let title, let date, let enrollmentID) = item.source {
                 Button {
-                    onImportExamReminder(title, date)
+                    onImportExamReminder(title, date, enrollmentID)
                 } label: {
                     Image(systemName: "bell.badge")
                         .symbolRenderingMode(.palette)
@@ -1118,6 +1164,31 @@ private struct TasksListView: View {
         tasksManager.tasks
             .filter { $0.dueDate < Date() }
             .sorted { $0.dueDate > $1.dueDate }
+    }
+
+    private func officialExamStartDate(for enrollmentID: String, onSameDayAs date: Date) -> Date? {
+        calendarExamItems
+            .compactMap { item -> Date? in
+                guard case .calendarExam(_, let examDate, let itemEnrollmentID) = item.source,
+                      itemEnrollmentID == enrollmentID,
+                      Calendar.current.isDate(examDate, inSameDayAs: date) else {
+                    return nil
+                }
+                return examDate
+            }
+            .min()
+    }
+
+    private func normalizedExamTask(_ task: CourseTask) -> CourseTask {
+        guard task.kind == .exam,
+              let enrollmentID = task.enrollmentID,
+              let officialExamStart = officialExamStartDate(for: enrollmentID, onSameDayAs: task.dueDate) else {
+            return task
+        }
+
+        var normalized = task
+        normalized.dueDate = officialExamStart
+        return normalized
     }
 
     var body: some View {
@@ -1188,9 +1259,16 @@ private struct TasksListView: View {
 
                             // Sync: create reminders from exam blocks
                             Button {
+                                let enrollmentID: String?
+                                if case .calendarExam(_, _, let itemEnrollmentID) = item.source {
+                                    enrollmentID = itemEnrollmentID
+                                } else {
+                                    enrollmentID = nil
+                                }
+
                                 let prefill = CourseTask(
                                     id: UUID(),
-                                    enrollmentID: nil,
+                                    enrollmentID: enrollmentID,
                                     title: item.title,
                                     kind: .exam,
                                     dueDate: item.due,
@@ -1233,14 +1311,15 @@ private struct TasksListView: View {
                     themeColor: themeColor,
                     enrollments: enrollments,
                     existing: editingTask,
-                    onSave: { saved in
-                        if tasksManager.tasks.contains(where: { $0.id == saved.id }) {
-                            tasksManager.update(saved)
-                        } else {
-                            tasksManager.add(saved)
-                        }
-                        showTaskEditor = false
-                    },
+                        onSave: { saved in
+                            let normalized = normalizedExamTask(saved)
+                            if tasksManager.tasks.contains(where: { $0.id == normalized.id }) {
+                                tasksManager.update(normalized)
+                            } else {
+                                tasksManager.add(normalized)
+                            }
+                            showTaskEditor = false
+                        },
                     onCancel: {
                         showTaskEditor = false
                     }
