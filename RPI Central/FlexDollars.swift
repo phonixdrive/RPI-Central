@@ -400,3 +400,106 @@ struct FlexDollarsPlannerView: View {
     }
 }
 
+struct FlexDollarsBalanceUpdateView: View {
+    let semester: Semester
+    @ObservedObject var manager: FlexDollarsManager
+    let themeColor: Color
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var balanceFieldFocused: Bool
+
+    @State private var balanceText: String = ""
+    @State private var workingBalance: Double = 0
+
+    private var savedPlan: FlexDollarMealPlan? {
+        manager.state(for: semester.rawValue).selectedPlan
+    }
+
+    var body: some View {
+        Form {
+            Section("Current Balance") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(FlexDollarFormat.currency(workingBalance))
+                        .font(.title2.bold())
+                    Text(savedPlan?.displayName ?? "Custom balance")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+
+                TextField("Exact balance", text: $balanceText)
+                    .keyboardType(.decimalPad)
+                    .focused($balanceFieldFocused)
+            }
+
+            Section("Quick Spend") {
+                quickAdjustRow(title: "-$1", amount: -1)
+                quickAdjustRow(title: "-$5", amount: -5)
+                quickAdjustRow(title: "-$10", amount: -10)
+                quickAdjustRow(title: "-$20", amount: -20)
+            }
+
+            Section("Quick Add Back") {
+                quickAdjustRow(title: "+$1", amount: 1)
+                quickAdjustRow(title: "+$5", amount: 5)
+                quickAdjustRow(title: "+$10", amount: 10)
+                quickAdjustRow(title: "+$20", amount: 20)
+            }
+
+            Section {
+                Text("Changes save automatically as you update the balance.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("Update Flex")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    balanceFieldFocused = false
+                }
+            }
+        }
+        .onAppear {
+            let saved = manager.state(for: semester.rawValue)
+            let startingBalance = saved.currentBalance ?? saved.selectedPlan?.semesterFlexDollars ?? 0
+            workingBalance = max(0, startingBalance)
+            balanceText = String(format: "%.2f", workingBalance)
+        }
+        .onChange(of: balanceText) { _, newValue in
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            guard let parsed = Double(trimmed.replacingOccurrences(of: ",", with: "")) else { return }
+            workingBalance = max(0, parsed)
+            persistBalance(workingBalance)
+        }
+        .tint(themeColor)
+    }
+
+    private func quickAdjustRow(title: String, amount: Double) -> some View {
+        Button(title) {
+            let nextBalance = max(0, workingBalance + amount)
+            workingBalance = nextBalance
+            balanceText = String(format: "%.2f", nextBalance)
+            persistBalance(nextBalance)
+        }
+    }
+
+    private func persistBalance(_ value: Double) {
+        manager.saveState(
+            FlexDollarState(
+                selectedPlan: savedPlan,
+                currentBalance: value
+            ),
+            for: semester.rawValue
+        )
+    }
+}
