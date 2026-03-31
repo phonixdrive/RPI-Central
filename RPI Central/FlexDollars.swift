@@ -211,3 +211,192 @@ enum FlexDollarPlanner {
     }
 }
 
+enum FlexDollarFormat {
+    private static let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter
+    }()
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    static func currency(_ value: Double) -> String {
+        currencyFormatter.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
+    }
+
+    static func mediumDate(_ date: Date) -> String {
+        dateFormatter.string(from: date)
+    }
+}
+
+struct FlexDollarsPlannerView: View {
+    let semester: Semester
+    let termBounds: DateInterval?
+    @ObservedObject var manager: FlexDollarsManager
+    let themeColor: Color
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var balanceFieldFocused: Bool
+
+    @State private var selectedPlan: FlexDollarMealPlan?
+    @State private var balanceText: String = ""
+
+    private var parsedBalance: Double? {
+        let trimmed = balanceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return Double(trimmed.replacingOccurrences(of: ",", with: ""))
+    }
+
+    private var previewSnapshot: FlexDollarSnapshot? {
+        FlexDollarPlanner.snapshot(
+            semester: semester,
+            state: FlexDollarState(
+                selectedPlan: selectedPlan,
+                currentBalance: parsedBalance ?? selectedPlan?.semesterFlexDollars
+            ),
+            termBounds: termBounds
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section("Semester") {
+                LabeledContent("Tracking for", value: semester.displayName)
+            }
+
+            Section(
+                header: Text("Meal Plan"),
+                footer: Text("If you do not enter a current balance, the planner uses the plan's starting flex dollars for the semester.")
+            ) {
+                Picker("Plan", selection: $selectedPlan) {
+                    Text("None").tag(nil as FlexDollarMealPlan?)
+                    ForEach(FlexDollarMealPlan.allCases) { plan in
+                        Text("\(plan.displayName) • \(FlexDollarFormat.currency(plan.semesterFlexDollars))").tag(Optional(plan))
+                    }
+                }
+
+                if let selectedPlan {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(FlexDollarFormat.currency(selectedPlan.semesterFlexDollars)) Flex Dollars each semester")
+                            .font(.subheadline.weight(.semibold))
+                        Text(selectedPlan.availabilityNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Semester charge: \(FlexDollarFormat.currency(selectedPlan.semesterCost))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            Section(
+                header: Text("Current Balance"),
+                footer: Text("For spring, enter your actual live balance if fall carryover changed what you have left.")
+            ) {
+                TextField("Current flex balance", text: $balanceText)
+                    .keyboardType(.decimalPad)
+                    .focused($balanceFieldFocused)
+
+                if let selectedPlan {
+                    Button("Use \(FlexDollarFormat.currency(selectedPlan.semesterFlexDollars)) from \(selectedPlan.displayName)") {
+                        balanceText = String(format: "%.2f", selectedPlan.semesterFlexDollars)
+                    }
+                }
+            }
+
+            Section("Planner") {
+                if let previewSnapshot {
+                    LabeledContent("Balance", value: previewSnapshot.balanceText)
+                    LabeledContent("Recommended pace", value: previewSnapshot.weeklyBudgetText)
+
+                    if let remainingDays = previewSnapshot.remainingDays {
+                        LabeledContent("Days remaining", value: "\(remainingDays)")
+                    }
+
+                    if let remainingWeeks = previewSnapshot.remainingWeeks {
+                        LabeledContent("Weeks remaining", value: "\(remainingWeeks)")
+                    }
+
+                    Text(previewSnapshot.detailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Choose a plan or enter a balance to see your spending pace.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
+                if selectedPlan != nil || !balanceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button("Clear Setup", role: .destructive) {
+                        manager.clearState(for: semester.rawValue)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .navigationTitle("Flex Dollars")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    balanceFieldFocused = false
+                }
+            }
+        }
+        .onAppear {
+            let saved = manager.state(for: semester.rawValue)
+            selectedPlan = saved.selectedPlan
+            if let currentBalance = saved.currentBalance {
+                balanceText = String(format: "%.2f", currentBalance)
+            } else if let savedPlan = saved.selectedPlan {
+                balanceText = String(format: "%.2f", savedPlan.semesterFlexDollars)
+            }
+        }
+        .onChange(of: selectedPlan) { _, _ in
+            persistCurrentDraft()
+        }
+        .onChange(of: balanceText) { _, _ in
+            persistCurrentDraft()
+        }
+        .tint(themeColor)
+    }
+
+    private func persistCurrentDraft() {
+        let trimmed = balanceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if selectedPlan == nil {
+                manager.clearState(for: semester.rawValue)
+            } else {
+                manager.saveState(
+                    FlexDollarState(selectedPlan: selectedPlan, currentBalance: nil),
+                    for: semester.rawValue
+                )
+            }
+            return
+        }
+
+        guard let parsedBalance else { return }
+        manager.saveState(
+            FlexDollarState(selectedPlan: selectedPlan, currentBalance: parsedBalance),
+            for: semester.rawValue
+        )
+    }
+}
+
