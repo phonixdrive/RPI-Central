@@ -10,6 +10,7 @@ struct SettingsView: View {
     @EnvironmentObject var socialManager: SocialManager
 
     @AppStorage("shuttle_tracker_refresh_interval_seconds") private var shuttleTrackerRefreshIntervalSeconds = 5
+    @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
     @State private var editMode: EditMode = .inactive
@@ -113,6 +114,8 @@ struct SettingsView: View {
                         header: Text("LMS Calendar"),
                         footer: Text("Paste your Blackboard calendar feed URL here to import LMS events into your calendar. The link is private to your account, so don’t share it.")
                     ) {
+                        Toggle("Auto daily sync", isOn: $calendarViewModel.lmsCalendarAutoDailySyncEnabled)
+
                         TextField("https://lms.rpi.edu/.../learn.ics", text: $calendarViewModel.lmsCalendarFeedURL)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
@@ -156,6 +159,7 @@ struct SettingsView: View {
                         header: Text("Social"),
                         footer: Text("Demo social tools add seeded test users and requests to help you test the Firebase social features.")
                     ) {
+                        Toggle("Show All RPI Students group", isOn: $showCampusWideGroup)
                         Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
 
                         Picker("Feed auto-refresh", selection: $calendarViewModel.socialFeedRefreshIntervalSeconds) {

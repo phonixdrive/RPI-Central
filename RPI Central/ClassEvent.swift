@@ -49,6 +49,7 @@ struct StoredPersonalEvent: Identifiable, Codable, Equatable {
     let sharedGroupIDs: [String]
     let externalSourceKind: String?
     let externalSourceID: String?
+    let relatedEnrollmentID: String?
     let isAllDay: Bool?
 
     init(
@@ -63,6 +64,7 @@ struct StoredPersonalEvent: Identifiable, Codable, Equatable {
         sharedGroupIDs: [String],
         externalSourceKind: String? = nil,
         externalSourceID: String? = nil,
+        relatedEnrollmentID: String? = nil,
         isAllDay: Bool? = nil
     ) {
         self.id = id
@@ -76,6 +78,7 @@ struct StoredPersonalEvent: Identifiable, Codable, Equatable {
         self.sharedGroupIDs = sharedGroupIDs
         self.externalSourceKind = externalSourceKind
         self.externalSourceID = externalSourceID
+        self.relatedEnrollmentID = relatedEnrollmentID
         self.isAllDay = isAllDay
     }
 }
