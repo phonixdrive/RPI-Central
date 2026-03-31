@@ -55,6 +55,9 @@ struct ContentView: View {
                 homeRefreshToken = UUID()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openCalendarTab)) { _ in
+            selectedTab = .calendar
+        }
     }
 
     private func applyThemeTintToUIKitChrome() {
@@ -71,6 +74,10 @@ private enum RootTab: Hashable {
     case courses
     case social
     case settings
+}
+
+extension Notification.Name {
+    static let openCalendarTab = Notification.Name("openCalendarTab")
 }
 
 #Preview {

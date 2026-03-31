@@ -101,11 +101,7 @@ struct CoursesView: View {
             )
         }
         .onAppear {
-            catalog.syncFromCalendarViewModel(currentSemester: calendarViewModel.currentSemester)
             clearUnavailableSubjectFilterIfNeeded()
-        }
-        .onChange(of: calendarViewModel.currentSemester) { _, newSem in
-            catalog.syncFromCalendarViewModel(currentSemester: newSem)
         }
         .onReceive(catalog.$courses) { _ in
             clearUnavailableSubjectFilterIfNeeded()
@@ -127,6 +123,17 @@ struct CoursesView: View {
                     }
                 }
                 .pickerStyle(.menu)
+
+                Button {
+                    calendarViewModel.jumpToSemesterStart(catalog.semester)
+                    NotificationCenter.default.post(name: .openCalendarTab, object: nil)
+                } label: {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+                .accessibilityLabel("Open calendar at term start")
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
@@ -138,9 +145,6 @@ struct CoursesView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(rowCardStroke, lineWidth: 1)
             )
-            .onChange(of: catalog.semester) { _, newValue in
-                calendarViewModel.changeSemester(to: newValue)
-            }
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -156,30 +160,9 @@ struct CoursesView: View {
                             categories: [category]
                         )
                     } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(category.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
-
-                            Text("\(category.subjects.count) subjects")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(rowCardFill)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(rowCardStroke, lineWidth: 1)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        subjectCategoryCard(category)
                     }
                     .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
                 }
             }
         } header: {
@@ -198,38 +181,7 @@ struct CoursesView: View {
                         categories: visibleSubjectCategories
                     )
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.headline)
-                            .foregroundStyle(calendarViewModel.themeColor)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Browse all subjects")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-
-                            Text("Open the full subject list")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(rowCardFill)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(rowCardStroke, lineWidth: 1)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    subjectBrowserShortcutCard
                 }
                 .buttonStyle(.plain)
 
@@ -266,7 +218,7 @@ struct CoursesView: View {
         Section {
             ForEach(filteredCourses) { course in
                 NavigationLink {
-                    CourseDetailView(course: course)
+                    CourseDetailView(course: course, displaySemester: catalog.semester)
                         .environmentObject(calendarViewModel)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
@@ -305,6 +257,64 @@ struct CoursesView: View {
         if !availableSubjectCodes.contains(selectedSubjectFilter.subjectCode) {
             self.selectedSubjectFilter = nil
         }
+    }
+
+    private func subjectCategoryCard(_ category: SubjectCategory) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(category.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+
+            Text("\(category.subjects.count) subjects")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 102, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(rowCardFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(rowCardStroke, lineWidth: 1)
+        )
+    }
+
+    private var subjectBrowserShortcutCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.headline)
+                .foregroundStyle(calendarViewModel.themeColor)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Browse all subjects")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text("Open the full subject list")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(rowCardFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(rowCardStroke, lineWidth: 1)
+        )
     }
 }
 
@@ -350,6 +360,8 @@ private struct SubjectBrowserSheet: View {
                                             .foregroundStyle(accent)
                                     }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }

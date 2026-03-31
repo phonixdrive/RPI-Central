@@ -139,9 +139,9 @@ struct AddEventView: View {
 
                         if shareMode == .groups {
                             sharingSelectionList(
-                                title: "Friend groups",
+                                title: "Groups",
                                 isEmpty: availableGroups.isEmpty,
-                                emptyMessage: "Create a friend group in Social first.",
+                                emptyMessage: "Create a group in Social first.",
                                 rows: availableGroups.map { group in
                                     SharingSelectionRow(
                                         id: group.id,
@@ -154,7 +154,7 @@ struct AddEventView: View {
                             )
                         }
                     } else {
-                        Text("Sign in through Social to share personal events with friends or friend groups.")
+                        Text("Sign in through Social to share personal events with friends or groups.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

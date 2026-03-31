@@ -3,14 +3,18 @@ import MapKit
 
 struct ShuttleTrackerMapScreen: View {
     @AppStorage("shuttle_tracker_show_stop_labels") private var showStopLabels = true
+    @AppStorage(ShuttlePreferencesStore.selectedRouteStorageKey) private var selectedRouteIDStorage = ""
+    @AppStorage(ShuttlePreferencesStore.favoriteStopStorageKey) private var favoriteStopIDStorage = ""
+
     @StateObject private var viewModel: ShuttleTrackerViewModel
     @State private var position = MapCameraPosition.region(Self.defaultRegion)
     @State private var showingRouteTimes = false
+    @State private var didApplyInitialFocus = false
 
     private static let defaultCenter = CLLocationCoordinate2D(latitude: 42.730216, longitude: -73.675690)
     private static let defaultRegion = MKCoordinateRegion(
         center: defaultCenter,
-        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.025)
+        span: MKCoordinateSpan(latitudeDelta: 0.0235, longitudeDelta: 0.029)
     )
 
     init(baseURL: URL, refreshIntervalSeconds: Int = 5) {
@@ -103,6 +107,7 @@ struct ShuttleTrackerMapScreen: View {
                 }
 
                 Spacer()
+
                 HStack {
                     Button {
                         showingRouteTimes = true
@@ -113,6 +118,7 @@ struct ShuttleTrackerMapScreen: View {
                     .padding(.bottom, 26)
 
                     Spacer()
+
                     Button {
                         recenterMap()
                     } label: {
@@ -144,10 +150,22 @@ struct ShuttleTrackerMapScreen: View {
         .onDisappear {
             viewModel.stop()
         }
+        .task(id: viewModel.routes.map(\.id).joined(separator: "|")) {
+            applyInitialFocusIfNeeded()
+        }
         .sheet(isPresented: $showingRouteTimes) {
-            ShuttleRouteTimesSheet(routes: viewModel.routes.filter { !$0.isHidden })
-                .presentationDetents([.fraction(0.45)])
-                .presentationDragIndicator(.visible)
+            ShuttleRouteTimesSheet(
+                routes: viewModel.routes.filter { !$0.isHidden },
+                initiallySelectedRouteID: resolvedSelectedRouteID,
+                favoriteStopFavoriteID: favoriteStopIDStorage,
+                onSelectedRouteChange: { selectedRouteIDStorage = $0 },
+                onFavoriteStopChange: { favoriteStopIDStorage = $0 },
+                onSelectStop: { stop in
+                    focus(on: stop)
+                }
+            )
+            .presentationDetents([.fraction(0.45)])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -166,6 +184,45 @@ struct ShuttleTrackerMapScreen: View {
         Color(hex: hex) ?? .red
     }
 
+    private var favoriteStop: ShuttleStop? {
+        guard let favorite = ShuttlePreferencesStore.splitFavoriteStopID(favoriteStopIDStorage) else {
+            return nil
+        }
+        return viewModel.routes
+            .first(where: { $0.id == favorite.routeID })?
+            .stops.first(where: { $0.id == favorite.stopID })
+    }
+
+    private var resolvedSelectedRouteID: String {
+        let visibleRoutes = viewModel.routes.filter { !$0.isHidden }
+        if visibleRoutes.contains(where: { $0.id == selectedRouteIDStorage }) {
+            return selectedRouteIDStorage
+        }
+        return visibleRoutes.first?.id ?? ""
+    }
+
+    private func applyInitialFocusIfNeeded() {
+        guard !didApplyInitialFocus, !viewModel.routes.filter({ !$0.isHidden }).isEmpty else { return }
+        didApplyInitialFocus = true
+
+        if let stop = favoriteStop {
+            focus(on: stop)
+            return
+        }
+
+        recenterMap()
+    }
+
+    private func focus(on stop: ShuttleStop) {
+        let region = MKCoordinateRegion(
+            center: stop.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.0085, longitudeDelta: 0.011)
+        )
+        withAnimation {
+            position = .region(region)
+        }
+    }
+
     private func recenterMap() {
         let visibleRoutes = viewModel.routes.filter { !$0.isHidden }
         let coordinates = visibleRoutes.flatMap(\.polylineCoordinates) + viewModel.vehicles.map(\.coordinate)
@@ -177,6 +234,20 @@ struct ShuttleTrackerMapScreen: View {
             return
         }
 
+        setCameraRegion(
+            from: coordinates,
+            minimumLatitudeSpan: 0.012,
+            minimumLongitudeSpan: 0.014,
+            paddingMultiplier: 0.40
+        )
+    }
+
+    private func setCameraRegion(
+        from coordinates: [CLLocationCoordinate2D],
+        minimumLatitudeSpan: Double,
+        minimumLongitudeSpan: Double,
+        paddingMultiplier: Double
+    ) {
         let latitudes = coordinates.map(\.latitude)
         let longitudes = coordinates.map(\.longitude)
 
@@ -189,8 +260,8 @@ struct ShuttleTrackerMapScreen: View {
             return
         }
 
-        let latitudePadding = max(0.004, (maxLatitude - minLatitude) * 0.35)
-        let longitudePadding = max(0.004, (maxLongitude - minLongitude) * 0.35)
+        let latitudePadding = max(0.004, (maxLatitude - minLatitude) * paddingMultiplier)
+        let longitudePadding = max(0.004, (maxLongitude - minLongitude) * paddingMultiplier)
 
         let region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(
@@ -198,8 +269,8 @@ struct ShuttleTrackerMapScreen: View {
                 longitude: (minLongitude + maxLongitude) / 2
             ),
             span: MKCoordinateSpan(
-                latitudeDelta: max(0.01, (maxLatitude - minLatitude) + latitudePadding),
-                longitudeDelta: max(0.01, (maxLongitude - minLongitude) + longitudePadding)
+                latitudeDelta: max(minimumLatitudeSpan, (maxLatitude - minLatitude) + latitudePadding),
+                longitudeDelta: max(minimumLongitudeSpan, (maxLongitude - minLongitude) + longitudePadding)
             )
         )
 
@@ -252,6 +323,11 @@ private struct MapControlButtonLabel: View {
 
 private struct ShuttleRouteTimesSheet: View {
     let routes: [ShuttleRouteOverlay]
+    let initiallySelectedRouteID: String
+    let favoriteStopFavoriteID: String
+    let onSelectedRouteChange: (String) -> Void
+    let onFavoriteStopChange: (String) -> Void
+    let onSelectStop: (ShuttleStop) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedRouteID: String = ""
@@ -300,12 +376,7 @@ private struct ShuttleRouteTimesSheet: View {
                         ForEach(upcomingDepartures) { departure in
                             Section {
                                 ForEach(departure.stopTimes) { stop in
-                                    HStack {
-                                        Text(stop.stopName)
-                                        Spacer()
-                                        Text(formattedTime(stop.scheduledTime))
-                                            .font(.subheadline.weight(.semibold))
-                                    }
+                                    stopRow(stop)
                                 }
                             } header: {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -316,12 +387,14 @@ private struct ShuttleRouteTimesSheet: View {
                                 }
                             }
                         }
-
                     }
                 }
             }
             .navigationTitle("Route Times")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: selectedRouteID) { _, newValue in
+                onSelectedRouteChange(newValue)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
@@ -331,8 +404,51 @@ private struct ShuttleRouteTimesSheet: View {
             }
             .onAppear {
                 if selectedRouteID.isEmpty {
-                    selectedRouteID = routeOptions.first?.id ?? ""
+                    if routeOptions.contains(where: { $0.id == initiallySelectedRouteID }) {
+                        selectedRouteID = initiallySelectedRouteID
+                    } else {
+                        selectedRouteID = routeOptions.first?.id ?? ""
+                    }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stopRow(_ stop: ShuttleScheduledStopTime) -> some View {
+        if let selectedRoute,
+           let actualStop = selectedRoute.stops.first(where: { $0.name == stop.stopName }) {
+            let favoriteID = ShuttlePreferencesStore.stopFavoriteID(routeID: selectedRoute.id, stopID: actualStop.id)
+            HStack {
+                Text(stop.stopName)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Button {
+                    if favoriteStopFavoriteID == favoriteID {
+                        onFavoriteStopChange("")
+                    } else {
+                        onFavoriteStopChange(favoriteID)
+                    }
+                } label: {
+                    Image(systemName: favoriteStopFavoriteID == favoriteID ? "star.fill" : "star")
+                        .foregroundStyle(favoriteStopFavoriteID == favoriteID ? .yellow : .secondary)
+                }
+                .buttonStyle(.plain)
+                Text(formattedTime(stop.scheduledTime))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onSelectStop(actualStop)
+                dismiss()
+            }
+        } else {
+            HStack {
+                Text(stop.stopName)
+                Spacer()
+                Text(formattedTime(stop.scheduledTime))
+                    .font(.subheadline.weight(.semibold))
             }
         }
     }
@@ -340,6 +456,21 @@ private struct ShuttleRouteTimesSheet: View {
     private func formattedTime(_ date: Date?) -> String {
         guard let date else { return "--:--" }
         return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+private enum ShuttlePreferencesStore {
+    static let selectedRouteStorageKey = "shuttle.selectedRouteID.v1"
+    static let favoriteStopStorageKey = "shuttle.favoriteStopID.v1"
+
+    static func stopFavoriteID(routeID: String, stopID: String) -> String {
+        "\(routeID)|\(stopID)"
+    }
+
+    static func splitFavoriteStopID(_ value: String) -> (routeID: String, stopID: String)? {
+        let parts = value.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return nil }
+        return (parts[0], parts[1])
     }
 }
 

@@ -130,8 +130,11 @@ private func taskRelativeDueText(to due: Date, now: Date = Date()) -> String {
         let hours = Int(delta / 3600)
         if hours < 24 { return "\(hours)h" }
 
-        let days = Int(delta / 86400)
-        if days == 1 { return "Tomorrow" }
+        if Calendar.current.isDateInTomorrow(due) {
+            return "Tomorrow (\(hours)h)"
+        }
+
+        let days = max(1, Int(ceil(delta / 86400)))
         if days < 14 { return "\(days)d" }
 
         let weeks = max(2, Int(Double(days) / 7.0))
@@ -276,9 +279,11 @@ final class PomodoroSettingsManager: ObservableObject {
 
 struct HomeView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
+    @AppStorage(DiningFavoritesStore.storageKey) private var diningFavoriteVenueNamesStorage = "[]"
 
     @StateObject private var tasksManager = TasksManager()
     @StateObject private var mealPlanManager = MealPlanManager()
+    @StateObject private var flexDollarsManager = FlexDollarsManager()
     @StateObject private var pomodoroSettings = PomodoroSettingsManager()
 
     @State private var showAllTasks = false
@@ -286,6 +291,8 @@ struct HomeView: View {
     @State private var editingTask: CourseTask? = nil
 
     @State private var showMealSettings = false
+    @State private var showFlexDollarPlanner = false
+    @State private var showFlexDollarUpdate = false
     @State private var showTimer = false
     @State private var editingSemesterGPA: Semester? = nil
 
@@ -309,6 +316,13 @@ struct HomeView: View {
     private var currentSemesterEnrollments: [EnrolledCourse] {
         guard let code = currentSemesterCode else { return calendarViewModel.enrolledCourses }
         return calendarViewModel.enrolledCourses.filter { $0.semesterCode == code }
+    }
+
+    private var favoriteDiningVenues: [DiningVenue] {
+        let favoriteNames = Set(DiningFavoritesStore.decode(diningFavoriteVenueNamesStorage))
+        return DiningHoursData.venues
+            .filter { favoriteNames.contains($0.name) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private func isEnrollmentInCurrentSemester(_ enrollmentID: String?) -> Bool {
@@ -361,7 +375,7 @@ struct HomeView: View {
                             ForEach(enrollments, id: \.id) { enrollment in
                                 HStack(spacing: 12) {
                                     NavigationLink {
-                                        CourseDetailView(course: enrollment.course)
+                                        CourseDetailView(course: enrollment.course, displaySemester: semester)
                                             .environmentObject(calendarViewModel)
                                     } label: {
                                         VStack(alignment: .leading, spacing: 2) {
@@ -439,6 +453,9 @@ struct HomeView: View {
             }
             .navigationTitle("RPI Central")
             .tint(calendarViewModel.themeColor)
+            .task(id: calendarViewModel.currentSemester.rawValue) {
+                calendarViewModel.ensureTermBoundsLoaded(for: calendarViewModel.currentSemester)
+            }
 
             .onReceive(calendarViewModel.objectWillChange) { _ in
                 upcomingRefreshToken = UUID()
@@ -491,6 +508,27 @@ struct HomeView: View {
                 }
             }
 
+            .sheet(isPresented: $showFlexDollarPlanner) {
+                NavigationStack {
+                    FlexDollarsPlannerView(
+                        semester: calendarViewModel.currentSemester,
+                        termBounds: calendarViewModel.termBoundsBySemesterCode[calendarViewModel.currentSemester.rawValue],
+                        manager: flexDollarsManager,
+                        themeColor: calendarViewModel.themeColor
+                    )
+                }
+            }
+
+            .sheet(isPresented: $showFlexDollarUpdate) {
+                NavigationStack {
+                    FlexDollarsBalanceUpdateView(
+                        semester: calendarViewModel.currentSemester,
+                        manager: flexDollarsManager,
+                        themeColor: calendarViewModel.themeColor
+                    )
+                }
+            }
+
             .sheet(isPresented: $showTimer) {
                 NavigationStack {
                     PomodoroTimerView(
@@ -514,10 +552,14 @@ struct HomeView: View {
         switch section {
         case .shuttleTracker:
             shuttleTrackerSection
+        case .diningHours:
+            diningHoursSection
         case .upcoming:
             upcomingSection
         case .mealSwipes:
             mealSwipesSection
+        case .flexDollars:
+            flexDollarsSection
         case .studyTimer:
             studyTimerSection
         }
@@ -546,6 +588,56 @@ struct HomeView: View {
             }
         } header: {
             Text("Campus Tools")
+        }
+    }
+
+    private var diningHoursSection: some View {
+        Section {
+            NavigationLink {
+                DiningHoursView(themeColor: calendarViewModel.themeColor)
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "fork.knife.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .frame(width: 30)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Dining Hours")
+                            .font(.headline)
+
+                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                            if favoriteDiningVenues.isEmpty {
+                                let openCount = DiningHoursData.venues.filter {
+                                    $0.status(at: context.date).isOpen
+                                }.count
+
+                                Text(openCount == 1 ? "1 location open right now" : "\(openCount) locations open right now")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(Array(favoriteDiningVenues.prefix(3)), id: \.id) { venue in
+                                        let status = venue.status(at: context.date)
+                                        HStack(spacing: 6) {
+                                            Circle()
+                                                .fill(status.isOpen ? Color.green : Color.secondary)
+                                                .frame(width: 6, height: 6)
+                                            Text("\(venue.name) · \(status.detailText)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("Campus Dining")
         }
     }
 
@@ -715,6 +807,83 @@ struct HomeView: View {
             }
         } header: {
             Text("Study Timer")
+        }
+    }
+
+    private var flexDollarsSection: some View {
+        Section {
+            TimelineView(.periodic(from: .now, by: 3600)) { context in
+                let snapshot = FlexDollarPlanner.snapshot(
+                    semester: calendarViewModel.currentSemester,
+                    state: flexDollarsManager.state(for: calendarViewModel.currentSemester.rawValue),
+                    termBounds: calendarViewModel.termBoundsBySemesterCode[calendarViewModel.currentSemester.rawValue],
+                    now: context.date
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    if let snapshot {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Balance")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(snapshot.balanceText)
+                                    .font(.title3.weight(.bold))
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Safe pace")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(snapshot.weeklyBudgetText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(calendarViewModel.themeColor)
+                            }
+                        }
+
+                        if let planName = snapshot.planName {
+                            Text(planName)
+                                .font(.subheadline.weight(.medium))
+                        }
+
+                        Text(snapshot.detailText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Set your dining plan or current balance to start tracking flex dollars.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            if snapshot == nil {
+                                showFlexDollarPlanner = true
+                            } else {
+                                showFlexDollarUpdate = true
+                            }
+                        } label: {
+                            Label(snapshot == nil ? "Set up" : "Update", systemImage: "dollarsign.circle")
+                                .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(calendarViewModel.themeColor)
+
+                        if snapshot != nil {
+                            Button {
+                                showFlexDollarPlanner = true
+                            } label: {
+                                Label("Planner", systemImage: "slider.horizontal.3")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Flex Dollars")
         }
     }
 

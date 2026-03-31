@@ -8,19 +8,23 @@ import Foundation
 @MainActor
 final class CourseCatalogService: ObservableObject {
     static let shared = CourseCatalogService()
+    private let selectedCatalogSemesterKey = "courses.selectedCatalogSemester.v1"
 
     @Published private(set) var courses: [Course] = []
 
-    // ✅ Default should be Spring 2026 (matches your desired new "current")
-    // BUT this will be overridden by syncFromCalendarViewModel(...) immediately anyway.
     @Published var semester: Semester = .spring2026 {
         didSet {
             guard oldValue != semester else { return }
+            UserDefaults.standard.set(semester.rawValue, forKey: selectedCatalogSemesterKey)
             loadCourses(for: semester)
         }
     }
 
     private init() {
+        if let storedCode = UserDefaults.standard.string(forKey: selectedCatalogSemesterKey),
+           let storedSemester = Semester(rawValue: storedCode) {
+            semester = storedSemester
+        }
         loadCourses(for: semester)
     }
 
@@ -102,12 +106,18 @@ private enum QuACSLoader {
                         return entry?.prerequisites?.toHumanString() ?? ""
                     }()
 
+                    let prereqExpression: PrerequisiteExpression? = {
+                        guard let crn = sec.crn else { return nil }
+                        return prereqsByCRN[String(crn)]?.prerequisites?.toExpression()
+                    }()
+
                     return CourseSection(
                         crn: sec.crn,
                         section: sec.sec,
                         instructor: instructor,
                         meetings: meetings,
                         prerequisitesText: prereqText,
+                        prerequisiteExpression: prereqExpression,
                         credits: sec.credMax ?? sec.credMin ?? 4.0 //fallback 4
                     )
                 }
@@ -292,6 +302,17 @@ private indirect enum QuACSPrereqNode: Decodable {
             let parts = nodes.map { $0.toHumanString() }.filter { !$0.isEmpty }
             if parts.isEmpty { return "" }
             return parts.count == 1 ? parts[0] : "(" + parts.joined(separator: " OR ") + ")"
+        }
+    }
+
+    func toExpression() -> PrerequisiteExpression {
+        switch self {
+        case .course(let course, let minGrade):
+            return .course(courseID: canonicalCourseID(course), minGrade: minGrade)
+        case .and(let nodes):
+            return .and(nodes.map { $0.toExpression() })
+        case .or(let nodes):
+            return .or(nodes.map { $0.toExpression() })
         }
     }
 }

@@ -59,8 +59,10 @@ struct SemesterGPAOverride: Codable, Equatable {
 
 enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
     case shuttleTracker
+    case diningHours
     case upcoming
     case mealSwipes
+    case flexDollars
     case studyTimer
 
     var id: String { rawValue }
@@ -68,8 +70,10 @@ enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
     var title: String {
         switch self {
         case .shuttleTracker: return "Shuttle Tracker"
+        case .diningHours: return "Dining Hours"
         case .upcoming: return "Upcoming Assignments"
         case .mealSwipes: return "Meal Swipes"
+        case .flexDollars: return "Flex Dollars"
         case .studyTimer: return "Study Timer"
         }
     }
@@ -135,7 +139,7 @@ final class CalendarViewModel: ObservableObject {
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
-    private let socialNotificationsEnabledKey = "settings_social_notifications_enabled_v1"
+    private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialFeedRefreshIntervalKey = "social.feedRefreshIntervalSeconds"
 
     @Published var themeColor: Color = .blue {
@@ -188,10 +192,10 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    @Published var socialNotificationsEnabled: Bool = true {
+    @Published var socialFeedNotificationsEnabled: Bool = true {
         didSet {
-            UserDefaults.standard.set(socialNotificationsEnabled, forKey: socialNotificationsEnabledKey)
-            if socialNotificationsEnabled {
+            UserDefaults.standard.set(socialFeedNotificationsEnabled, forKey: socialFeedNotificationsEnabledKey)
+            if socialFeedNotificationsEnabled {
                 NotificationManager.requestAuthorization()
             }
         }
@@ -292,6 +296,10 @@ final class CalendarViewModel: ObservableObject {
 
     private let assumedPrereqsStorageKey = "assumed_prereqs_v1"
     private var assumedBy: [String: Set<String>] = [:]
+    private var cachedBundledCourseTitlesByID: [String: String] = [:]
+    private var loadedCatalogTerms: Set<String> = []
+    private var cachedBundledPrereqExpressionsByTerm: [String: [String: PrerequisiteExpression]] = [:]
+    private var loadedPrereqTerms: Set<String> = []
 
     private var loadedAcademicYearStarts: Set<Int> = []
     private var attemptedAcademicYearStarts: Set<Int> = []
@@ -392,10 +400,10 @@ final class CalendarViewModel: ObservableObject {
         }
         self.semesterGPAOverrides = Self.loadSemesterGPAOverrides()
         self.socialDemoToolsEnabled = UserDefaults.standard.bool(forKey: socialDemoToolsEnabledKey)
-        if UserDefaults.standard.object(forKey: socialNotificationsEnabledKey) == nil {
-            UserDefaults.standard.set(true, forKey: socialNotificationsEnabledKey)
+        if UserDefaults.standard.object(forKey: socialFeedNotificationsEnabledKey) == nil {
+            UserDefaults.standard.set(true, forKey: socialFeedNotificationsEnabledKey)
         }
-        self.socialNotificationsEnabled = UserDefaults.standard.bool(forKey: socialNotificationsEnabledKey)
+        self.socialFeedNotificationsEnabled = UserDefaults.standard.bool(forKey: socialFeedNotificationsEnabledKey)
         if UserDefaults.standard.object(forKey: socialFeedRefreshIntervalKey) == nil {
             UserDefaults.standard.set(SocialFeedRefreshOption.thirty.seconds, forKey: socialFeedRefreshIntervalKey)
         }
@@ -475,9 +483,19 @@ final class CalendarViewModel: ObservableObject {
     private static func loadHomeSectionOrder() -> [HomeDashboardSection] {
         let rawOrder = UserDefaults.standard.stringArray(forKey: "settings_home_section_order_v1") ?? []
         let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
-        let missing = HomeDashboardSection.allCases.filter { !saved.contains($0) }
-        let merged = saved + missing
-        return merged.isEmpty ? HomeDashboardSection.allCases : merged
+        guard !saved.isEmpty else { return HomeDashboardSection.allCases }
+
+        var merged = saved
+        for section in HomeDashboardSection.allCases where !merged.contains(section) {
+            if section == .diningHours, let shuttleIndex = merged.firstIndex(of: .shuttleTracker) {
+                merged.insert(section, at: shuttleIndex + 1)
+            } else if section == .flexDollars, let mealIndex = merged.firstIndex(of: .mealSwipes) {
+                merged.insert(section, at: mealIndex + 1)
+            } else {
+                merged.append(section)
+            }
+        }
+        return merged
     }
 
     private static func loadHiddenHomeSections() -> Set<HomeDashboardSection> {
@@ -965,7 +983,12 @@ final class CalendarViewModel: ObservableObject {
             return currentSemester
         }()
 
-        let window = [anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 }
+        var includedSemesters = Set([anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 })
+        includedSemesters.formUnion(
+            enrolledCourses.compactMap { Semester(rawValue: $0.semesterCode) }
+        )
+
+        let window = includedSemesters.sorted { $0.rawValue < $1.rawValue }
         semesterWindow = window
 
         if currentSemester != anchor {
@@ -1405,6 +1428,42 @@ final class CalendarViewModel: ObservableObject {
         scheduleWidgetSnapshotPublish()
     }
 
+    func jumpToSemesterStart(_ semester: Semester) {
+        let applyStartDate: (Date) -> Void = { [weak self] start in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                self.currentSemester = semester
+                self.selectedDate = start
+                self.displayedMonthStart = start.startOfMonth(using: self.calendar)
+                self.ensureTermBoundsLoaded(for: semester)
+                self.ensureAcademicEventsLoaded(for: semester)
+                self.refreshSemesterWindow(anchorPreferred: semester)
+                self.scheduleWidgetSnapshotPublish()
+            }
+        }
+
+        if let bounds = termBoundsBySemesterCode[semester.rawValue] {
+            applyStartDate(bounds.start)
+            return
+        }
+
+        AcademicCalendarService.shared.fetchTermBounds(for: semester) { [weak self] result in
+            guard let self else { return }
+
+            switch result {
+            case .success(let bounds):
+                DispatchQueue.main.async {
+                    self.termBoundsBySemesterCode[semester.rawValue] = DateInterval(start: bounds.start, end: bounds.end)
+                }
+                applyStartDate(bounds.start)
+            case .failure:
+                DispatchQueue.main.async {
+                    self.changeSemester(to: semester)
+                }
+            }
+        }
+    }
+
     // MARK: - Enrollment helpers
 
     private func enrollmentID(for course: Course, section: CourseSection) -> String {
@@ -1412,13 +1471,19 @@ final class CalendarViewModel: ObservableObject {
         return "\(course.subject)-\(course.number)-\(crnText)"
     }
 
-    func isEnrolled(for course: Course, section: CourseSection) -> Bool {
+    func isEnrolled(for course: Course, section: CourseSection, semester: Semester? = nil) -> Bool {
         let id = enrollmentID(for: course, section: section)
+        if let semester {
+            return enrolledCourses.contains { $0.id == id && $0.semesterCode == semester.rawValue }
+        }
         return enrolledCourses.contains { $0.id == id }
     }
 
-    func enrollment(for course: Course, section: CourseSection) -> EnrolledCourse? {
+    func enrollment(for course: Course, section: CourseSection, semester: Semester? = nil) -> EnrolledCourse? {
         let id = enrollmentID(for: course, section: section)
+        if let semester {
+            return enrolledCourses.first { $0.id == id && $0.semesterCode == semester.rawValue }
+        }
         return enrolledCourses.first { $0.id == id }
     }
 
@@ -1508,15 +1573,102 @@ final class CalendarViewModel: ObservableObject {
         return false
     }
 
-    func hasConflict(for course: Course, section: CourseSection) -> Bool {
-        hasTimeConflict(for: section, semesterCode: currentSemester.rawValue)
+    func hasConflict(for course: Course, section: CourseSection, semester: Semester? = nil) -> Bool {
+        hasTimeConflict(for: section, semesterCode: (semester ?? currentSemester).rawValue)
     }
 
     // MARK: - Prereqs (unchanged)
 
     private func courseKey(_ course: Course) -> String { "\(course.subject)-\(course.number)" }
 
+    func formattedCourseID(_ courseID: String) -> String {
+        courseID.replacingOccurrences(of: "-", with: " ")
+    }
+
+    func courseTitle(for courseID: String) -> String? {
+        if let enrolledTitle = enrolledCourses.first(where: {
+            "\($0.course.subject)-\($0.course.number)" == courseID
+        })?.course.title,
+           !enrolledTitle.isEmpty {
+            return enrolledTitle
+        }
+
+        if let cached = cachedBundledCourseTitlesByID[courseID] {
+            return cached
+        }
+
+        loadBundledCourseTitlesIfNeeded()
+        return cachedBundledCourseTitlesByID[courseID]
+    }
+
+    func prerequisiteStatus(for prereqID: String, course: Course) -> PrerequisiteStatus {
+        if isAssumedPrerequisite(prereqID, for: course) {
+            return .assumedTaken
+        }
+
+        if completedCourseIDs().contains(prereqID) {
+            return .completed
+        }
+
+        return .missing
+    }
+
+    func isAssumedPrerequisite(_ prereqID: String, for course: Course) -> Bool {
+        assumedBy[prereqID]?.contains(courseKey(course)) == true
+    }
+
+    func setAssumedPrerequisite(_ prereqID: String, for course: Course, assumed: Bool) {
+        let reason = courseKey(course)
+        var reasons = assumedBy[prereqID] ?? []
+
+        if assumed {
+            reasons.insert(reason)
+            assumedBy[prereqID] = reasons
+        } else {
+            reasons.remove(reason)
+            if reasons.isEmpty {
+                assumedBy.removeValue(forKey: prereqID)
+            } else {
+                assumedBy[prereqID] = reasons
+            }
+        }
+
+        saveAssumedPrereqs()
+        objectWillChange.send()
+    }
+
+    func prerequisiteExpression(for course: Course) -> PrerequisiteExpression? {
+        if let direct = course.sections.compactMap(\.prerequisiteExpression).first {
+            return direct
+        }
+
+        let sectionCRNs = Set(course.sections.compactMap(\.crn).map(String.init))
+        guard !sectionCRNs.isEmpty else { return nil }
+
+        let orderedTerms = [currentSemester] + Semester.allCases.filter { $0 != currentSemester }
+        for term in orderedTerms {
+            loadBundledPrerequisiteExpressionsIfNeeded(for: term)
+            guard let expressionsByCRN = cachedBundledPrereqExpressionsByTerm[term.rawValue] else { continue }
+
+            for crn in sectionCRNs {
+                if let expression = expressionsByCRN[crn] {
+                    return expression
+                }
+            }
+        }
+
+        return nil
+    }
+
+    func isSatisfied(_ expression: PrerequisiteExpression) -> Bool {
+        expression.isSatisfied(by: completedCourseIDs())
+    }
+
     func prerequisiteCourseIDs(for course: Course) -> [String] {
+        if let expression = prerequisiteExpression(for: course) {
+            return expression.allCourseIDs()
+        }
+
         let key = courseKey(course)
         let fromGraph = PrereqStore.shared.prereqIDs(for: key)
         if !fromGraph.isEmpty { return fromGraph }
@@ -1534,6 +1686,10 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func missingPrerequisites(for course: Course) -> [String] {
+        if let expression = prerequisiteExpression(for: course) {
+            return expression.missingCourseIDs(using: completedCourseIDs())
+        }
+
         let prereqs = prerequisiteCourseIDs(for: course)
         if prereqs.isEmpty { return [] }
         let completed = completedCourseIDs()
@@ -1541,15 +1697,19 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func prerequisitesDisplayString(for course: Course) -> String? {
+        let texts = course.sections
+            .map { $0.prerequisitesText.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if let first = texts.first {
+            return first
+        }
+
         let prereqs = prerequisiteCourseIDs(for: course)
         if !prereqs.isEmpty {
             return prereqs.map { $0.replacingOccurrences(of: "-", with: " ") }.joined(separator: ", ")
         }
 
-        let texts = course.sections
-            .map { $0.prerequisitesText.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return texts.first
+        return nil
     }
 
     private func extractCourseIDs(from text: String) -> [String] {
@@ -1578,12 +1738,14 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Add/remove a course section
 
-    func addCourseSection(_ section: CourseSection, course: Course) {
+    func addCourseSection(_ section: CourseSection, course: Course, semester: Semester? = nil) {
+        let targetSemester = semester ?? currentSemester
+        let semesterCode = targetSemester.rawValue
         let id = enrollmentID(for: course, section: section)
-        if enrolledCourses.contains(where: { $0.id == id }) { return }
+        if enrolledCourses.contains(where: { $0.id == id && $0.semesterCode == semesterCode }) { return }
 
-        ensureTermBoundsLoaded(for: currentSemester)
-        if hasTimeConflict(for: section, semesterCode: currentSemester.rawValue) { return }
+        ensureTermBoundsLoaded(for: targetSemester)
+        if hasTimeConflict(for: section, semesterCode: semesterCode) { return }
 
         let missing = missingPrerequisites(for: course)
         if !missing.isEmpty {
@@ -1595,7 +1757,7 @@ final class CalendarViewModel: ObservableObject {
                 id: id,
                 course: course,
                 section: section,
-                semesterCode: currentSemester.rawValue
+                semesterCode: semesterCode
             )
             enrolledCourses.append(enrollment)
 
@@ -1832,6 +1994,55 @@ final class CalendarViewModel: ObservableObject {
         } catch {
             assumedBy = [:]
         }
+    }
+
+    private func loadBundledCourseTitlesIfNeeded() {
+        for semester in Semester.allCases where !loadedCatalogTerms.contains(semester.rawValue) {
+            defer { loadedCatalogTerms.insert(semester.rawValue) }
+
+            guard let url = Bundle.main.url(
+                forResource: "catalog",
+                withExtension: "json",
+                subdirectory: "semester_data/\(semester.rawValue)"
+            ) else { continue }
+
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = try? JSONDecoder().decode([String: BundledCatalogLookupItem].self, from: data) else {
+                continue
+            }
+
+            for (courseID, item) in decoded where cachedBundledCourseTitlesByID[courseID] == nil {
+                let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    cachedBundledCourseTitlesByID[courseID] = trimmed
+                }
+            }
+        }
+    }
+
+    private func loadBundledPrerequisiteExpressionsIfNeeded(for semester: Semester) {
+        let termCode = semester.rawValue
+        guard !loadedPrereqTerms.contains(termCode) else { return }
+        defer { loadedPrereqTerms.insert(termCode) }
+
+        guard let url = Bundle.main.url(
+            forResource: "prerequisites",
+            withExtension: "json",
+            subdirectory: "semester_data/\(termCode)"
+        ) else { return }
+
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: BundledPrerequisiteLookupEntry].self, from: data) else {
+            return
+        }
+
+        var expressionsByCRN: [String: PrerequisiteExpression] = [:]
+        for (crn, entry) in decoded {
+            if let expression = entry.prerequisites?.toExpression() {
+                expressionsByCRN[crn] = expression
+            }
+        }
+        cachedBundledPrereqExpressionsByTerm[termCode] = expressionsByCRN
     }
 
     // MARK: - Academic events
@@ -2285,6 +2496,61 @@ final class CalendarViewModel: ObservableObject {
         return key
     }
     
+}
+
+enum PrerequisiteStatus {
+    case missing
+    case assumedTaken
+    case completed
+}
+
+private struct BundledCatalogLookupItem: Decodable {
+    let name: String
+}
+
+private struct BundledPrerequisiteLookupEntry: Decodable {
+    let prerequisites: BundledPrerequisiteNode?
+}
+
+private indirect enum BundledPrerequisiteNode: Decodable {
+    case course(course: String, minGrade: String?)
+    case and([BundledPrerequisiteNode])
+    case or([BundledPrerequisiteNode])
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case course
+        case min_grade
+        case nested
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = (try? container.decode(String.self, forKey: .type)) ?? "and"
+
+        switch type {
+        case "course":
+            self = .course(
+                course: (try? container.decode(String.self, forKey: .course)) ?? "",
+                minGrade: try? container.decode(String.self, forKey: .min_grade)
+            )
+        case "or":
+            self = .or((try? container.decode([BundledPrerequisiteNode].self, forKey: .nested)) ?? [])
+        default:
+            self = .and((try? container.decode([BundledPrerequisiteNode].self, forKey: .nested)) ?? [])
+        }
+    }
+
+    func toExpression() -> PrerequisiteExpression {
+        switch self {
+        case .course(let course, let minGrade):
+            return .course(courseID: canonicalCourseID(course), minGrade: minGrade)
+        case .and(let children):
+            return .and(children.map { $0.toExpression() })
+        case .or(let children):
+            return .or(children.map { $0.toExpression() })
+        }
+    }
 }
 
 // MARK: - Semester helpers (file-local)

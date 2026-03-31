@@ -7,8 +7,91 @@
 
 import Foundation
 import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
+
+extension Notification.Name {
+    static let rpiCentralPushTokenDidChange = Notification.Name("rpiCentral.pushTokenDidChange")
+}
 
 enum NotificationManager {
+    private static let pushInstallationIDKey = "push.installation_id_v1"
+    private static let pushFCMTokenKey = "push.fcm_token_v1"
+    private static let pushAPNsRegisteredKey = "push.apns_registered_v1"
+    private static let activeSocialContextIDKey = "social.active_context_id_v1"
+
+    static var pushTokenDidChangeNotification: Notification.Name {
+        .rpiCentralPushTokenDidChange
+    }
+
+    static var pushInstallationID: String {
+        if let existing = UserDefaults.standard.string(forKey: pushInstallationIDKey), !existing.isEmpty {
+            return existing
+        }
+        let newValue = UUID().uuidString
+        UserDefaults.standard.set(newValue, forKey: pushInstallationIDKey)
+        return newValue
+    }
+
+    static var currentFCMToken: String? {
+        normalizedValue(UserDefaults.standard.string(forKey: pushFCMTokenKey))
+    }
+
+    static var canReceiveRemotePush: Bool {
+        currentFCMToken != nil && UserDefaults.standard.bool(forKey: pushAPNsRegisteredKey)
+    }
+
+    static var activeSocialContextID: String? {
+        normalizedValue(UserDefaults.standard.string(forKey: activeSocialContextIDKey))
+    }
+
+    static func updateFCMToken(_ token: String?) {
+        let normalizedToken = normalizedValue(token)
+        let existingToken = currentFCMToken
+
+        if let normalizedToken {
+            UserDefaults.standard.set(normalizedToken, forKey: pushFCMTokenKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: pushFCMTokenKey)
+        }
+
+        guard existingToken != normalizedToken else { return }
+        NotificationCenter.default.post(name: pushTokenDidChangeNotification, object: nil)
+    }
+
+    static func setActiveSocialContextID(_ contextID: String?) {
+        if let contextID = normalizedValue(contextID) {
+            UserDefaults.standard.set(contextID, forKey: activeSocialContextIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: activeSocialContextIDKey)
+        }
+    }
+
+    static func setDidRegisterForRemoteNotifications(_ didRegister: Bool) {
+        let existing = UserDefaults.standard.bool(forKey: pushAPNsRegisteredKey)
+        UserDefaults.standard.set(didRegister, forKey: pushAPNsRegisteredKey)
+        guard existing != didRegister else { return }
+        NotificationCenter.default.post(name: pushTokenDidChangeNotification, object: nil)
+    }
+
+    static func registerForRemoteNotificationsIfAuthorized() {
+#if canImport(UIKit)
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let canRegister: Bool
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                canRegister = true
+            default:
+                canRegister = false
+            }
+            guard canRegister else { return }
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+#endif
+    }
 
     // MARK: - Permission
 
@@ -19,6 +102,8 @@ enum NotificationManager {
             #if DEBUG
             print("🔔 Notifications permission granted:", granted, "err:", err as Any)
             #endif
+            guard granted else { return }
+            registerForRemoteNotificationsIfAuthorized()
         }
     }
 
@@ -255,5 +340,12 @@ enum NotificationManager {
         df.dateStyle = .short
         df.timeStyle = .short
         return df.string(from: date)
+    }
+
+    private static func normalizedValue(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }

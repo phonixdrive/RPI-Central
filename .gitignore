@@ -13,3 +13,9 @@ RPI Central/GoogleService-Info.plist
 
 # SwiftPM workspace lockfile noise for this project
 RPI Central.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Firebase CLI / Functions local artifacts
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firebase/functions/node_modules/

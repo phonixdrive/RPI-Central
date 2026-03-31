@@ -105,6 +105,11 @@ final class AcademicCalendarService {
     ) {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
+                if let manualBounds = self.manualTermBounds(for: semester) {
+                    completion(.success(manualBounds))
+                    return
+                }
+
                 if let officialBounds = try self.loadOfficialTermBounds(for: semester) {
                     completion(.success(officialBounds))
                     return
@@ -167,6 +172,34 @@ final class AcademicCalendarService {
         let year = semester.year
         if semester.isSpring { return year - 1 }
         return year
+    }
+
+    private func manualTermBounds(for semester: Semester) -> (start: Date, end: Date)? {
+        switch semester {
+        case .spring2026:
+            guard
+                let start = parseYMD("2026-01-12"),
+                let end = parseYMD("2026-04-29")
+            else { return nil }
+            return (start: start, end: end)
+
+        case .summer2026:
+            guard
+                let start = parseYMD("2026-05-18"),
+                let end = parseYMD("2026-08-15")
+            else { return nil }
+            return (start: start, end: end)
+
+        case .fall2026:
+            guard
+                let start = parseYMD("2026-08-27"),
+                let end = parseYMD("2026-12-11")
+            else { return nil }
+            return (start: start, end: end)
+
+        default:
+            return nil
+        }
     }
 
     private func loadOfficialTermBounds(for semester: Semester) throws -> (start: Date, end: Date)? {
