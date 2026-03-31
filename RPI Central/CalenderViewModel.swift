@@ -148,6 +148,8 @@ final class CalendarViewModel: ObservableObject {
     private let socialFeedRefreshIntervalKey = "social.feedRefreshIntervalSeconds"
     private let lmsCalendarFeedURLKey = "settings_lms_calendar_feed_url_v1"
     private let lmsCalendarLastSyncAtKey = "settings_lms_calendar_last_sync_at_v1"
+    private let lmsCalendarAutoDailySyncEnabledKey = "settings_lms_calendar_auto_daily_sync_enabled_v1"
+    private let hiddenLMSCalendarEventSourceIDsKey = "settings_lms_calendar_hidden_event_source_ids_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -219,6 +221,11 @@ final class CalendarViewModel: ObservableObject {
     @Published var lmsCalendarFeedURL: String = "" {
         didSet {
             UserDefaults.standard.set(lmsCalendarFeedURL, forKey: lmsCalendarFeedURLKey)
+        }
+    }
+    @Published var lmsCalendarAutoDailySyncEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(lmsCalendarAutoDailySyncEnabled, forKey: lmsCalendarAutoDailySyncEnabledKey)
         }
     }
     @Published private(set) var lmsCalendarLastSyncAt: Date?
@@ -329,6 +336,7 @@ final class CalendarViewModel: ObservableObject {
     private var hiddenAllDayEvents: Set<String> = []
     private let personalEventsStorageKey = "personal_events_v2"
     private var personalEvents: [StoredPersonalEvent] = []
+    private var hiddenLMSCalendarEventSourceIDs: Set<String> = []
     private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
     private var receivedSharedEvents: [ReceivedSharedCalendarEvent] = []
     private var sharedEventsObserver: NSObjectProtocol?
@@ -431,7 +439,9 @@ final class CalendarViewModel: ObservableObject {
         let storedFeedRefresh = UserDefaults.standard.integer(forKey: socialFeedRefreshIntervalKey)
         self.socialFeedRefreshIntervalSeconds = SocialFeedRefreshOption(seconds: storedFeedRefresh).seconds
         self.lmsCalendarFeedURL = UserDefaults.standard.string(forKey: lmsCalendarFeedURLKey) ?? ""
+        self.lmsCalendarAutoDailySyncEnabled = UserDefaults.standard.bool(forKey: lmsCalendarAutoDailySyncEnabledKey)
         self.lmsCalendarLastSyncAt = UserDefaults.standard.object(forKey: lmsCalendarLastSyncAtKey) as? Date
+        self.hiddenLMSCalendarEventSourceIDs = Set(UserDefaults.standard.stringArray(forKey: hiddenLMSCalendarEventSourceIDsKey) ?? [])
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -1438,9 +1448,10 @@ final class CalendarViewModel: ObservableObject {
     func syncLMSCalendarFeedIfNeeded() async {
         let trimmedURL = lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURL.isEmpty else { return }
+        guard lmsCalendarAutoDailySyncEnabled else { return }
 
         if let lastSync = lmsCalendarLastSyncAt,
-           Date().timeIntervalSince(lastSync) < 1800 {
+           calendar.isDate(lastSync, inSameDayAs: Date()) {
             return
         }
 
@@ -1672,6 +1683,11 @@ final class CalendarViewModel: ObservableObject {
 
         loadBundledCourseTitlesIfNeeded()
         return cachedBundledCourseTitlesByID[courseID]
+    }
+
+    func enrollment(withID enrollmentID: String?) -> EnrolledCourse? {
+        guard let enrollmentID else { return nil }
+        return enrolledCourses.first { $0.id == enrollmentID }
     }
 
     func prerequisiteStatus(for prereqID: String, course: Course) -> PrerequisiteStatus {
@@ -2305,7 +2321,33 @@ final class CalendarViewModel: ObservableObject {
         return personalEvents.first { $0.id == persistentID }
     }
 
+    func lmsImportedPersonalEvents() -> [StoredPersonalEvent] {
+        personalEvents
+            .filter { $0.externalSourceKind == "lmsCalendarFeed" }
+            .sorted { lhs, rhs in
+                if lhs.startDate != rhs.startDate {
+                    return lhs.startDate < rhs.startDate
+                }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
+
+    func hideLMSImportedEvent(_ event: StoredPersonalEvent) {
+        if let sourceID = event.externalSourceID, !sourceID.isEmpty {
+            hiddenLMSCalendarEventSourceIDs.insert(sourceID)
+            UserDefaults.standard.set(
+                Array(hiddenLMSCalendarEventSourceIDs).sorted(),
+                forKey: hiddenLMSCalendarEventSourceIDsKey
+            )
+        }
+
+        personalEvents.removeAll { $0.id == event.id }
+        savePersonalEvents()
+        rebuildEventsFromEnrollment()
+    }
+
     private var shouldAutoSyncLMSCalendarFeed: Bool {
+        lmsCalendarAutoDailySyncEnabled &&
         !lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -2313,8 +2355,14 @@ final class CalendarViewModel: ObservableObject {
         let importedSourceKind = "lmsCalendarFeed"
         personalEvents.removeAll { $0.externalSourceKind == importedSourceKind }
 
-        let importedStoredEvents = importedEvents.map { event in
-            StoredPersonalEvent(
+        let importedStoredEvents: [StoredPersonalEvent] = importedEvents.compactMap { event -> StoredPersonalEvent? in
+            let sourceID = "\(sourceURL)|\(event.id)"
+            guard !hiddenLMSCalendarEventSourceIDs.contains(sourceID) else {
+                return nil
+            }
+
+            let matchedEnrollmentID = matchedEnrollmentForImportedEvent(title: event.title, on: event.startDate)?.id
+            return StoredPersonalEvent(
                 id: UUID(),
                 title: event.title,
                 location: event.location,
@@ -2325,7 +2373,8 @@ final class CalendarViewModel: ObservableObject {
                 sharedFriendIDs: [],
                 sharedGroupIDs: [],
                 externalSourceKind: importedSourceKind,
-                externalSourceID: "\(sourceURL)|\(event.id)",
+                externalSourceID: sourceID,
+                relatedEnrollmentID: matchedEnrollmentID,
                 isAllDay: event.isAllDay
             )
         }
@@ -2333,6 +2382,49 @@ final class CalendarViewModel: ObservableObject {
         personalEvents.append(contentsOf: importedStoredEvents)
         savePersonalEvents()
         rebuildEventsFromEnrollment()
+    }
+
+    private func matchedEnrollmentForImportedEvent(title: String, on date: Date) -> EnrolledCourse? {
+        let preferredSemesterCode = semesterContaining(date: date)?.rawValue ?? currentSemester.rawValue
+        let prioritizedEnrollments: [EnrolledCourse]
+
+        let preferredEnrollments = enrolledCourses.filter { $0.semesterCode == preferredSemesterCode }
+        prioritizedEnrollments = preferredEnrollments.isEmpty ? enrolledCourses : preferredEnrollments
+
+        let upperTitle = title.uppercased()
+        let canonicalID = canonicalCourseID(title)
+        if let canonicalMatch = prioritizedEnrollments.first(where: { $0.course.id == canonicalID }) {
+            return canonicalMatch
+        }
+
+        if let embeddedCodeMatch = prioritizedEnrollments.first(where: { enrollment in
+            let subject = enrollment.course.subject.uppercased()
+            let number = enrollment.course.number.uppercased()
+            let variants = [
+                "\(subject) \(number)",
+                "\(subject)-\(number)",
+                "\(subject)\(number)"
+            ]
+            return variants.contains(where: { upperTitle.contains($0) })
+        }) {
+            return embeddedCodeMatch
+        }
+
+        let normalizedTitle = normalizedImportedEventSearchText(title)
+        return prioritizedEnrollments.first { enrollment in
+            let courseName = normalizedImportedEventSearchText(enrollment.course.title)
+            return !courseName.isEmpty && normalizedTitle.contains(courseName)
+        }
+    }
+
+    private func normalizedImportedEventSearchText(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let normalizedScalars = lowered.unicodeScalars.map { scalar -> Character in
+            CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " "
+        }
+        return String(normalizedScalars)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
     }
 
     func personalEventVisibleToFriend(

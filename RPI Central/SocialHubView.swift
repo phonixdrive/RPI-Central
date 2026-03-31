@@ -6,6 +6,7 @@ import FirebaseFirestore
 struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
+    @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
 
     @State private var selectedSection: SocialHubSection = .friends
     @State private var authMode: AuthMode = .login
@@ -645,7 +646,7 @@ struct SocialHubView: View {
 
     private var groupsCard: some View {
         let groups = socialManager.friendGroups
-        let campusWideChat = socialManager.campusWideChatReference
+        let campusWideChat = showCampusWideGroup ? socialManager.campusWideChatReference : nil
         let friends = socialManager.overview?.friends ?? []
         let namesByID = Dictionary(
             uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) } +
@@ -689,6 +690,16 @@ struct SocialHubView: View {
                                 }
 
                                 Spacer()
+
+                                Button {
+                                    showCampusWideGroup = false
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption.weight(.semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel("Hide All RPI Students group")
                             }
 
                             Text("A built-in campus-wide chat for everyone signed into RPI Central.")
