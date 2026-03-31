@@ -470,7 +470,8 @@ struct HomeView: View {
                         tasksManager: tasksManager,
                         enrollments: currentSemesterEnrollments,
                         themeColor: calendarViewModel.themeColor,
-                        calendarExamItems: upcomingExamItems(days: 120)
+                        calendarExamItems: upcomingExamItems(days: 120),
+                        lmsCalendarItems: upcomingLMSCalendarItems(days: 120)
                     )
                 }
             }
@@ -667,12 +668,23 @@ struct HomeView: View {
                             )
                             editingTask = prefill
                             showTaskEditor = true
+                        },
+                        onDeleteLMSItem: { event in
+                            calendarViewModel.hideLMSImportedEvent(event)
                         }
                     )
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if case .task(let t) = item.source {
                             Button(role: .destructive) {
                                 tasksManager.delete(t)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+
+                        if case .lmsCalendarEvent(let event, _) = item.source {
+                            Button(role: .destructive) {
+                                calendarViewModel.hideLMSImportedEvent(event)
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -886,6 +898,7 @@ struct HomeView: View {
     fileprivate enum UpcomingSource: Equatable {
         case task(CourseTask)
         case calendarExam(title: String, date: Date, enrollmentID: String?)
+        case lmsCalendarEvent(StoredPersonalEvent, enrollmentID: String?)
     }
 
     fileprivate struct UpcomingItem: Identifiable {
@@ -895,9 +908,15 @@ struct HomeView: View {
         let due: Date
         let icon: String
         let source: UpcomingSource
+        let isAllDay: Bool
 
         var dueText: String {
             let df = DateFormatter()
+
+            if isAllDay {
+                df.dateFormat = "M/d"
+                return df.string(from: due)
+            }
 
             // If it's exactly on the hour, show "1/30 10 AM"
             // Otherwise show "1/30 10:15 AM"
@@ -912,12 +931,22 @@ struct HomeView: View {
         }
 
         var relativeText: String {
-            taskRelativeDueText(to: due)
+            if isAllDay {
+                let adjustedDue = Calendar.current.date(
+                    bySettingHour: 23,
+                    minute: 59,
+                    second: 0,
+                    of: due
+                ) ?? due
+                return taskRelativeDueText(to: adjustedDue)
+            }
+            return taskRelativeDueText(to: due)
         }
     }
 
     private func combinedUpcomingItems(days: Int) -> [UpcomingItem] {
         let examItems = upcomingExamItems(days: days)
+        let lmsItems = upcomingLMSCalendarItems(days: days)
 
         // De-dupe custom exams when an official exam block already exists.
         let examTimes: Set<Int> = Set(examItems.map { Int($0.due.timeIntervalSince1970) })
@@ -952,11 +981,12 @@ struct HomeView: View {
                     subtitle: subtitle,
                     due: t.dueDate,
                     icon: t.kind.systemImage,
-                    source: .task(t)
+                    source: .task(t),
+                    isAllDay: false
                 )
             }
 
-        return (taskItems + examItems)
+        return (taskItems + examItems + lmsItems)
             .sorted { $0.due < $1.due }
     }
 
@@ -1006,7 +1036,8 @@ struct HomeView: View {
                         subtitle: subtitle,
                         due: ev.startDate,
                         icon: "star.circle.fill",
-                        source: .calendarExam(title: cleanTitle, date: ev.startDate, enrollmentID: ev.enrollmentID)
+                        source: .calendarExam(title: cleanTitle, date: ev.startDate, enrollmentID: ev.enrollmentID),
+                        isAllDay: false
                     )
                 )
             }
@@ -1015,6 +1046,101 @@ struct HomeView: View {
         }
 
         return items.sorted { $0.due < $1.due }
+    }
+
+    private func upcomingLMSCalendarItems(days: Int) -> [UpcomingItem] {
+        let calendar = Calendar.current
+        let now = Date()
+        let end = calendar.date(byAdding: .day, value: days, to: now) ?? now
+        let currentTermBounds = currentSemesterCode.flatMap { calendarViewModel.termBoundsBySemesterCode[$0] }
+
+        return calendarViewModel.lmsImportedPersonalEvents()
+            .filter { event in
+                let dueDate = displayDueDate(forLMSImportedEvent: event)
+                guard dueDate >= now && dueDate <= end else { return false }
+                guard let currentTermBounds else { return true }
+
+                let dayStart = calendar.startOfDay(for: event.startDate)
+                let intervalStart = calendar.startOfDay(for: currentTermBounds.start)
+                let intervalEnd = calendar.startOfDay(for: currentTermBounds.end)
+                return intervalStart <= dayStart && dayStart <= intervalEnd
+            }
+            .map { event in
+                let matchedEnrollment = matchedEnrollmentForLMSImportedEvent(event)
+                return UpcomingItem(
+                    id: "lms-\(event.id.uuidString)",
+                    title: event.title,
+                    subtitle: subtitleForLMSImportedEvent(event, matchedEnrollment: matchedEnrollment),
+                    due: displayDueDate(forLMSImportedEvent: event),
+                    icon: "calendar.badge.clock",
+                    source: .lmsCalendarEvent(event, enrollmentID: matchedEnrollment?.id),
+                    isAllDay: event.isAllDay ?? false
+                )
+            }
+    }
+
+    private func displayDueDate(forLMSImportedEvent event: StoredPersonalEvent) -> Date {
+        guard event.isAllDay ?? false else { return event.startDate }
+        return Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: event.startDate) ?? event.startDate
+    }
+
+    private func subtitleForLMSImportedEvent(_ event: StoredPersonalEvent, matchedEnrollment: EnrolledCourse?) -> String {
+        if let matchedEnrollment {
+            return "Blackboard • \(matchedEnrollment.course.title)"
+        }
+        if !event.location.isEmpty {
+            return "Blackboard • \(event.location)"
+        }
+        return "Blackboard"
+    }
+
+    private func matchedEnrollmentForLMSImportedEvent(_ event: StoredPersonalEvent) -> EnrolledCourse? {
+        if let storedMatch = calendarViewModel.enrollment(withID: event.relatedEnrollmentID) {
+            return storedMatch
+        }
+
+        let prioritizedEnrollments: [EnrolledCourse]
+        if let currentSemesterCode {
+            let current = calendarViewModel.enrolledCourses.filter { $0.semesterCode == currentSemesterCode }
+            prioritizedEnrollments = current.isEmpty ? calendarViewModel.enrolledCourses : current
+        } else {
+            prioritizedEnrollments = calendarViewModel.enrolledCourses
+        }
+
+        let upperTitle = event.title.uppercased()
+        let canonicalID = canonicalCourseID(event.title)
+        if let canonicalMatch = prioritizedEnrollments.first(where: { $0.course.id == canonicalID }) {
+            return canonicalMatch
+        }
+
+        if let embeddedCodeMatch = prioritizedEnrollments.first(where: { enrollment in
+            let subject = enrollment.course.subject.uppercased()
+            let number = enrollment.course.number.uppercased()
+            let variants = [
+                "\(subject) \(number)",
+                "\(subject)-\(number)",
+                "\(subject)\(number)"
+            ]
+            return variants.contains(where: { upperTitle.contains($0) })
+        }) {
+            return embeddedCodeMatch
+        }
+
+        let normalizedTitle = normalizedUpcomingSearchText(event.title)
+        return prioritizedEnrollments.first { enrollment in
+            let courseName = normalizedUpcomingSearchText(enrollment.course.title)
+            return !courseName.isEmpty && normalizedTitle.contains(courseName)
+        }
+    }
+
+    private func normalizedUpcomingSearchText(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let normalizedScalars = lowered.unicodeScalars.map { scalar -> Character in
+            CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " "
+        }
+        return String(normalizedScalars)
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
     }
 
     private func timeRangeText(_ start: Date, _ end: Date) -> String {
@@ -1072,6 +1198,33 @@ private struct UpcomingRow: View {
     let onEditTask: (CourseTask) -> Void
     let onDeleteTask: (CourseTask) -> Void
     let onImportExamReminder: (_ title: String, _ date: Date, _ enrollmentID: String?) -> Void
+    let onDeleteLMSItem: (StoredPersonalEvent) -> Void
+
+    @ViewBuilder
+    private var rowContent: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(item.relativeText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text(item.dueText)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1079,44 +1232,33 @@ private struct UpcomingRow: View {
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(themeColor.opacity(0.95))
 
-            Button {
-                if case .task(let t) = item.source {
+            if case .task(let t) = item.source {
+                Button {
                     onEditTask(t)
+                } label: {
+                    rowContent
                 }
-            } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-
-                        Text(item.subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    Text(item.relativeText)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Text(item.dueText)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+                .buttonStyle(.plain)
+            } else {
+                rowContent
             }
-            .buttonStyle(.plain)
-            .disabled({
-                if case .calendarExam = item.source { return true }
-                return false
-            }())
 
             // ✅ Remove button for tasks (and only tasks)
             if case .task(let t) = item.source {
                 Button(role: .destructive) {
                     onDeleteTask(t)
+                } label: {
+                    Image(systemName: "trash")
+                        .symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .padding(.leading, 4)
+            }
+
+            if case .lmsCalendarEvent(let event, _) = item.source {
+                Button(role: .destructive) {
+                    onDeleteLMSItem(event)
                 } label: {
                     Image(systemName: "trash")
                         .symbolRenderingMode(.hierarchical)
@@ -1146,9 +1288,11 @@ private struct UpcomingRow: View {
 
 private struct TasksListView: View {
     @ObservedObject var tasksManager: TasksManager
+    @EnvironmentObject var calendarViewModel: CalendarViewModel
     let enrollments: [EnrolledCourse]
     let themeColor: Color
     let calendarExamItems: [HomeView.UpcomingItem]
+    let lmsCalendarItems: [HomeView.UpcomingItem]
 
     @Environment(\.dismiss) private var dismiss
     @State private var showTaskEditor = false
@@ -1284,6 +1428,35 @@ private struct TasksListView: View {
                             }
                             .buttonStyle(.plain)
                             .padding(.leading, 6)
+                        }
+                    }
+                }
+            }
+
+            Section("Blackboard Calendar") {
+                if lmsCalendarItems.isEmpty {
+                    Text("No upcoming Blackboard items.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(lmsCalendarItems.prefix(50), id: \.id) { item in
+                        UpcomingRow(
+                            item: item,
+                            themeColor: themeColor,
+                            onEditTask: { _ in },
+                            onDeleteTask: { _ in },
+                            onImportExamReminder: { _, _, _ in },
+                            onDeleteLMSItem: { event in
+                                calendarViewModel.hideLMSImportedEvent(event)
+                            }
+                        )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            if case let .lmsCalendarEvent(event, _) = item.source {
+                                Button(role: .destructive) {
+                                    calendarViewModel.hideLMSImportedEvent(event)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
