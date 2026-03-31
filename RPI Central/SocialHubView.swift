@@ -645,11 +645,13 @@ struct SocialHubView: View {
 
     private var groupsCard: some View {
         let groups = socialManager.friendGroups
+        let campusWideChat = socialManager.campusWideChatReference
         let friends = socialManager.overview?.friends ?? []
         let namesByID = Dictionary(
             uniqueKeysWithValues: friends.map { ($0.id, $0.displayName) } +
             [(socialManager.currentUser?.id ?? "self", socialManager.currentUser?.displayName ?? "You")]
         )
+        let groupCount = groups.count + (campusWideChat == nil ? 0 : 1)
 
         return SocialCard {
             VStack(alignment: .leading, spacing: 14) {
@@ -657,7 +659,7 @@ struct SocialHubView: View {
                     collapsibleHeader(
                         title: "Groups",
                         systemImage: "person.3.fill",
-                        countText: "\(groups.count)",
+                        countText: "\(groupCount)",
                         isExpanded: $groupsExpanded
                     )
 
@@ -675,11 +677,42 @@ struct SocialHubView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    if groups.isEmpty {
+                    if let campusWideChat {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(campusWideChat.title)
+                                        .font(.headline)
+                                    Text(campusWideChat.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+                            }
+
+                            Text("A built-in campus-wide chat for everyone signed into RPI Central.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                selectedGroupChat = campusWideChat
+                            } label: {
+                                Label("Open chat", systemImage: "bubble.left.and.bubble.right")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                    }
+
+                    if groups.isEmpty && campusWideChat == nil {
                         Text(friends.isEmpty ? "Add a friend first to start building groups." : "No groups yet.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else {
+                    } else if !groups.isEmpty {
                         VStack(spacing: 10) {
                             ForEach(groups) { group in
                                 VStack(alignment: .leading, spacing: 10) {

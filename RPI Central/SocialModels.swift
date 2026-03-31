@@ -109,6 +109,7 @@ struct SocialCourseComment: Codable, Identifiable, Equatable {
 enum SocialGroupChatSourceKind: String, Codable, Equatable {
     case manualGroup
     case classGroup
+    case campusGroup
 }
 
 struct SocialGroupChatReference: Identifiable, Equatable {

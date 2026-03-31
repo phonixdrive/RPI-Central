@@ -40,6 +40,7 @@ final class SocialManager: ObservableObject {
     @Published private(set) var isFirebaseAvailable: Bool
     @Published private(set) var setupMessage: String
 
+    private let campusWideGroupThreadID = "campusGroup_all_rpi_students"
     private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
     private let deliveredSocialAlertIDsKey = "social.delivered_alert_ids_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
@@ -91,6 +92,18 @@ final class SocialManager: ObservableObject {
 
     var canModerateSocialContent: Bool {
         isModeratorIdentity(currentUser)
+    }
+
+    var campusWideChatReference: SocialGroupChatReference? {
+        guard let currentUser else { return nil }
+        return SocialGroupChatReference(
+            id: campusWideGroupThreadID,
+            title: "All RPI Students",
+            subtitle: "Campus-wide chat",
+            memberDisplayNames: [currentUser.displayName],
+            memberIDs: [currentUser.id],
+            sourceKind: .campusGroup
+        )
     }
 
     func logout() {
@@ -3035,6 +3048,7 @@ final class SocialManager: ObservableObject {
                 "subtitle": reference.subtitle,
                 "sourceKind": reference.sourceKind.rawValue,
                 "memberIDs": reference.memberIDs,
+                "isCampusWide": reference.sourceKind == .campusGroup,
                 "updatedAt": nowISO(),
             ], at: ref)
         } catch {
@@ -3052,6 +3066,7 @@ final class SocialManager: ObservableObject {
             "subtitle": reference.subtitle,
             "sourceKind": reference.sourceKind.rawValue,
             "memberIDs": reference.memberIDs,
+            "isCampusWide": reference.sourceKind == .campusGroup,
             "createdAt": nowISO(),
             "updatedAt": nowISO(),
         ]

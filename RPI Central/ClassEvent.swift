@@ -47,6 +47,37 @@ struct StoredPersonalEvent: Identifiable, Codable, Equatable {
     let shareMode: PersonalEventShareMode
     let sharedFriendIDs: [String]
     let sharedGroupIDs: [String]
+    let externalSourceKind: String?
+    let externalSourceID: String?
+    let isAllDay: Bool?
+
+    init(
+        id: UUID,
+        title: String,
+        location: String,
+        startDate: Date,
+        endDate: Date,
+        seriesID: UUID?,
+        shareMode: PersonalEventShareMode,
+        sharedFriendIDs: [String],
+        sharedGroupIDs: [String],
+        externalSourceKind: String? = nil,
+        externalSourceID: String? = nil,
+        isAllDay: Bool? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.location = location
+        self.startDate = startDate
+        self.endDate = endDate
+        self.seriesID = seriesID
+        self.shareMode = shareMode
+        self.sharedFriendIDs = sharedFriendIDs
+        self.sharedGroupIDs = sharedGroupIDs
+        self.externalSourceKind = externalSourceKind
+        self.externalSourceID = externalSourceID
+        self.isAllDay = isAllDay
+    }
 }
 
 struct ClassEvent: Identifiable, Equatable {

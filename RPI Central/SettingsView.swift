@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
     @State private var editMode: EditMode = .inactive
+    @State private var isSyncingLMSCalendar = false
 
     var body: some View {
         NavigationStack {
@@ -105,6 +106,49 @@ struct SettingsView: View {
                             ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
                                 Text(semester.displayName).tag(semester)
                             }
+                        }
+                    }
+
+                    Section(
+                        header: Text("LMS Calendar"),
+                        footer: Text("Paste your Blackboard calendar feed URL here to import LMS events into your calendar. The link is private to your account, so don’t share it.")
+                    ) {
+                        TextField("https://lms.rpi.edu/.../learn.ics", text: $calendarViewModel.lmsCalendarFeedURL)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .autocorrectionDisabled()
+
+                        Button {
+                            Task {
+                                guard !isSyncingLMSCalendar else { return }
+                                isSyncingLMSCalendar = true
+                                _ = await calendarViewModel.syncLMSCalendarFeed(force: true)
+                                isSyncingLMSCalendar = false
+                            }
+                        } label: {
+                            HStack {
+                                if isSyncingLMSCalendar {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Text(isSyncingLMSCalendar ? "Syncing…" : "Sync Blackboard calendar")
+                            }
+                        }
+                        .disabled(isSyncingLMSCalendar || calendarViewModel.lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if let lastSync = calendarViewModel.lmsCalendarLastSyncAt {
+                            HStack {
+                                Text("Last synced")
+                                Spacer()
+                                Text(lastSync.formatted(date: .abbreviated, time: .shortened))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if let syncStatus = calendarViewModel.lmsCalendarSyncStatus, !syncStatus.isEmpty {
+                            Text(syncStatus)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
