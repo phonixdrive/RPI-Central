@@ -146,6 +146,8 @@ final class CalendarViewModel: ObservableObject {
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialFeedRefreshIntervalKey = "social.feedRefreshIntervalSeconds"
+    private let lmsCalendarFeedURLKey = "settings_lms_calendar_feed_url_v1"
+    private let lmsCalendarLastSyncAtKey = "settings_lms_calendar_last_sync_at_v1"
 
     @Published var themeColor: Color = .blue {
         didSet {
@@ -214,6 +216,13 @@ final class CalendarViewModel: ObservableObject {
 
     @Published private(set) var academicEventsLoaded: Bool = false
     @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:]
+    @Published var lmsCalendarFeedURL: String = "" {
+        didSet {
+            UserDefaults.standard.set(lmsCalendarFeedURL, forKey: lmsCalendarFeedURLKey)
+        }
+    }
+    @Published private(set) var lmsCalendarLastSyncAt: Date?
+    @Published private(set) var lmsCalendarSyncStatus: String?
 
     @Published var isBootLoading: Bool = true
     @Published var canSkipBootLoading: Bool = false
@@ -421,6 +430,8 @@ final class CalendarViewModel: ObservableObject {
         }
         let storedFeedRefresh = UserDefaults.standard.integer(forKey: socialFeedRefreshIntervalKey)
         self.socialFeedRefreshIntervalSeconds = SocialFeedRefreshOption(seconds: storedFeedRefresh).seconds
+        self.lmsCalendarFeedURL = UserDefaults.standard.string(forKey: lmsCalendarFeedURLKey) ?? ""
+        self.lmsCalendarLastSyncAt = UserDefaults.standard.object(forKey: lmsCalendarLastSyncAtKey) as? Date
 
         // Avoid widget spam during boot rebuild
         withWidgetPublishingSuppressed {
@@ -444,6 +455,11 @@ final class CalendarViewModel: ObservableObject {
 
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
+        if shouldAutoSyncLMSCalendarFeed {
+            Task { [weak self] in
+                await self?.syncLMSCalendarFeedIfNeeded()
+            }
+        }
         sharedEventsObserver = NotificationCenter.default.addObserver(
             forName: .sharedCalendarEventsDidUpdate,
             object: nil,
@@ -1388,7 +1404,7 @@ final class CalendarViewModel: ObservableObject {
             enrollmentID: nil,
             seriesID: record.seriesID,
             persistentID: record.id,
-            isAllDay: false,
+            isAllDay: record.isAllDay ?? false,
             kind: .personal
         )
         personalEvents.append(record)
@@ -1417,6 +1433,51 @@ final class CalendarViewModel: ObservableObject {
         personalEvents.removeAll { $0.seriesID == seriesID }
         savePersonalEvents()
         events.removeAll { $0.seriesID == seriesID }
+    }
+
+    func syncLMSCalendarFeedIfNeeded() async {
+        let trimmedURL = lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else { return }
+
+        if let lastSync = lmsCalendarLastSyncAt,
+           Date().timeIntervalSince(lastSync) < 1800 {
+            return
+        }
+
+        _ = await syncLMSCalendarFeed(force: false)
+    }
+
+    @discardableResult
+    func syncLMSCalendarFeed(force: Bool) async -> Bool {
+        let trimmedURL = lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else {
+            lmsCalendarSyncStatus = "Add your LMS calendar feed URL first."
+            return false
+        }
+
+        guard force || shouldAutoSyncLMSCalendarFeed else {
+            return false
+        }
+
+        guard let url = URL(string: trimmedURL) else {
+            lmsCalendarSyncStatus = "The LMS calendar link is invalid."
+            return false
+        }
+
+        do {
+            let importedEvents = try await LMSCalendarFeedService.fetchEvents(from: url)
+            replaceImportedLMSCalendarEvents(importedEvents, sourceURL: trimmedURL)
+            let syncDate = Date()
+            lmsCalendarLastSyncAt = syncDate
+            UserDefaults.standard.set(syncDate, forKey: lmsCalendarLastSyncAtKey)
+            lmsCalendarSyncStatus = importedEvents.isEmpty
+                ? "LMS sync finished. No upcoming feed events were found."
+                : "LMS sync finished. Imported \(importedEvents.count) events."
+            return true
+        } catch {
+            lmsCalendarSyncStatus = "LMS sync failed: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func hideClassOccurrence(_ event: ClassEvent) {
@@ -2211,7 +2272,7 @@ final class CalendarViewModel: ObservableObject {
             enrollmentID: nil,
             seriesID: stored.seriesID,
             persistentID: stored.id,
-            isAllDay: false,
+            isAllDay: stored.isAllDay ?? false,
             kind: .personal
         )
     }
@@ -2242,6 +2303,36 @@ final class CalendarViewModel: ObservableObject {
     func storedPersonalEvent(for event: ClassEvent) -> StoredPersonalEvent? {
         guard let persistentID = event.persistentID else { return nil }
         return personalEvents.first { $0.id == persistentID }
+    }
+
+    private var shouldAutoSyncLMSCalendarFeed: Bool {
+        !lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func replaceImportedLMSCalendarEvents(_ importedEvents: [LMSImportedCalendarEvent], sourceURL: String) {
+        let importedSourceKind = "lmsCalendarFeed"
+        personalEvents.removeAll { $0.externalSourceKind == importedSourceKind }
+
+        let importedStoredEvents = importedEvents.map { event in
+            StoredPersonalEvent(
+                id: UUID(),
+                title: event.title,
+                location: event.location,
+                startDate: event.startDate,
+                endDate: event.endDate,
+                seriesID: nil,
+                shareMode: .none,
+                sharedFriendIDs: [],
+                sharedGroupIDs: [],
+                externalSourceKind: importedSourceKind,
+                externalSourceID: "\(sourceURL)|\(event.id)",
+                isAllDay: event.isAllDay
+            )
+        }
+
+        personalEvents.append(contentsOf: importedStoredEvents)
+        savePersonalEvents()
+        rebuildEventsFromEnrollment()
     }
 
     func personalEventVisibleToFriend(
