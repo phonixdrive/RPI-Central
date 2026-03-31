@@ -90,21 +90,50 @@ struct ShuttleTrackerMapScreen: View {
             }
 
             VStack {
-                HStack {
-                    Spacer()
+                HStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach(quickRouteButtons) { route in
+                            Button {
+                                focus(on: route)
+                            } label: {
+                                MapQuickChipLabel(
+                                    title: shortRouteLabel(for: route.id),
+                                    isSelected: selectedRouteIDStorage == route.id,
+                                    accentColor: color(for: route.colorHex)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if let favoriteStopSelection {
+                            Button {
+                                selectedRouteIDStorage = favoriteStopSelection.route.id
+                                focus(on: favoriteStopSelection.stop)
+                            } label: {
+                                MapQuickChipLabel(
+                                    title: favoriteChipTitle(for: favoriteStopSelection),
+                                    isSelected: false
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
                     Button {
                         showStopLabels.toggle()
                     } label: {
-                        Label(showStopLabels ? "Hide Stops" : "Show Stops",
-                              systemImage: showStopLabels ? "mappin.slash" : "mappin")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(.regularMaterial, in: Capsule())
+                        MapQuickChipLabel(
+                            title: "Names",
+                            systemName: showStopLabels ? "mappin.slash" : "mappin",
+                            isSelected: showStopLabels
+                        )
                     }
-                    .padding(.top, 12)
-                    .padding(.trailing, 16)
+                    .buttonStyle(.plain)
                 }
+                .padding(.top, 12)
+                .padding(.horizontal, 16)
 
                 Spacer()
 
@@ -150,7 +179,7 @@ struct ShuttleTrackerMapScreen: View {
         .onDisappear {
             viewModel.stop()
         }
-        .task(id: viewModel.routes.map(\.id).joined(separator: "|")) {
+        .task(id: viewModel.routes.map { $0.id }.joined(separator: "|")) {
             applyInitialFocusIfNeeded()
         }
         .sheet(isPresented: $showingRouteTimes) {
@@ -158,7 +187,6 @@ struct ShuttleTrackerMapScreen: View {
                 routes: viewModel.routes.filter { !$0.isHidden },
                 initiallySelectedRouteID: resolvedSelectedRouteID,
                 favoriteStopFavoriteID: favoriteStopIDStorage,
-                onSelectedRouteChange: { selectedRouteIDStorage = $0 },
                 onFavoriteStopChange: { favoriteStopIDStorage = $0 },
                 onSelectStop: { stop in
                     focus(on: stop)
@@ -184,13 +212,27 @@ struct ShuttleTrackerMapScreen: View {
         Color(hex: hex) ?? .red
     }
 
-    private var favoriteStop: ShuttleStop? {
+    private var quickRouteButtons: [ShuttleRouteOverlay] {
+        let visibleRoutes = viewModel.routes.filter { !$0.isHidden }
+        let primaryRoutes = visibleRoutes.filter { route in
+            let identifier = route.id.uppercased()
+            return identifier == "NORTH" || identifier == "WEST"
+        }
+
+        return primaryRoutes.sorted { lhs, rhs in
+            routePriority(for: lhs.id) < routePriority(for: rhs.id)
+        }
+    }
+
+    private var favoriteStopSelection: (route: ShuttleRouteOverlay, stop: ShuttleStop)? {
         guard let favorite = ShuttlePreferencesStore.splitFavoriteStopID(favoriteStopIDStorage) else {
             return nil
         }
-        return viewModel.routes
-            .first(where: { $0.id == favorite.routeID })?
-            .stops.first(where: { $0.id == favorite.stopID })
+        guard let route = viewModel.routes.first(where: { $0.id == favorite.routeID }),
+              let stop = route.stops.first(where: { $0.id == favorite.stopID }) else {
+            return nil
+        }
+        return (route, stop)
     }
 
     private var resolvedSelectedRouteID: String {
@@ -205,11 +247,6 @@ struct ShuttleTrackerMapScreen: View {
         guard !didApplyInitialFocus, !viewModel.routes.filter({ !$0.isHidden }).isEmpty else { return }
         didApplyInitialFocus = true
 
-        if let stop = favoriteStop {
-            focus(on: stop)
-            return
-        }
-
         recenterMap()
     }
 
@@ -223,9 +260,26 @@ struct ShuttleTrackerMapScreen: View {
         }
     }
 
+    private func focus(on route: ShuttleRouteOverlay) {
+        selectedRouteIDStorage = route.id
+        let coordinates = route.polylineCoordinates + route.stops.map { $0.coordinate }
+
+        guard !coordinates.isEmpty else { return }
+
+        setCameraRegion(
+            from: coordinates,
+            minimumLatitudeSpan: 0.0085,
+            minimumLongitudeSpan: 0.0105,
+            paddingMultiplier: 0.22
+        )
+    }
+
     private func recenterMap() {
+        selectedRouteIDStorage = ""
         let visibleRoutes = viewModel.routes.filter { !$0.isHidden }
-        let coordinates = visibleRoutes.flatMap(\.polylineCoordinates) + viewModel.vehicles.map(\.coordinate)
+        let routeCoordinates = visibleRoutes.flatMap { $0.polylineCoordinates }
+        let vehicleCoordinates = viewModel.vehicles.map { $0.coordinate }
+        let coordinates = routeCoordinates + vehicleCoordinates
 
         guard !coordinates.isEmpty else {
             withAnimation {
@@ -278,6 +332,82 @@ struct ShuttleTrackerMapScreen: View {
             position = .region(region)
         }
     }
+
+    private func routePriority(for routeID: String) -> Int {
+        switch routeID.uppercased() {
+        case "NORTH":
+            return 0
+        case "WEST":
+            return 1
+        default:
+            return 2
+        }
+    }
+
+    private func shortRouteLabel(for routeID: String) -> String {
+        switch routeID.uppercased() {
+        case "NORTH":
+            return "N"
+        case "WEST":
+            return "W"
+        default:
+            return String(routeID.prefix(2)).uppercased()
+        }
+    }
+
+    private func favoriteChipTitle(for selection: (route: ShuttleRouteOverlay, stop: ShuttleStop)) -> String {
+        let name = shortStopLabel(selection.stop.name)
+        guard let nextTime = nextExpectedTime(for: selection) else {
+            return name
+        }
+        return "\(name) \(nextTime.formatted(date: .omitted, time: .shortened))"
+    }
+
+    private func shortStopLabel(_ stopName: String) -> String {
+        let baseName = stopName.split(separator: "(").first.map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? stopName
+
+        if baseName.count <= 14 {
+            return baseName
+        }
+
+        let words = baseName.split(separator: " ")
+        if let lastWord = words.last, lastWord.count <= 14 {
+            return String(lastWord)
+        }
+
+        return String(baseName.prefix(14)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func nextExpectedTime(for selection: (route: ShuttleRouteOverlay, stop: ShuttleStop)) -> Date? {
+        let now = Date()
+        let departures = ShuttleStaticScheduleProvider.shared.upcomingDepartures(
+            for: selection.route,
+            now: now,
+            limit: 12
+        )
+
+        let normalizedFavoriteName = normalizedStopName(selection.stop.name)
+
+        for departure in departures {
+            if let nextStopTime = departure.stopTimes.first(where: { stopTime in
+                guard let scheduledTime = stopTime.scheduledTime else { return false }
+                return scheduledTime >= now && normalizedStopName(stopTime.stopName) == normalizedFavoriteName
+            })?.scheduledTime {
+                return nextStopTime
+            }
+        }
+
+        return nil
+    }
+
+    private func normalizedStopName(_ name: String) -> String {
+        name
+            .lowercased()
+            .replacingOccurrences(of: "(return)", with: "")
+            .replacingOccurrences(of: "’", with: "'")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 private struct ShuttleVehicleMarker: View {
@@ -321,11 +451,46 @@ private struct MapControlButtonLabel: View {
     }
 }
 
+private struct MapQuickChipLabel: View {
+    let title: String
+    var systemName: String? = nil
+    var isSelected: Bool
+    var accentColor: Color? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let systemName {
+                Image(systemName: systemName)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .foregroundStyle(isSelected ? .white : .primary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            isSelected
+                ? AnyShapeStyle(accentColor ?? .accentColor)
+                : AnyShapeStyle(.regularMaterial),
+            in: Capsule()
+        )
+        .overlay {
+            if !isSelected {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.12))
+            }
+        }
+    }
+}
+
 private struct ShuttleRouteTimesSheet: View {
     let routes: [ShuttleRouteOverlay]
     let initiallySelectedRouteID: String
     let favoriteStopFavoriteID: String
-    let onSelectedRouteChange: (String) -> Void
     let onFavoriteStopChange: (String) -> Void
     let onSelectStop: (ShuttleStop) -> Void
 
@@ -392,9 +557,6 @@ private struct ShuttleRouteTimesSheet: View {
             }
             .navigationTitle("Route Times")
             .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: selectedRouteID) { _, newValue in
-                onSelectedRouteChange(newValue)
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
