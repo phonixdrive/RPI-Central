@@ -32,6 +32,7 @@ final class SocialManager: ObservableObject {
     @Published private(set) var courseCommentsByCommunityID: [String: [SocialCourseComment]] = [:]
     @Published private(set) var feedItems: [SocialFeedItem] = []
     @Published private(set) var searchResults: [SocialSearchResult] = []
+    @Published private(set) var quickAddSuggestions: [SocialSearchResult] = []
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
     @Published private(set) var activeGroupChatID: String?
     @Published var isLoading: Bool = false
@@ -100,7 +101,7 @@ final class SocialManager: ObservableObject {
             id: campusWideGroupThreadID,
             title: "All RPI Students",
             subtitle: "Campus-wide chat",
-            memberDisplayNames: [currentUser.displayName],
+            memberDisplayNames: [],
             memberIDs: [currentUser.id],
             sourceKind: .campusGroup
         )
@@ -137,9 +138,84 @@ final class SocialManager: ObservableObject {
         courseCommentsByCommunityID = [:]
         feedItems = []
         searchResults = []
+        quickAddSuggestions = []
         loadedFriendSchedule = nil
         activeGroupChatID = nil
         statusMessage = nil
+    }
+
+    func loadQuickAddSuggestions() async {
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+
+            let incoming = Set(overview?.incomingRequests.compactMap { $0.fromUser?.id } ?? [])
+            let outgoing = Set(overview?.outgoingRequests.compactMap { $0.toUser?.id } ?? [])
+            let friends = Set(overview?.friends.map(\.id) ?? [])
+
+            let snapshot = try await getDocuments(
+                firestore.collection("users")
+                    .order(by: "createdAt", descending: true)
+                    .limit(to: 80)
+            )
+
+            quickAddSuggestions = snapshot.documents
+                .compactMap(makeUser)
+                .filter { user in
+                    user.id != viewer.id &&
+                    !friends.contains(user.id) &&
+                    !incoming.contains(user.id) &&
+                    !outgoing.contains(user.id) &&
+                    !isDemoUser(user)
+                }
+                .sorted { lhs, rhs in
+                    lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                }
+                .prefix(8)
+                .map { user in
+                    SocialSearchResult(
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        email: user.email,
+                        isGuest: user.isGuest,
+                        shareSchedule: user.shareSchedule,
+                        shareLocation: user.shareLocation,
+                        createdAt: user.createdAt,
+                        lastScheduleAt: user.lastScheduleAt,
+                        areFriends: false,
+                        hasPendingIncoming: false,
+                        hasPendingOutgoing: false
+                    )
+                }
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+    }
+
+    func loadUserProfile(id: String) async -> SocialUser? {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            return try await fetchUser(id: id)
+        } catch {
+            return nil
+        }
+#else
+        return nil
+#endif
+    }
+
+    func loadUserProfiles(ids: [String]) async -> [String: SocialUser] {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            return try await fetchUsers(ids: ids)
+        } catch {
+            return [:]
+        }
+#else
+        return [:]
+#endif
     }
 
     func setActiveGroupChat(id: String?) {
@@ -402,7 +478,6 @@ final class SocialManager: ObservableObject {
     func sendFriendRequest(to username: String) async {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
-            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
             let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard !normalizedUsername.isEmpty else { throw SocialError.api("Username is required.") }
 
@@ -414,26 +489,20 @@ final class SocialManager: ObservableObject {
                 throw SocialError.api("That user was not found.")
             }
 
-            guard target.id != viewer.id else { throw SocialError.api("You cannot friend yourself.") }
-            guard !(try await friendshipExists(viewer.id, target.id)) else {
-                throw SocialError.api("You are already friends.")
-            }
-            guard !(try await pendingRequestExists(from: viewer.id, to: target.id)),
-                  !(try await pendingRequestExists(from: target.id, to: viewer.id)) else {
-                throw SocialError.api("A pending friend request already exists.")
-            }
+            try await sendFriendRequestInternal(to: target)
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+    }
 
-            try await setData([
-                "fromUserID": viewer.id,
-                "toUserID": target.id,
-                "status": "pending",
-                "createdAt": nowISO(),
-                "respondedAt": "",
-            ], at: firestore.collection("friendRequests").document())
-
-            try await refreshOverviewInternal()
-            markPendingOutgoingSearchResult(for: target.id)
-            statusMessage = "Friend request sent to @\(target.username)."
+    func sendFriendRequest(toUserID userID: String) async {
+        await runOperation {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard let target = try await fetchUser(id: userID) else {
+                throw SocialError.api("That user was not found.")
+            }
+            try await sendFriendRequestInternal(to: target)
 #else
             throw SocialError.firebaseNotLinked
 #endif
@@ -1613,6 +1682,7 @@ final class SocialManager: ObservableObject {
                     self.courseCommentsByCommunityID = [:]
                     self.feedItems = []
                     self.searchResults = []
+                    self.quickAddSuggestions = []
                     self.loadedFriendSchedule = nil
                     return
                 }
@@ -2670,6 +2740,54 @@ final class SocialManager: ObservableObject {
                 hasPendingOutgoing: true
             )
         }
+
+        quickAddSuggestions = quickAddSuggestions.map { result in
+            guard result.id == userID else { return result }
+            return SocialSearchResult(
+                id: result.id,
+                username: result.username,
+                displayName: result.displayName,
+                email: result.email,
+                isGuest: result.isGuest,
+                shareSchedule: result.shareSchedule,
+                shareLocation: result.shareLocation,
+                createdAt: result.createdAt,
+                lastScheduleAt: result.lastScheduleAt,
+                areFriends: result.areFriends,
+                hasPendingIncoming: result.hasPendingIncoming,
+                hasPendingOutgoing: true
+            )
+        }
+    }
+
+    private func sendFriendRequestInternal(to target: SocialUser) async throws {
+        guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+        guard target.id != viewer.id else { throw SocialError.api("You cannot friend yourself.") }
+        guard !(try await friendshipExists(viewer.id, target.id)) else {
+            throw SocialError.api("You are already friends.")
+        }
+        guard !(try await pendingRequestExists(from: viewer.id, to: target.id)),
+              !(try await pendingRequestExists(from: target.id, to: viewer.id)) else {
+            throw SocialError.api("A pending friend request already exists.")
+        }
+
+        try await setData([
+            "fromUserID": viewer.id,
+            "toUserID": target.id,
+            "status": "pending",
+            "createdAt": nowISO(),
+            "respondedAt": "",
+        ], at: firestore.collection("friendRequests").document())
+
+        try await refreshOverviewInternal()
+        markPendingOutgoingSearchResult(for: target.id)
+        statusMessage = "Friend request sent to @\(target.username)."
+    }
+
+    private func isDemoUser(_ user: SocialUser) -> Bool {
+        user.email.lowercased().hasSuffix("@rpicentral.app") ||
+        user.displayName.lowercased().hasPrefix("demo ") ||
+        user.username.lowercased().hasPrefix("demo")
     }
 
     private func makeUser(from snapshot: DocumentSnapshot) -> SocialUser? {
