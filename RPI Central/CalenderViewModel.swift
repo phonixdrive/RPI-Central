@@ -101,10 +101,18 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    // default visible term is now fall2026
-    @Published var currentSemester: Semester = .fall2026 {
+    @Published var currentSemester: Semester = .spring2026 {
         didSet {
             UserDefaults.standard.set(currentSemester.rawValue, forKey: currentSemesterKey)
+        }
+    }
+
+    @Published var visibleSemester: Semester = .fall2026 {
+        didSet {
+            UserDefaults.standard.set(visibleSemester.rawValue, forKey: visibleSemesterKey)
+            ensureTermBoundsLoaded(for: visibleSemester)
+            ensureAcademicEventsLoaded(for: visibleSemester)
+            refreshSemesterWindow(anchorPreferred: nil)
         }
     }
 
@@ -140,7 +148,8 @@ final class CalendarViewModel: ObservableObject {
     private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
     private let homeSectionOrderKey = "settings_home_section_order_v1"
     private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
-    private let currentSemesterKey = "settings_visible_term_v1"
+    private let currentSemesterKey = "settings_current_term_v1"
+    private let visibleSemesterKey = "settings_visible_term_v1"
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
@@ -372,6 +381,23 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    private static func defaultCurrentSemester(for date: Date = Date()) -> Semester {
+        let components = Calendar.current.dateComponents([.year, .month], from: date)
+        let year = components.year ?? 2026
+        let month = components.month ?? 1
+
+        let code: String
+        if month >= 8 {
+            code = "\(year)09"
+        } else if month >= 5 {
+            code = "\(year)05"
+        } else {
+            code = "\(year)01"
+        }
+
+        return Semester(rawValue: code) ?? .spring2026
+    }
+
     init() {
         if let raw = UserDefaults.standard.string(forKey: themeColorKey),
            let stored = StoredThemeColor(rawValue: raw) {
@@ -416,8 +442,16 @@ final class CalendarViewModel: ObservableObject {
            let semester = Semester(rawValue: raw) {
             self.currentSemester = semester
         } else {
-            self.currentSemester = .fall2026
-            UserDefaults.standard.set(Semester.fall2026.rawValue, forKey: currentSemesterKey)
+            let fallbackCurrent = Self.defaultCurrentSemester(for: today)
+            self.currentSemester = fallbackCurrent
+            UserDefaults.standard.set(fallbackCurrent.rawValue, forKey: currentSemesterKey)
+        }
+        if let raw = UserDefaults.standard.string(forKey: visibleSemesterKey),
+           let semester = Semester(rawValue: raw) {
+            self.visibleSemester = semester
+        } else {
+            self.visibleSemester = .fall2026
+            UserDefaults.standard.set(Semester.fall2026.rawValue, forKey: visibleSemesterKey)
         }
         self.homeSectionOrder = Self.loadHomeSectionOrder()
         self.hiddenHomeSections = Self.loadHiddenHomeSections()
@@ -465,6 +499,8 @@ final class CalendarViewModel: ObservableObject {
 
         ensureAcademicEventsLoaded(for: currentSemester)
         ensureTermBoundsLoaded(for: currentSemester)
+        ensureAcademicEventsLoaded(for: visibleSemester)
+        ensureTermBoundsLoaded(for: visibleSemester)
         if shouldAutoSyncLMSCalendarFeed {
             Task { [weak self] in
                 await self?.syncLMSCalendarFeedIfNeeded()
@@ -551,7 +587,7 @@ final class CalendarViewModel: ObservableObject {
 
     func displayedAcademicSemesters() -> [Semester] {
         let startCode = academicHistoryStartSemester.rawValue
-        let currentCode = currentSemester.rawValue
+        let currentCode = visibleSemester.rawValue
 
         let semesters = Semester.allCases.filter { semester in
             semester.rawValue >= startCode && semester.rawValue <= currentCode
@@ -1021,16 +1057,13 @@ final class CalendarViewModel: ObservableObject {
         }()
 
         var includedSemesters = Set([anchor.previousSemester, anchor, anchor.nextSemester].compactMap { $0 })
+        includedSemesters.formUnion([visibleSemester.previousSemester, visibleSemester, visibleSemester.nextSemester].compactMap { $0 })
         includedSemesters.formUnion(
             enrolledCourses.compactMap { Semester(rawValue: $0.semesterCode) }
         )
 
         let window = includedSemesters.sorted { $0.rawValue < $1.rawValue }
         semesterWindow = window
-
-        if currentSemester != anchor {
-            currentSemester = anchor
-        }
 
         for sem in window {
             ensureTermBoundsLoaded(for: sem)
@@ -1502,6 +1535,9 @@ final class CalendarViewModel: ObservableObject {
 
     func changeSemester(to newSemester: Semester) {
         currentSemester = newSemester
+        if visibleSemester.rawValue < newSemester.rawValue {
+            visibleSemester = newSemester
+        }
         ensureTermBoundsLoaded(for: newSemester)
         ensureAcademicEventsLoaded(for: newSemester)
         rebuildEventsFromEnrollment()
@@ -1511,11 +1547,19 @@ final class CalendarViewModel: ObservableObject {
         scheduleWidgetSnapshotPublish()
     }
 
+    func changeVisibleSemester(to newSemester: Semester) {
+        let effectiveSemester = (newSemester.rawValue < currentSemester.rawValue) ? currentSemester : newSemester
+        visibleSemester = effectiveSemester
+        ensureTermBoundsLoaded(for: effectiveSemester)
+        ensureAcademicEventsLoaded(for: effectiveSemester)
+        refreshSemesterWindow(anchorPreferred: nil)
+        scheduleWidgetSnapshotPublish()
+    }
+
     func jumpToSemesterStart(_ semester: Semester) {
         let applyStartDate: (Date) -> Void = { [weak self] start in
             guard let self else { return }
             DispatchQueue.main.async {
-                self.currentSemester = semester
                 self.selectedDate = start
                 self.displayedMonthStart = start.startOfMonth(using: self.calendar)
                 self.ensureTermBoundsLoaded(for: semester)
@@ -1541,7 +1585,9 @@ final class CalendarViewModel: ObservableObject {
                 applyStartDate(bounds.start)
             case .failure:
                 DispatchQueue.main.async {
-                    self.changeSemester(to: semester)
+                    self.ensureTermBoundsLoaded(for: semester)
+                    self.ensureAcademicEventsLoaded(for: semester)
+                    self.refreshSemesterWindow(anchorPreferred: semester)
                 }
             }
         }
@@ -2689,7 +2735,160 @@ final class CalendarViewModel: ObservableObject {
         // fallback: if somehow malformed, just return original
         return key
     }
+
+    func exportSyncSnapshot(
+        shuttleRefreshIntervalSeconds: Int,
+        showCampusWideGroup: Bool
+    ) -> PhoneWebCalendarSyncSnapshot {
+        let themeRaw = StoredThemeColor.from(color: themeColor).rawValue
+        let settings = PhoneWebAppSettings(
+            themeColor: themeRaw,
+            appearanceMode: appearanceMode.rawValue,
+            currentSemester: currentSemester.rawValue,
+            visibleSemester: visibleSemester.rawValue,
+            academicHistoryStartSemester: academicHistoryStartSemester.rawValue,
+            enforcePrerequisites: enforcePrerequisites,
+            lmsCalendarFeedURL: lmsCalendarFeedURL,
+            lmsCalendarAutoDailySyncEnabled: lmsCalendarAutoDailySyncEnabled,
+            lmsCalendarLastSyncAt: lmsCalendarLastSyncAt.map { ISO8601DateFormatter().string(from: $0) },
+            shuttleRefreshIntervalSeconds: shuttleRefreshIntervalSeconds,
+            socialFeedRefreshIntervalSeconds: socialFeedRefreshIntervalSeconds,
+            socialFeedNotificationsEnabled: socialFeedNotificationsEnabled,
+            socialDemoToolsEnabled: socialDemoToolsEnabled,
+            showCampusWideGroup: showCampusWideGroup,
+            homeSectionOrder: homeSectionOrder.map(\.rawValue),
+            hiddenHomeSections: hiddenHomeSections.map(\.rawValue).sorted(),
+            calendarDisplayMode: "week"
+        )
+
+        return PhoneWebCalendarSyncSnapshot(
+            settings: settings,
+            enrollments: enrolledCourses.map(PhoneWebEnrolledCourse.init),
+            personalEvents: personalEvents.map(PhoneWebPersonalEvent.init),
+            gradesByEnrollmentID: gradesByEnrollmentID,
+            semesterGpaOverrides: semesterGPAOverrides,
+            notesByEnrollmentID: notesByEnrollmentID,
+            meetingOverridesByKey: meetingOverridesByKey.mapValues {
+                PhoneWebMeetingOverride(type: $0.type.webSyncRawValue)
+            },
+            examDatesByMeetingKey: examDatesByMeetingKey,
+            assumedPrereqsByCourseID: assumedBy.mapValues { Array($0).sorted() },
+            hiddenLMSCalendarEventSourceIDs: Array(hiddenLMSCalendarEventSourceIDs).sorted()
+        )
+    }
+
+    func applySyncSnapshot(_ snapshot: PhoneWebCalendarSyncSnapshot) {
+        let formatter = ISO8601DateFormatter()
+
+        withWidgetPublishingSuppressed {
+            if let storedTheme = StoredThemeColor(rawValue: snapshot.settings.themeColor) {
+                themeColor = storedTheme.color
+            }
+            if let appearance = AppAppearanceMode(rawValue: snapshot.settings.appearanceMode) {
+                appearanceMode = appearance
+            }
+
+            if let semester = Semester(rawValue: snapshot.settings.currentSemester) {
+                currentSemester = semester
+            }
+            if let semester = Semester(rawValue: snapshot.settings.visibleSemester) {
+                visibleSemester = semester
+            } else {
+                visibleSemester = currentSemester
+            }
+            if let historySemester = Semester(rawValue: snapshot.settings.academicHistoryStartSemester) {
+                academicHistoryStartSemester = historySemester
+            }
+
+            enforcePrerequisites = snapshot.settings.enforcePrerequisites
+            lmsCalendarFeedURL = snapshot.settings.lmsCalendarFeedURL
+            lmsCalendarAutoDailySyncEnabled = snapshot.settings.lmsCalendarAutoDailySyncEnabled
+            socialFeedRefreshIntervalSeconds = snapshot.settings.socialFeedRefreshIntervalSeconds
+            socialFeedNotificationsEnabled = snapshot.settings.socialFeedNotificationsEnabled
+            socialDemoToolsEnabled = snapshot.settings.socialDemoToolsEnabled
+
+            if let rawLastSync = snapshot.settings.lmsCalendarLastSyncAt,
+               let parsedLastSync = formatter.date(from: rawLastSync) {
+                lmsCalendarLastSyncAt = parsedLastSync
+                UserDefaults.standard.set(parsedLastSync, forKey: lmsCalendarLastSyncAtKey)
+            } else {
+                lmsCalendarLastSyncAt = nil
+                UserDefaults.standard.removeObject(forKey: lmsCalendarLastSyncAtKey)
+            }
+            lmsCalendarSyncStatus = nil
+
+            UserDefaults.standard.set(snapshot.settings.shuttleRefreshIntervalSeconds, forKey: "shuttle_tracker_refresh_interval_seconds")
+            UserDefaults.standard.set(snapshot.settings.showCampusWideGroup, forKey: "social_show_campus_wide_group")
+
+            let proposedOrder = snapshot.settings.homeSectionOrder.compactMap(HomeDashboardSection.init(rawValue:))
+            var mergedOrder = proposedOrder
+            for section in HomeDashboardSection.allCases where !mergedOrder.contains(section) {
+                mergedOrder.append(section)
+            }
+            homeSectionOrder = mergedOrder
+            hiddenHomeSections = Set(snapshot.settings.hiddenHomeSections.compactMap(HomeDashboardSection.init(rawValue:)))
+
+            enrolledCourses = snapshot.enrollments.compactMap(\.enrolledCourseValue)
+            personalEvents = snapshot.personalEvents.compactMap(\.storedEventValue)
+            gradesByEnrollmentID = snapshot.gradesByEnrollmentID
+            semesterGPAOverrides = snapshot.semesterGpaOverrides
+            notesByEnrollmentID = snapshot.notesByEnrollmentID
+            meetingOverridesByKey = snapshot.meetingOverridesByKey.mapValues {
+                MeetingOverride(type: MeetingBlockType.fromWebSyncRawValue($0.type))
+            }
+            examDatesByMeetingKey = migrateExamKeysIfNeeded(snapshot.examDatesByMeetingKey)
+            assumedBy = snapshot.assumedPrereqsByCourseID.mapValues { Set($0) }
+            hiddenLMSCalendarEventSourceIDs = Set(snapshot.hiddenLMSCalendarEventSourceIDs)
+
+            UserDefaults.standard.set(Array(hiddenLMSCalendarEventSourceIDs).sorted(), forKey: hiddenLMSCalendarEventSourceIDsKey)
+
+            saveEnrollment()
+            savePersonalEvents()
+            saveGrades()
+            saveNotes()
+            saveMeetingOverrides()
+            saveExamDates()
+            saveAssumedPrereqs()
+            saveSemesterGPAOverrides()
+
+            let enrolledSemesters = Set(enrolledCourses.compactMap { Semester(rawValue: $0.semesterCode) })
+            for semester in enrolledSemesters.union([currentSemester, visibleSemester]) {
+                ensureTermBoundsLoaded(for: semester)
+                ensureAcademicEventsLoaded(for: semester)
+            }
+
+            rebuildEventsFromEnrollment()
+            refreshSemesterWindow(anchorPreferred: nil)
+        }
+
+        applyNotificationScheduling()
+        objectWillChange.send()
+    }
     
+}
+
+private extension MeetingBlockType {
+    var webSyncRawValue: String {
+        switch self {
+        case .exam: return "exam"
+        case .recitation: return "recitation"
+        case .disabled: return "disabled"
+        case .lecture, .lab, .studio, .other: return "regular"
+        }
+    }
+
+    static func fromWebSyncRawValue(_ rawValue: String) -> MeetingBlockType {
+        switch rawValue {
+        case "exam":
+            return .exam
+        case "recitation":
+            return .recitation
+        case "disabled":
+            return .disabled
+        default:
+            return .lecture
+        }
+    }
 }
 
 enum PrerequisiteStatus {

@@ -478,6 +478,37 @@ private enum GradeBreakdownStore {
     }
 }
 
+enum GradeBreakdownSyncStore {
+    static func loadAll() -> [String: GradeBreakdown] {
+        let defaults = UserDefaults.standard
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(GradeBreakdownStore.keyPrefix) }
+
+        var result: [String: GradeBreakdown] = [:]
+        result.reserveCapacity(keys.count)
+
+        for key in keys {
+            let enrollmentID = String(key.dropFirst(GradeBreakdownStore.keyPrefix.count))
+            if let breakdown = GradeBreakdownStore.load(enrollmentID: enrollmentID) {
+                result[enrollmentID] = breakdown
+            }
+        }
+
+        return result
+    }
+
+    static func replaceAll(_ breakdowns: [String: GradeBreakdown]) {
+        let defaults = UserDefaults.standard
+        let keys = defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix(GradeBreakdownStore.keyPrefix) }
+        for key in keys {
+            defaults.removeObject(forKey: key)
+        }
+
+        for (enrollmentID, breakdown) in breakdowns {
+            GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
+        }
+    }
+}
+
 // MARK: - Reusable themed pill buttons (prevents system-blue bug)
 
 private struct ThemedPillButtonStyle: ButtonStyle {

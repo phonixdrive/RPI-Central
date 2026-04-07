@@ -67,10 +67,24 @@ final class FlexDollarsManager: ObservableObject {
         didSet { save() }
     }
 
-    private let storageKey = "flexDollars.bySemester.v1"
+    static let storageKey = "flexDollars.bySemester.v1"
+    private var syncObserver: NSObjectProtocol?
 
     init() {
         load()
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: .appStateSyncDidApplyLocalState,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadFromStore()
+        }
+    }
+
+    deinit {
+        if let syncObserver {
+            NotificationCenter.default.removeObserver(syncObserver)
+        }
     }
 
     func state(for semesterCode: String) -> FlexDollarState {
@@ -86,7 +100,7 @@ final class FlexDollarsManager: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
               let decoded = try? JSONDecoder().decode([String: FlexDollarState].self, from: data) else {
             statesBySemesterCode = [:]
             return
@@ -96,6 +110,23 @@ final class FlexDollarsManager: ObservableObject {
 
     private func save() {
         guard let data = try? JSONEncoder().encode(statesBySemesterCode) else { return }
+        UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+
+    func reloadFromStore() {
+        load()
+    }
+
+    static func loadStoredStates() -> [String: FlexDollarState] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([String: FlexDollarState].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    static func replaceStoredStates(_ states: [String: FlexDollarState]) {
+        guard let data = try? JSONEncoder().encode(states) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
 }
