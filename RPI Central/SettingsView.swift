@@ -11,10 +11,12 @@ struct SettingsView: View {
 
     @AppStorage("shuttle_tracker_refresh_interval_seconds") private var shuttleTrackerRefreshIntervalSeconds = 5
     @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
+    @StateObject private var appStateSyncManager = AppStateSyncManager()
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
     @State private var editMode: EditMode = .inactive
     @State private var isSyncingLMSCalendar = false
+    @State private var showingRecoveryBackups = false
 
     var body: some View {
         NavigationStack {
@@ -86,14 +88,31 @@ struct SettingsView: View {
                     }
 
                     Section(
-                        header: Text("Visible Term"),
-                        footer: Text("Controls which term Home and the main calendar treat as current. Terms up through this one will show on Home.")
+                        header: Text("Current Term"),
+                        footer: Text("This is the term the app treats as happening now. Upcoming assignments, reminders, and Flex Dollars use this term.")
                     ) {
                         Picker(
-                            "Home and calendar term",
+                            "Current term",
                             selection: Binding(
                                 get: { calendarViewModel.currentSemester },
                                 set: { calendarViewModel.changeSemester(to: $0) }
+                            )
+                        ) {
+                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                                Text(semester.displayName).tag(semester)
+                            }
+                        }
+                    }
+
+                    Section(
+                        header: Text("Show Terms Through"),
+                        footer: Text("This controls how far ahead Home and the calendar can display terms. Use it to preview future schedules without changing the current term.")
+                    ) {
+                        Picker(
+                            "Display horizon",
+                            selection: Binding(
+                                get: { calendarViewModel.visibleSemester },
+                                set: { calendarViewModel.changeVisibleSemester(to: $0) }
                             )
                         ) {
                             ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
@@ -108,6 +127,72 @@ struct SettingsView: View {
                                 Text(semester.displayName).tag(semester)
                             }
                         }
+                    }
+
+                    Section(
+                        header: Text("Phone and Web Sync"),
+                        footer: Text("Use Save This Phone after making changes here. Use Get Latest Saved Copy after making changes on your laptop or web. Recovery backups give you a safe way to roll back if something goes wrong.")
+                    ) {
+                        HStack {
+                            Text("Latest saved copy")
+                            Spacer()
+                            Text(syncTimestampText(appStateSyncManager.cloudSnapshotUpdatedAt))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let message = appStateSyncManager.cloudSyncMessage, !message.isEmpty {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+
+                        if let error = appStateSyncManager.cloudSyncError, !error.isEmpty {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+
+                        Button {
+                            Task {
+                                _ = await appStateSyncManager.pushPhoneToCloud(
+                                    calendarViewModel: calendarViewModel,
+                                    socialManager: socialManager
+                                )
+                            }
+                        } label: {
+                            Label(
+                                appStateSyncManager.cloudSyncBusy ? "Working…" : "Save this phone",
+                                systemImage: "arrow.up.circle.fill"
+                            )
+                        }
+                        .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+
+                        Button {
+                            Task {
+                                _ = await appStateSyncManager.pullCloudToPhone(
+                                    calendarViewModel: calendarViewModel,
+                                    socialManager: socialManager
+                                )
+                            }
+                        } label: {
+                            Label("Get latest saved copy", systemImage: "arrow.down.circle.fill")
+                        }
+                        .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+
+                        Button {
+                            showingRecoveryBackups = true
+                        } label: {
+                            HStack {
+                                Label("Recovery backups", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                                Spacer()
+                                Text("\(appStateSyncManager.cloudBackups.count)")
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .disabled(!appStateSyncManager.cloudSyncReady)
                     }
 
                     Section(
@@ -233,6 +318,146 @@ struct SettingsView: View {
         .onChange(of: calendarViewModel.socialFeedNotificationsEnabled) {
             Task {
                 await socialManager.syncPushNotificationPreferences()
+            }
+        }
+        .task {
+            await appStateSyncManager.refresh()
+        }
+        .sheet(isPresented: $showingRecoveryBackups) {
+            recoveryBackupsView
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func syncTimestampText(_ value: String?) -> String {
+        guard let value, let date = SyncISO8601.date(from: value) else {
+            return "Not saved yet"
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func backupTitle(_ backup: PhoneWebCloudBackupSummary) -> String {
+        switch backup.label {
+        case "Manual backup", "Recovery backup":
+            return "Recovery backup"
+        case "Before push • local phone state", "This phone before saving", "Phone before save":
+            return "Phone before save"
+        case "Before push • cloud snapshot", "Latest saved copy before saving this phone", "Saved copy before save":
+            return "Saved copy before save"
+        case "Before pull • local phone state", "This phone before updating", "Phone before update":
+            return "Phone before update"
+        case "Before restore • local phone state", "This phone before restore", "Phone before restore":
+            return "Phone before restore"
+        case "Before restore • cloud snapshot", "Latest saved copy before restore", "Saved copy before restore":
+            return "Saved copy before restore"
+        default:
+            return backup.label
+        }
+    }
+
+    private func backupSourceText(_ source: String) -> String {
+        if source.hasPrefix("ios") {
+            return "Made from this phone"
+        }
+        if source.hasPrefix("cloud:") {
+            return "Made from the previously saved copy"
+        }
+        if source.hasPrefix("restore:") {
+            return "Made during a restore"
+        }
+        return "Saved from \(source)"
+    }
+
+    private var recoveryBackupsView: some View {
+        NavigationStack {
+            List {
+                Section(
+                    footer: Text("Create a recovery backup before big changes, or restore an older version if a sync goes sideways.")
+                ) {
+                    Button {
+                        Task {
+                            _ = await appStateSyncManager.createCloudBackup(
+                                calendarViewModel: calendarViewModel
+                            )
+                        }
+                    } label: {
+                        Label(
+                            appStateSyncManager.cloudSyncBusy ? "Working…" : "Create recovery backup",
+                            systemImage: "externaldrive.badge.plus"
+                        )
+                    }
+                    .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+                }
+
+                if let message = appStateSyncManager.cloudSyncMessage, !message.isEmpty {
+                    Section {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                if let error = appStateSyncManager.cloudSyncError, !error.isEmpty {
+                    Section {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Section(header: Text("Saved backups")) {
+                    if appStateSyncManager.cloudBackups.isEmpty {
+                        Text("No recovery backups yet. Your first save, update, or restore will create them automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(appStateSyncManager.cloudBackups) { backup in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(backupTitle(backup))
+                                    .font(.subheadline.weight(.semibold))
+
+                                Text("Saved \(syncTimestampText(backup.createdAt))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Text(backupSourceText(backup.source))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                HStack {
+                                    Button("Restore") {
+                                        Task {
+                                            _ = await appStateSyncManager.restoreCloudBackup(
+                                                backup.id,
+                                                calendarViewModel: calendarViewModel,
+                                                socialManager: socialManager
+                                            )
+                                        }
+                                    }
+                                    .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+
+                                    Button("Delete", role: .destructive) {
+                                        Task {
+                                            _ = await appStateSyncManager.deleteCloudBackup(backup.id)
+                                        }
+                                    }
+                                    .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Recovery Backups")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        showingRecoveryBackups = false
+                    }
+                }
             }
         }
     }

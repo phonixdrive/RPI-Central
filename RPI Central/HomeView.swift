@@ -58,10 +58,24 @@ final class TasksManager: ObservableObject {
         didSet { save() }
     }
 
-    private let storageKey = "courseTasks.v1"
+    static let storageKey = "courseTasks.v1"
+    private var syncObserver: NSObjectProtocol?
 
     init() {
         load()
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: .appStateSyncDidApplyLocalState,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadFromStore()
+        }
+    }
+
+    deinit {
+        if let syncObserver {
+            NotificationCenter.default.removeObserver(syncObserver)
+        }
     }
 
     func upcomingTasks(withinDays days: Int) -> [CourseTask] {
@@ -104,7 +118,7 @@ final class TasksManager: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else {
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else {
             tasks = []
             return
         }
@@ -116,6 +130,23 @@ final class TasksManager: ObservableObject {
     }
 
     private func save() {
+        guard let data = try? JSONEncoder().encode(tasks) else { return }
+        UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+
+    func reloadFromStore() {
+        load()
+    }
+
+    static func loadStoredTasks() -> [CourseTask] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode([CourseTask].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    static func replaceStoredTasks(_ tasks: [CourseTask]) {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
@@ -174,11 +205,25 @@ final class MealPlanManager: ObservableObject {
         didSet { save() }
     }
 
-    private let storageKey = "mealPlanState.v1"
+    static let storageKey = "mealPlanState.v1"
+    private var syncObserver: NSObjectProtocol?
 
     init() {
         load()
         refreshIfNeeded()
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: .appStateSyncDidApplyLocalState,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadFromStore()
+        }
+    }
+
+    deinit {
+        if let syncObserver {
+            NotificationCenter.default.removeObserver(syncObserver)
+        }
     }
 
     var remaining: Int {
@@ -227,7 +272,7 @@ final class MealPlanManager: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else {
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else {
             state = MealPlanState()
             return
         }
@@ -239,6 +284,24 @@ final class MealPlanManager: ObservableObject {
     }
 
     private func save() {
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+
+    func reloadFromStore() {
+        load()
+        refreshIfNeeded()
+    }
+
+    static func loadStoredState() -> MealPlanState {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode(MealPlanState.self, from: data) else {
+            return MealPlanState()
+        }
+        return decoded
+    }
+
+    static func replaceStoredState(_ state: MealPlanState) {
         guard let data = try? JSONEncoder().encode(state) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
@@ -256,20 +319,51 @@ final class PomodoroSettingsManager: ObservableObject {
         didSet { save() }
     }
 
-    private let storageKey = "pomodoroPreset.v1"
+    static let storageKey = "pomodoroPreset.v1"
+    private var syncObserver: NSObjectProtocol?
 
     init() {
         load()
+        syncObserver = NotificationCenter.default.addObserver(
+            forName: .appStateSyncDidApplyLocalState,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reloadFromStore()
+        }
+    }
+
+    deinit {
+        if let syncObserver {
+            NotificationCenter.default.removeObserver(syncObserver)
+        }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else { return }
         if let decoded = try? JSONDecoder().decode(PomodoroPreset.self, from: data) {
             preset = decoded
         }
     }
 
     private func save() {
+        guard let data = try? JSONEncoder().encode(preset) else { return }
+        UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+
+    func reloadFromStore() {
+        load()
+    }
+
+    static func loadStoredPreset() -> PomodoroPreset {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let decoded = try? JSONDecoder().decode(PomodoroPreset.self, from: data) else {
+            return PomodoroPreset()
+        }
+        return decoded
+    }
+
+    static func replaceStoredPreset(_ preset: PomodoroPreset) {
         guard let data = try? JSONEncoder().encode(preset) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
     }
