@@ -115,7 +115,7 @@ struct SocialHubView: View {
                 }
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         screenSections
                     }
                     .padding(.horizontal, 16)
@@ -537,6 +537,22 @@ struct SocialHubView: View {
                 Label("Find Friends", systemImage: "magnifyingglass")
                     .font(.headline)
 
+                if !socialManager.quickAddSuggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Quick Add")
+                            .font(.subheadline.weight(.semibold))
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(socialManager.quickAddSuggestions) { result in
+                                    quickAddCard(result)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+
                 HStack(spacing: 10) {
                     TextField("Search by username or name", text: $searchQuery)
                         .textInputAutocapitalization(.never)
@@ -566,7 +582,7 @@ struct SocialHubView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    VStack(spacing: 10) {
+                    LazyVStack(spacing: 10) {
                         ForEach(socialManager.searchResults) { result in
                             userResultCard(result)
                         }
@@ -629,7 +645,7 @@ struct SocialHubView: View {
 
                 if friendsExpanded {
                     if let friends = socialManager.overview?.friends, !friends.isEmpty {
-                        VStack(spacing: 10) {
+                        LazyVStack(spacing: 10) {
                             ForEach(friends) { friend in
                                 friendCard(friend)
                             }
@@ -690,16 +706,6 @@ struct SocialHubView: View {
                                 }
 
                                 Spacer()
-
-                                Button {
-                                    showCampusWideGroup = false
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.caption.weight(.semibold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel("Hide All RPI Students group")
                             }
 
                             Text("A built-in campus-wide chat for everyone signed into RPI Central.")
@@ -724,7 +730,7 @@ struct SocialHubView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else if !groups.isEmpty {
-                        VStack(spacing: 10) {
+                        LazyVStack(spacing: 10) {
                             ForEach(groups) { group in
                                 VStack(alignment: .leading, spacing: 10) {
                                     Button {
@@ -865,7 +871,7 @@ struct SocialHubView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        VStack(spacing: 10) {
+                        LazyVStack(spacing: 10) {
                             ForEach(classGroups) { group in
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(alignment: .top) {
@@ -1055,7 +1061,7 @@ struct SocialHubView: View {
                 } else {
                     Button("Add") {
                         Task {
-                            await socialManager.sendFriendRequest(to: result.username)
+                            await socialManager.sendFriendRequest(toUserID: result.id)
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -1071,6 +1077,37 @@ struct SocialHubView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+    }
+
+    private func quickAddCard(_ result: SocialSearchResult) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(result.displayName)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+
+            Text("@\(result.username)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if result.hasPendingOutgoing {
+                Text("Pending")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("Add") {
+                    Task {
+                        await socialManager.sendFriendRequest(toUserID: result.id)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+        .frame(width: 145, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(.secondarySystemBackground)))
     }
 
     private func requestCard(_ request: SocialFriendRequest, outgoing: Bool) -> some View {
@@ -1390,7 +1427,7 @@ struct SocialHubView: View {
                 .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    LazyVStack(spacing: 16) {
                         findFriendsSearchCard
                         requestsCard
                     }
@@ -1412,6 +1449,9 @@ struct SocialHubView: View {
                         searchFieldFocused = false
                     }
                 }
+            }
+            .task {
+                await socialManager.loadQuickAddSuggestions()
             }
         }
     }
@@ -1994,6 +2034,8 @@ private struct GroupChatSheet: View {
     @State private var draftMessage: String = ""
     @State private var isSending = false
     @State private var didPerformInitialScroll = false
+    @State private var participantsByID: [String: SocialUser] = [:]
+    @State private var selectedProfileUser: SocialUser?
 #if canImport(FirebaseFirestore)
     @State private var chatListener: ListenerRegistration?
 #endif
@@ -2091,11 +2133,34 @@ private struct GroupChatSheet: View {
                 }
             }
         }
+        .sheet(item: $selectedProfileUser) { user in
+            SocialUserProfileSheet(user: user)
+        }
     }
 
     private var conversationHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !reference.memberDisplayNames.isEmpty {
+            if !participantProfiles.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(participantProfiles) { user in
+                            Button {
+                                selectedProfileUser = user
+                            } label: {
+                                Text(user.displayName)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(calendarViewModel.themeColor.opacity(0.12))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            } else if !reference.memberDisplayNames.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(reference.memberDisplayNames, id: \.self) { name in
@@ -2147,10 +2212,8 @@ private struct GroupChatSheet: View {
                 Task {
                     let didSend = await socialManager.sendGroupChatMessage(for: reference, body: trimmed)
                     if didSend {
-                        let refreshedMessages = await socialManager.loadGroupChatMessages(for: reference)
                         await MainActor.run {
                             draftMessage = ""
-                            messages = refreshedMessages
                             scrollToBottom(proxy, animated: true)
                         }
                     }
@@ -2189,8 +2252,16 @@ private struct GroupChatSheet: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(message.displayName)
-                        .font(.caption.weight(.semibold))
+                    Button {
+                        Task {
+                            await openProfile(for: message.userID)
+                        }
+                    } label: {
+                        Text(message.displayName)
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
                     Spacer(minLength: 0)
                     Text(chatTimestamp(message.createdAt))
                         .font(.caption2)
@@ -2217,6 +2288,7 @@ private struct GroupChatSheet: View {
             didPerformInitialScroll = false
         }
         let initialMessages = await socialManager.loadGroupChatMessages(for: reference)
+        await refreshParticipants(using: initialMessages)
         await MainActor.run {
             messages = initialMessages
             if !initialMessages.isEmpty {
@@ -2233,6 +2305,9 @@ private struct GroupChatSheet: View {
         chatListener = await socialManager.observeGroupChatMessages(for: reference) { updatedMessages in
             let shouldScroll = updatedMessages.last?.id != messages.last?.id
             messages = updatedMessages
+            Task {
+                await refreshParticipants(using: updatedMessages)
+            }
             if !didPerformInitialScroll && !updatedMessages.isEmpty {
                 didPerformInitialScroll = true
                 scrollToBottom(proxy, animated: false)
@@ -2253,6 +2328,69 @@ private struct GroupChatSheet: View {
         chatListener?.remove()
         chatListener = nil
 #endif
+    }
+
+    private var participantProfiles: [SocialUser] {
+        participantIDsForDisplay.compactMap { participantsByID[$0] }
+    }
+
+    private var participantIDsForDisplay: [String] {
+        var ordered: [String] = []
+        var seen: Set<String> = []
+
+        let baseIDs: [String]
+        if reference.sourceKind == .campusGroup {
+            baseIDs = recentMessageParticipantIDs(limit: 12)
+        } else {
+            baseIDs = reference.memberIDs + recentMessageParticipantIDs(limit: 24)
+        }
+
+        for id in baseIDs where seen.insert(id).inserted {
+            ordered.append(id)
+        }
+        return ordered
+    }
+
+    private func recentMessageParticipantIDs(limit: Int) -> [String] {
+        var ordered: [String] = []
+        var seen: Set<String> = []
+        for message in messages.reversed() where seen.insert(message.userID).inserted {
+            ordered.append(message.userID)
+            if ordered.count >= limit {
+                break
+            }
+        }
+        return ordered
+    }
+
+    private func refreshParticipants(using updatedMessages: [SocialGroupChatMessage]) async {
+        let ids = Array(Set(reference.memberIDs + updatedMessages.map(\.userID)))
+        guard !ids.isEmpty else { return }
+        let missing = ids.filter { participantsByID[$0] == nil }
+        guard !missing.isEmpty else { return }
+
+        let fetched = await socialManager.loadUserProfiles(ids: missing)
+        guard !fetched.isEmpty else { return }
+
+        await MainActor.run {
+            participantsByID.merge(fetched) { _, new in new }
+        }
+    }
+
+    private func openProfile(for userID: String) async {
+        if let existing = participantsByID[userID] {
+            await MainActor.run {
+                selectedProfileUser = existing
+            }
+            return
+        }
+
+        if let loaded = await socialManager.loadUserProfile(id: userID) {
+            await MainActor.run {
+                participantsByID[userID] = loaded
+                selectedProfileUser = loaded
+            }
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {

@@ -340,16 +340,16 @@ struct SettingsView: View {
         switch backup.label {
         case "Manual backup", "Recovery backup":
             return "Recovery backup"
-        case "Before push • local phone state", "This phone before saving", "Phone before save":
-            return "Phone before save"
-        case "Before push • cloud snapshot", "Latest saved copy before saving this phone", "Saved copy before save":
-            return "Saved copy before save"
-        case "Before pull • local phone state", "This phone before updating", "Phone before update":
-            return "Phone before update"
-        case "Before restore • local phone state", "This phone before restore", "Phone before restore":
-            return "Phone before restore"
-        case "Before restore • cloud snapshot", "Latest saved copy before restore", "Saved copy before restore":
-            return "Saved copy before restore"
+        case "Before push • local phone state", "This phone before saving", "Phone before save", "Before Save This Phone: this phone":
+            return "Before Save This Phone: this phone"
+        case "Before push • cloud snapshot", "Latest saved copy before saving this phone", "Saved copy before save", "Before Save This Phone: previous saved copy":
+            return "Before Save This Phone: previous saved copy"
+        case "Before pull • local phone state", "This phone before updating", "Phone before update", "Before Get Latest Saved Copy: this phone":
+            return "Before Get Latest Saved Copy: this phone"
+        case "Before restore • local phone state", "This phone before restore", "Phone before restore", "Before Restore: this phone":
+            return "Before Restore: this phone"
+        case "Before restore • cloud snapshot", "Latest saved copy before restore", "Saved copy before restore", "Before Restore: previous saved copy":
+            return "Before Restore: previous saved copy"
         default:
             return backup.label
         }
@@ -372,7 +372,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section(
-                    footer: Text("Create a recovery backup before big changes, or restore an older version if a sync goes sideways.")
+                    footer: Text("Save This Phone creates two safety backups: your current phone version and the previous saved copy. That way you can roll back either side if needed.")
                 ) {
                     Button {
                         Task {
