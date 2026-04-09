@@ -2412,6 +2412,146 @@ private struct GroupChatSheet: View {
     }
 }
 
+private struct SocialUserProfileSheet: View {
+    let user: SocialUser
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var isCurrentUser: Bool {
+        socialManager.currentUser?.id == user.id
+    }
+
+    private var isFriend: Bool {
+        socialManager.overview?.friends.contains(where: { $0.id == user.id }) == true
+    }
+
+    private var incomingRequest: SocialFriendRequest? {
+        socialManager.overview?.incomingRequests.first(where: { $0.fromUser?.id == user.id })
+    }
+
+    private var hasOutgoingRequest: Bool {
+        socialManager.overview?.outgoingRequests.contains(where: { $0.toUser?.id == user.id }) == true
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                SocialCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 14) {
+                            Circle()
+                                .fill(calendarViewModel.themeColor.opacity(0.14))
+                                .frame(width: 56, height: 56)
+                                .overlay(
+                                    Text(String(user.displayName.prefix(1)).uppercased())
+                                        .font(.title3.weight(.bold))
+                                        .foregroundStyle(calendarViewModel.themeColor)
+                                )
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(user.displayName)
+                                    .font(.title3.weight(.semibold))
+                                Text("@\(user.username)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+                        }
+
+                        if isCurrentUser {
+                            Text("This is your profile.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else if isFriend {
+                            Text("You are already friends.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else if hasOutgoingRequest {
+                            Text("Friend request sent.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else if incomingRequest != nil {
+                            Text("This person already sent you a friend request.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let request = incomingRequest {
+                    SocialCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Friend Request")
+                                .font(.headline)
+
+                            HStack(spacing: 10) {
+                                Button("Accept") {
+                                    Task {
+                                        await socialManager.respondToFriendRequest(request.id, action: "accept")
+                                        await MainActor.run {
+                                            dismiss()
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("Decline", role: .destructive) {
+                                    Task {
+                                        await socialManager.respondToFriendRequest(request.id, action: "decline")
+                                        await MainActor.run {
+                                            dismiss()
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                    }
+                } else if !isCurrentUser && !isFriend && !hasOutgoingRequest {
+                    SocialCard {
+                        Button {
+                            Task {
+                                await socialManager.sendFriendRequest(toUserID: user.id)
+                            }
+                        } label: {
+                            Label("Send friend request", systemImage: "person.badge.plus")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(.systemGroupedBackground),
+                        calendarViewModel.themeColor.opacity(0.14),
+                        Color(.systemBackground),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 private enum ClassGroupFilter: Equatable {
     case currentOverall
     case currentAll
