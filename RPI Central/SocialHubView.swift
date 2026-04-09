@@ -1158,14 +1158,10 @@ struct SocialHubView: View {
                 badgeLabel(friend.shareSchedule ? "Sharing on" : "Sharing off", color: friend.shareSchedule ? .green : .secondary)
             }
 
-            HStack {
-                Text("\(friend.schedulePreviewCount) shared items")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if friend.canViewSchedule {
+                HStack {
+                    Spacer()
 
-                Spacer()
-
-                if friend.canViewSchedule {
                     Button("View schedule") {
                         Task {
                             await socialManager.loadFriendSchedule(friendID: friend.id)
@@ -2964,7 +2960,7 @@ private struct FriendSchedulePreparedData {
             .compactMap { ParsedScheduleItem(item: $0) }
             .sorted { $0.startDate < $1.startDate }
         self.cache = FriendScheduleCache(items: items)
-        self.anchorDate = items.first?.startDate ?? Date()
+        self.anchorDate = Date()
     }
 }
 

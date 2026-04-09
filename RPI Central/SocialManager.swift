@@ -3776,26 +3776,37 @@ final class SocialManager: ObservableObject {
     ) -> [SharedScheduleItem] {
         let now = Date()
         let calendar = Calendar.current
-        let startWindow = calendar.startOfDay(for: now)
-        let horizon = calendar.date(byAdding: .day, value: 120, to: now) ?? now
-        let enrollmentSemesterByID = Dictionary(uniqueKeysWithValues: viewModel.enrolledCourses.map { ($0.id, $0.semesterCode) })
+        let startWindow = calendar.startOfDay(
+            for: calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        )
+        let endWindow = calendar.startOfDay(
+            for: calendar.date(byAdding: .day, value: 7, to: now) ?? now
+        )
+        let dayCount = calendar.dateComponents([.day], from: startWindow, to: endWindow).day ?? 14
 
-        return viewModel.events
-            .filter { event in
-                guard event.startDate <= horizon else { return false }
-                guard event.endDate >= startWindow else { return false }
+        var seenInteractionKeys: Set<String> = []
+        var collectedEvents: [ClassEvent] = []
+
+        for offset in 0...max(dayCount, 0) {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startWindow) else { continue }
+            for event in viewModel.events(on: day) {
                 if let visibleToFriendID, event.kind == .personal {
-                    return viewModel.personalEventVisibleToFriend(
+                    guard viewModel.personalEventVisibleToFriend(
                         visibleToFriendID,
                         event: event,
                         groupMembersByID: groupMembersByID
-                    )
+                    ) else {
+                        continue
+                    }
                 }
-                if let enrollmentID = event.enrollmentID {
-                    return enrollmentSemesterByID[enrollmentID] == viewModel.currentSemester.rawValue
-                }
-                return true
+
+                let key = event.interactionKey
+                guard seenInteractionKeys.insert(key).inserted else { continue }
+                collectedEvents.append(event)
             }
+        }
+
+        return collectedEvents
             .sorted { $0.startDate < $1.startDate }
             .map { event in
                 SharedScheduleItem(
