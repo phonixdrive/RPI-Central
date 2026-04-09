@@ -587,7 +587,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: appState,
-                label: "Phone before save",
+                label: "Before Save This Phone: this phone",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -595,7 +595,7 @@ final class AppStateSyncManager: ObservableObject {
                 try await createBackupRecord(
                     userID: userID,
                     appState: cloudSnapshot.appState,
-                    label: "Saved copy before save",
+                    label: "Before Save This Phone: previous saved copy",
                     source: "cloud:\(cloudSnapshot.source)",
                     appStateUpdatedAt: cloudSnapshot.updatedAt
                 )
@@ -638,7 +638,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: localAppState,
-                label: "Phone before update",
+                label: "Before Get Latest Saved Copy: this phone",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -672,7 +672,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: localAppState,
-                label: "Phone before restore",
+                label: "Before Restore: this phone",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -681,7 +681,7 @@ final class AppStateSyncManager: ObservableObject {
                 try await createBackupRecord(
                     userID: userID,
                     appState: cloudSnapshot.appState,
-                    label: "Saved copy before restore",
+                    label: "Before Restore: previous saved copy",
                     source: "cloud:\(cloudSnapshot.source)",
                     appStateUpdatedAt: cloudSnapshot.updatedAt
                 )
