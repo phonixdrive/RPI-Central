@@ -45,6 +45,10 @@ service cloud.firestore {
         allow read, create, update, delete: if isSelf(userID);
       }
 
+      match /appBackups/{backupID} {
+        allow read, create, update, delete: if isSelf(userID);
+      }
+
       match /calendarShares/{shareID} {
         allow read: if isSelf(userID);
         allow create: if signedIn() &&
