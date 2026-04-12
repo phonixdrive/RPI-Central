@@ -154,6 +154,7 @@ final class CalendarViewModel: ObservableObject {
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
     private let socialDemoToolsEnabledKey = "settings_social_demo_tools_enabled_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
+    private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
     private let socialFeedRefreshIntervalKey = "social.feedRefreshIntervalSeconds"
     private let lmsCalendarFeedURLKey = "settings_lms_calendar_feed_url_v1"
     private let lmsCalendarLastSyncAtKey = "settings_lms_calendar_last_sync_at_v1"
@@ -214,6 +215,15 @@ final class CalendarViewModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(socialFeedNotificationsEnabled, forKey: socialFeedNotificationsEnabledKey)
             if socialFeedNotificationsEnabled {
+                NotificationManager.requestAuthorization()
+            }
+        }
+    }
+
+    @Published var socialGroupNotificationsEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(socialGroupNotificationsEnabled, forKey: socialGroupNotificationsEnabledKey)
+            if socialGroupNotificationsEnabled {
                 NotificationManager.requestAuthorization()
             }
         }
@@ -467,6 +477,10 @@ final class CalendarViewModel: ObservableObject {
             UserDefaults.standard.set(true, forKey: socialFeedNotificationsEnabledKey)
         }
         self.socialFeedNotificationsEnabled = UserDefaults.standard.bool(forKey: socialFeedNotificationsEnabledKey)
+        if UserDefaults.standard.object(forKey: socialGroupNotificationsEnabledKey) == nil {
+            UserDefaults.standard.set(true, forKey: socialGroupNotificationsEnabledKey)
+        }
+        self.socialGroupNotificationsEnabled = UserDefaults.standard.bool(forKey: socialGroupNotificationsEnabledKey)
         if UserDefaults.standard.object(forKey: socialFeedRefreshIntervalKey) == nil {
             UserDefaults.standard.set(SocialFeedRefreshOption.thirty.seconds, forKey: socialFeedRefreshIntervalKey)
         }
@@ -2754,6 +2768,7 @@ final class CalendarViewModel: ObservableObject {
             shuttleRefreshIntervalSeconds: shuttleRefreshIntervalSeconds,
             socialFeedRefreshIntervalSeconds: socialFeedRefreshIntervalSeconds,
             socialFeedNotificationsEnabled: socialFeedNotificationsEnabled,
+            socialGroupNotificationsEnabled: socialGroupNotificationsEnabled,
             socialDemoToolsEnabled: socialDemoToolsEnabled,
             showCampusWideGroup: showCampusWideGroup,
             homeSectionOrder: homeSectionOrder.map(\.rawValue),
@@ -2805,6 +2820,7 @@ final class CalendarViewModel: ObservableObject {
             lmsCalendarAutoDailySyncEnabled = snapshot.settings.lmsCalendarAutoDailySyncEnabled
             socialFeedRefreshIntervalSeconds = snapshot.settings.socialFeedRefreshIntervalSeconds
             socialFeedNotificationsEnabled = snapshot.settings.socialFeedNotificationsEnabled
+            socialGroupNotificationsEnabled = snapshot.settings.socialGroupNotificationsEnabled
             socialDemoToolsEnabled = snapshot.settings.socialDemoToolsEnabled
 
             if let rawLastSync = snapshot.settings.lmsCalendarLastSyncAt,

@@ -45,11 +45,95 @@ struct PhoneWebAppSettings: Codable {
     var shuttleRefreshIntervalSeconds: Int
     var socialFeedRefreshIntervalSeconds: Int
     var socialFeedNotificationsEnabled: Bool
+    var socialGroupNotificationsEnabled: Bool
     var socialDemoToolsEnabled: Bool
     var showCampusWideGroup: Bool
     var homeSectionOrder: [String]
     var hiddenHomeSections: [String]
     var calendarDisplayMode: String
+
+    private enum CodingKeys: String, CodingKey {
+        case themeColor
+        case appearanceMode
+        case currentSemester
+        case visibleSemester
+        case academicHistoryStartSemester
+        case enforcePrerequisites
+        case lmsCalendarFeedURL
+        case lmsCalendarAutoDailySyncEnabled
+        case lmsCalendarLastSyncAt
+        case shuttleRefreshIntervalSeconds
+        case socialFeedRefreshIntervalSeconds
+        case socialFeedNotificationsEnabled
+        case socialGroupNotificationsEnabled
+        case socialDemoToolsEnabled
+        case showCampusWideGroup
+        case homeSectionOrder
+        case hiddenHomeSections
+        case calendarDisplayMode
+    }
+
+    init(
+        themeColor: String,
+        appearanceMode: String,
+        currentSemester: String,
+        visibleSemester: String,
+        academicHistoryStartSemester: String,
+        enforcePrerequisites: Bool,
+        lmsCalendarFeedURL: String,
+        lmsCalendarAutoDailySyncEnabled: Bool,
+        lmsCalendarLastSyncAt: String?,
+        shuttleRefreshIntervalSeconds: Int,
+        socialFeedRefreshIntervalSeconds: Int,
+        socialFeedNotificationsEnabled: Bool,
+        socialGroupNotificationsEnabled: Bool,
+        socialDemoToolsEnabled: Bool,
+        showCampusWideGroup: Bool,
+        homeSectionOrder: [String],
+        hiddenHomeSections: [String],
+        calendarDisplayMode: String
+    ) {
+        self.themeColor = themeColor
+        self.appearanceMode = appearanceMode
+        self.currentSemester = currentSemester
+        self.visibleSemester = visibleSemester
+        self.academicHistoryStartSemester = academicHistoryStartSemester
+        self.enforcePrerequisites = enforcePrerequisites
+        self.lmsCalendarFeedURL = lmsCalendarFeedURL
+        self.lmsCalendarAutoDailySyncEnabled = lmsCalendarAutoDailySyncEnabled
+        self.lmsCalendarLastSyncAt = lmsCalendarLastSyncAt
+        self.shuttleRefreshIntervalSeconds = shuttleRefreshIntervalSeconds
+        self.socialFeedRefreshIntervalSeconds = socialFeedRefreshIntervalSeconds
+        self.socialFeedNotificationsEnabled = socialFeedNotificationsEnabled
+        self.socialGroupNotificationsEnabled = socialGroupNotificationsEnabled
+        self.socialDemoToolsEnabled = socialDemoToolsEnabled
+        self.showCampusWideGroup = showCampusWideGroup
+        self.homeSectionOrder = homeSectionOrder
+        self.hiddenHomeSections = hiddenHomeSections
+        self.calendarDisplayMode = calendarDisplayMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        themeColor = try container.decode(String.self, forKey: .themeColor)
+        appearanceMode = try container.decode(String.self, forKey: .appearanceMode)
+        currentSemester = try container.decode(String.self, forKey: .currentSemester)
+        visibleSemester = try container.decode(String.self, forKey: .visibleSemester)
+        academicHistoryStartSemester = try container.decode(String.self, forKey: .academicHistoryStartSemester)
+        enforcePrerequisites = try container.decode(Bool.self, forKey: .enforcePrerequisites)
+        lmsCalendarFeedURL = try container.decode(String.self, forKey: .lmsCalendarFeedURL)
+        lmsCalendarAutoDailySyncEnabled = try container.decode(Bool.self, forKey: .lmsCalendarAutoDailySyncEnabled)
+        lmsCalendarLastSyncAt = try container.decodeIfPresent(String.self, forKey: .lmsCalendarLastSyncAt)
+        shuttleRefreshIntervalSeconds = try container.decode(Int.self, forKey: .shuttleRefreshIntervalSeconds)
+        socialFeedRefreshIntervalSeconds = try container.decode(Int.self, forKey: .socialFeedRefreshIntervalSeconds)
+        socialFeedNotificationsEnabled = try container.decode(Bool.self, forKey: .socialFeedNotificationsEnabled)
+        socialGroupNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .socialGroupNotificationsEnabled) ?? true
+        socialDemoToolsEnabled = try container.decode(Bool.self, forKey: .socialDemoToolsEnabled)
+        showCampusWideGroup = try container.decode(Bool.self, forKey: .showCampusWideGroup)
+        homeSectionOrder = try container.decode([String].self, forKey: .homeSectionOrder)
+        hiddenHomeSections = try container.decode([String].self, forKey: .hiddenHomeSections)
+        calendarDisplayMode = try container.decode(String.self, forKey: .calendarDisplayMode)
+    }
 }
 
 struct PhoneWebMeetingOverride: Codable {
