@@ -45,6 +45,7 @@ final class SocialManager: ObservableObject {
     private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
     private let deliveredSocialAlertIDsKey = "social.delivered_alert_ids_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
+    private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -1243,6 +1244,17 @@ final class SocialManager: ObservableObject {
                 "sourceKind": reference.sourceKind.rawValue,
             ], at: threadRef)
 
+            if reference.sourceKind != .campusGroup {
+                try await sendSocialAlert(
+                    to: reference.memberIDs,
+                    type: "groupMessage",
+                    title: reference.title,
+                    body: "\(viewer.displayName): \(trimmedBody)",
+                    eventDate: nil,
+                    contextID: reference.id
+                )
+            }
+
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
@@ -1994,7 +2006,7 @@ final class SocialManager: ObservableObject {
             "platform": "ios",
             "bundleID": Bundle.main.bundleIdentifier ?? "RPI Central",
             "feedNotificationsEnabled": socialFeedNotificationsEnabled,
-            "groupNotificationsEnabled": false,
+            "groupNotificationsEnabled": socialGroupNotificationsEnabled,
             "remoteNotificationsRegistered": NotificationManager.canReceiveRemotePush,
             "updatedAt": nowISO(),
         ]
@@ -2656,7 +2668,7 @@ final class SocialManager: ObservableObject {
     private func shouldDeliverSocialAlert(_ alert: SocialAlert) -> Bool {
         switch alert.type {
         case "groupMessage":
-            return false
+            return socialGroupNotificationsEnabled
         default:
             return socialFeedNotificationsEnabled
         }
@@ -2667,6 +2679,13 @@ final class SocialManager: ObservableObject {
             return true
         }
         return UserDefaults.standard.bool(forKey: socialFeedNotificationsEnabledKey)
+    }
+
+    private var socialGroupNotificationsEnabled: Bool {
+        if UserDefaults.standard.object(forKey: socialGroupNotificationsEnabledKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: socialGroupNotificationsEnabledKey)
     }
 
     private var isAppActive: Bool {

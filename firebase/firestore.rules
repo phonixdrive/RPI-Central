@@ -32,6 +32,15 @@ service cloud.firestore {
       return data.sourceKind == "campusGroup" || data.isCampusWide == true;
     }
 
+    function isGroupMessageAlertForSharedChat(targetUserID) {
+      return request.resource.data.type == "groupMessage" &&
+        request.resource.data.contextID is string &&
+        request.resource.data.contextID != "" &&
+        exists(/databases/$(database)/documents/groupChats/$(request.resource.data.contextID)) &&
+        request.auth.uid in get(/databases/$(database)/documents/groupChats/$(request.resource.data.contextID)).data.memberIDs &&
+        targetUserID in get(/databases/$(database)/documents/groupChats/$(request.resource.data.contextID)).data.memberIDs;
+    }
+
     match /users/{userID} {
       allow read: if signedIn();
       allow create: if isSelf(userID);
@@ -69,11 +78,24 @@ service cloud.firestore {
         allow read: if isSelf(userID);
         allow create: if signedIn() &&
           request.resource.data.senderID == request.auth.uid &&
-          areFriends(request.auth.uid, userID);
+          (
+            areFriends(request.auth.uid, userID) ||
+            isGroupMessageAlertForSharedChat(userID)
+          );
         allow update: if isSelf(userID) || (
           signedIn() &&
           resource.data.senderID == request.auth.uid &&
-          areFriends(request.auth.uid, userID)
+          (
+            areFriends(request.auth.uid, userID) ||
+            (
+              resource.data.type == "groupMessage" &&
+              resource.data.contextID is string &&
+              resource.data.contextID != "" &&
+              exists(/databases/$(database)/documents/groupChats/$(resource.data.contextID)) &&
+              request.auth.uid in get(/databases/$(database)/documents/groupChats/$(resource.data.contextID)).data.memberIDs &&
+              userID in get(/databases/$(database)/documents/groupChats/$(resource.data.contextID)).data.memberIDs
+            )
+          )
         );
         allow delete: if isSelf(userID) || (
           signedIn() &&

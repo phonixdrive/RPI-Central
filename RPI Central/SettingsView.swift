@@ -257,6 +257,7 @@ struct SettingsView: View {
                     Section(header: Text("Notifications")) {
                         Toggle("Enable calendar reminders", isOn: $calendarViewModel.notificationsEnabled)
                         Toggle("Enable feed and shared-event alerts", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
+                        Toggle("Enable group chat alerts", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
 
                         if calendarViewModel.notificationsEnabled {
                             HStack {
@@ -316,6 +317,11 @@ struct SettingsView: View {
             calendarViewModel.appearanceMode = selectedAppearance
         }
         .onChange(of: calendarViewModel.socialFeedNotificationsEnabled) {
+            Task {
+                await socialManager.syncPushNotificationPreferences()
+            }
+        }
+        .onChange(of: calendarViewModel.socialGroupNotificationsEnabled) {
             Task {
                 await socialManager.syncPushNotificationPreferences()
             }
