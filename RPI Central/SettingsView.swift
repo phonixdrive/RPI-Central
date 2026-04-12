@@ -109,7 +109,7 @@ struct SettingsView: View {
                         footer: Text("This controls how far ahead Home and the calendar can display terms. Use it to preview future schedules without changing the current term.")
                     ) {
                         Picker(
-                            "Display horizon",
+                            "Latest term shown",
                             selection: Binding(
                                 get: { calendarViewModel.visibleSemester },
                                 set: { calendarViewModel.changeVisibleSemester(to: $0) }
@@ -131,7 +131,7 @@ struct SettingsView: View {
 
                     Section(
                         header: Text("Phone and Web Sync"),
-                        footer: Text("Use Save This Phone after making changes here. Use Get Latest Saved Copy after making changes on your laptop or web. Recovery backups give you a safe way to roll back if something goes wrong.")
+                        footer: Text("Use Save This Phone after making changes on this iPhone. Use Get Latest Saved Copy after making changes on your laptop or web. Recovery backups are your safety copies if you ever want to roll something back.")
                     ) {
                         HStack {
                             Text("Latest saved copy")
@@ -338,32 +338,35 @@ struct SettingsView: View {
 
     private func backupTitle(_ backup: PhoneWebCloudBackupSummary) -> String {
         switch backup.label {
-        case "Manual backup", "Recovery backup":
-            return "Recovery backup"
-        case "Before push • local phone state", "This phone before saving", "Phone before save", "Before Save This Phone: this phone":
-            return "Before Save This Phone: this phone"
-        case "Before push • cloud snapshot", "Latest saved copy before saving this phone", "Saved copy before save", "Before Save This Phone: previous saved copy":
-            return "Before Save This Phone: previous saved copy"
-        case "Before pull • local phone state", "This phone before updating", "Phone before update", "Before Get Latest Saved Copy: this phone":
-            return "Before Get Latest Saved Copy: this phone"
-        case "Before restore • local phone state", "This phone before restore", "Phone before restore", "Before Restore: this phone":
-            return "Before Restore: this phone"
-        case "Before restore • cloud snapshot", "Latest saved copy before restore", "Saved copy before restore", "Before Restore: previous saved copy":
-            return "Before Restore: previous saved copy"
+        case "Manual backup", "Recovery backup", "Before Recovery Backup (Current iPhone)":
+            return "Before Recovery Backup (Current iPhone)"
+        case "Before push • local phone state", "This phone before saving", "Phone before save", "Before Save This Phone: this phone", "Before Save (Current iPhone)":
+            return "Before Save (Current iPhone)"
+        case "Before push • cloud snapshot", "Latest saved copy before saving this phone", "Saved copy before save", "Before Save This Phone: previous saved copy", "Saved Copy Replaced by Save":
+            return "Saved Copy Replaced by Save"
+        case "Before pull • local phone state", "This phone before updating", "Phone before update", "Before Get Latest Saved Copy: this phone", "Before Update (Current iPhone)":
+            return "Before Update (Current iPhone)"
+        case "Before restore • local phone state", "This phone before restore", "Phone before restore", "Before Restore: this phone", "Before Restore (Current iPhone)":
+            return "Before Restore (Current iPhone)"
+        case "Before restore • cloud snapshot", "Latest saved copy before restore", "Saved copy before restore", "Before Restore: previous saved copy", "Saved Copy Replaced by Restore":
+            return "Saved Copy Replaced by Restore"
         default:
             return backup.label
         }
     }
 
     private func backupSourceText(_ source: String) -> String {
+        if source == "ios-manual" {
+            return "Saved from your current iPhone"
+        }
         if source.hasPrefix("ios") {
-            return "Made from this phone"
+            return "Saved from your iPhone right before a change"
         }
         if source.hasPrefix("cloud:") {
-            return "Made from the previously saved copy"
+            return "Saved from the copy that was replaced"
         }
         if source.hasPrefix("restore:") {
-            return "Made during a restore"
+            return "Saved while restoring an older backup"
         }
         return "Saved from \(source)"
     }
@@ -372,7 +375,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section(
-                    footer: Text("Save This Phone creates two safety backups: your current phone version and the previous saved copy. That way you can roll back either side if needed.")
+                    footer: Text("Save This Phone makes two safety backups: one of your current iPhone before the save, and one of the saved copy that gets replaced.")
                 ) {
                     Button {
                         Task {
