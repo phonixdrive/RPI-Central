@@ -1566,17 +1566,17 @@ struct SocialHubView: View {
     private func classGroupFilterTitle(for filter: ClassGroupFilter) -> String {
         switch filter {
         case .currentOverall:
-            return "Current • Overall"
+            return "This Term • Course-wide"
         case .currentAll:
-            return "Current • All"
+            return "This Term • Course + Section"
         case .allOverall:
-            return "All • Overall"
+            return "All Terms • Course-wide"
         case .all:
-            return "All • All"
+            return "All Terms • Course + Section"
         case .semesterOverall(let code):
-            return "\(Semester(rawValue: code)?.displayName ?? code) • Overall"
+            return "\(Semester(rawValue: code)?.displayName ?? code) • Course-wide"
         case .semesterAll(let code):
-            return "\(Semester(rawValue: code)?.displayName ?? code) • All"
+            return "\(Semester(rawValue: code)?.displayName ?? code) • Course + Section"
         }
     }
 
@@ -2401,7 +2401,8 @@ private struct GroupChatSheet: View {
     }
 
     private func chatTimestamp(_ isoString: String) -> String {
-        if let date = ISO8601DateFormatter().date(from: isoString) {
+        if let date = groupChatISOFormatter.date(from: isoString)
+            ?? groupChatISOFormatterWithFractionalSeconds.date(from: isoString) {
             return groupChatTimestampFormatter.string(from: date)
         }
         return "Now"
@@ -2764,8 +2765,20 @@ private enum FeedFormatters {
 
 private let groupChatTimestampFormatter: DateFormatter = {
     let formatter = DateFormatter()
-    formatter.dateStyle = .none
+    formatter.dateStyle = .medium
     formatter.timeStyle = .short
+    return formatter
+}()
+
+private let groupChatISOFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter
+}()
+
+private let groupChatISOFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter
 }()
 

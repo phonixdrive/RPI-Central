@@ -562,7 +562,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: appState,
-                label: "Recovery backup",
+                label: "Before Recovery Backup (Current iPhone)",
                 source: "ios-manual",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -587,7 +587,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: appState,
-                label: "Before Save This Phone: this phone",
+                label: "Before Save (Current iPhone)",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -595,7 +595,7 @@ final class AppStateSyncManager: ObservableObject {
                 try await createBackupRecord(
                     userID: userID,
                     appState: cloudSnapshot.appState,
-                    label: "Before Save This Phone: previous saved copy",
+                    label: "Saved Copy Replaced by Save",
                     source: "cloud:\(cloudSnapshot.source)",
                     appStateUpdatedAt: cloudSnapshot.updatedAt
                 )
@@ -638,7 +638,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: localAppState,
-                label: "Before Get Latest Saved Copy: this phone",
+                label: "Before Update (Current iPhone)",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -672,7 +672,7 @@ final class AppStateSyncManager: ObservableObject {
             try await createBackupRecord(
                 userID: userID,
                 appState: localAppState,
-                label: "Before Restore: this phone",
+                label: "Before Restore (Current iPhone)",
                 source: "ios-local",
                 appStateUpdatedAt: SyncISO8601.string(from: Date())
             )
@@ -681,7 +681,7 @@ final class AppStateSyncManager: ObservableObject {
                 try await createBackupRecord(
                     userID: userID,
                     appState: cloudSnapshot.appState,
-                    label: "Before Restore: previous saved copy",
+                    label: "Saved Copy Replaced by Restore",
                     source: "cloud:\(cloudSnapshot.source)",
                     appStateUpdatedAt: cloudSnapshot.updatedAt
                 )
