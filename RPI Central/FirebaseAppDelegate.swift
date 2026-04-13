@@ -31,6 +31,10 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
 #if canImport(FirebaseMessaging)
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         NotificationManager.setDidRegisterForRemoteNotifications(true)
+        #if DEBUG
+        let tokenHex = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        print("✅ APNs registration succeeded. Device token:", tokenHex)
+        #endif
         Messaging.messaging().apnsToken = deviceToken
     }
 
@@ -48,13 +52,19 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
-        let socialType = (userInfo["socialType"] as? String) ?? (userInfo["type"] as? String) ?? ""
-        let socialContextID = (userInfo["socialContextID"] as? String) ?? (userInfo["contextID"] as? String) ?? ""
-        if socialType == "groupMessage", socialContextID == NotificationManager.activeSocialContextID {
+        if NotificationManager.shouldSuppressForegroundSocialPush(userInfo: userInfo) {
             completionHandler([])
             return
         }
         completionHandler([.banner, .list, .sound, .badge])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        completionHandler()
     }
 }
 
