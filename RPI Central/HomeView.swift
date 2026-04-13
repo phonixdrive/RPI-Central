@@ -59,10 +59,12 @@ final class TasksManager: ObservableObject {
     }
 
     static let storageKey = "courseTasks.v1"
+    private static let notificationsEnabledKey = "settings_notifications_enabled_v1"
     private var syncObserver: NSObjectProtocol?
 
     init() {
         load()
+        rescheduleStoredNotifications()
         syncObserver = NotificationCenter.default.addObserver(
             forName: .appStateSyncDidApplyLocalState,
             object: nil,
@@ -136,6 +138,7 @@ final class TasksManager: ObservableObject {
 
     func reloadFromStore() {
         load()
+        rescheduleStoredNotifications()
     }
 
     static func loadStoredTasks() -> [CourseTask] {
@@ -149,6 +152,15 @@ final class TasksManager: ObservableObject {
     static func replaceStoredTasks(_ tasks: [CourseTask]) {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
+    }
+
+    private func rescheduleStoredNotifications() {
+        NotificationManager.clearAllTaskNotifications()
+        let notificationsEnabled = UserDefaults.standard.object(forKey: Self.notificationsEnabledKey) as? Bool ?? true
+        guard notificationsEnabled else { return }
+        for task in tasks {
+            scheduleNotifications(for: task)
+        }
     }
 }
 

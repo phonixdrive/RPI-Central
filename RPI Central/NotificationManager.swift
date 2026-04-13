@@ -162,6 +162,22 @@ enum NotificationManager {
         }
     }
 
+    static func clearAllTaskNotifications() {
+        let center = UNUserNotificationCenter.current()
+
+        center.getPendingNotificationRequests { requests in
+            let ids = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix("task.") }
+
+            guard !ids.isEmpty else { return }
+            center.removePendingNotificationRequests(withIdentifiers: ids)
+            #if DEBUG
+            print("🧹 Cleared all task notifications:", ids.count)
+            #endif
+        }
+    }
+
     // MARK: - Class reminder notifications
 
     static func scheduleNotification(for event: ClassEvent, minutesBefore: Int) {

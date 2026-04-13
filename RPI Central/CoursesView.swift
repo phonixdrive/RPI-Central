@@ -32,6 +32,12 @@ struct CoursesView: View {
             guard !availableSubjects.isEmpty else { return nil }
             return SubjectCategory(id: category.id, title: category.title, subjects: availableSubjects)
         }
+        .sorted { lhs, rhs in
+            if lhs.subjects.count == rhs.subjects.count {
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+            return lhs.subjects.count > rhs.subjects.count
+        }
     }
 
     private var rowCardFill: Color {

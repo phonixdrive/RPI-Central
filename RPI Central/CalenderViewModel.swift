@@ -265,6 +265,7 @@ final class CalendarViewModel: ObservableObject {
         // if disabled, wipe pending requests
         if !notificationsEnabled {
             NotificationManager.clearScheduledNotifications()
+            NotificationManager.clearAllTaskNotifications()
             return
         }
 
@@ -272,6 +273,7 @@ final class CalendarViewModel: ObservableObject {
 
         // reschedule everything
         NotificationManager.clearScheduledNotifications()
+        NotificationManager.clearAllTaskNotifications()
 
         // --- ✅ Only schedule current-semester class notifications ---
         // Determine current semester code
@@ -300,11 +302,18 @@ final class CalendarViewModel: ObservableObject {
             NotificationManager.scheduleNotification(for: ev, minutesBefore: minutesBeforeClass)
         }
 
+        let storedTaskList = storedTasks()
+        for task in storedTaskList {
+            for offset in task.reminderOffsetsMinutes {
+                NotificationManager.scheduleTaskReminder(task: task, minutesBefore: offset)
+            }
+        }
+
         #if DEBUG
         if let currentCode {
-            print("🔔 Rescheduled notifications (current semester only):", classMeetings.count, "semester:", currentCode, "lead:", minutesBeforeClass)
+            print("🔔 Rescheduled notifications (current semester only):", classMeetings.count, "semester:", currentCode, "lead:", minutesBeforeClass, "tasks:", storedTaskList.count)
         } else {
-            print("🔔 Rescheduled notifications (no current semester set):", classMeetings.count, "events", "lead:", minutesBeforeClass)
+            print("🔔 Rescheduled notifications (no current semester set):", classMeetings.count, "events", "lead:", minutesBeforeClass, "tasks:", storedTaskList.count)
         }
         #endif
     }

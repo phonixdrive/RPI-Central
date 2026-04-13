@@ -17,6 +17,11 @@ import FirebaseFirestore
 final class SocialManager: ObservableObject {
     static let defaultChatPushRelayBaseURL = "https://rpi-central-web.onrender.com"
 
+    private struct GroupChatThreadState {
+        let updatedAt: String
+        let lastSenderID: String?
+    }
+
     @Published private(set) var currentUser: SocialUser? {
         didSet {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -37,6 +42,7 @@ final class SocialManager: ObservableObject {
     @Published private(set) var quickAddSuggestions: [SocialSearchResult] = []
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
     @Published private(set) var activeGroupChatID: String?
+    @Published private var groupChatThreadStates: [String: GroupChatThreadState] = [:]
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var statusMessage: String?
@@ -49,6 +55,7 @@ final class SocialManager: ObservableObject {
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
     private let mutedGroupChatIDsKey = "social.muted_group_chat_ids_v1"
+    private let groupChatLastSeenKey = "social.group_chat_last_seen_v1"
     private let chatPushRelayBaseURLKey = "chat_push_relay_base_url_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
@@ -148,6 +155,7 @@ final class SocialManager: ObservableObject {
         feedItems = []
         searchResults = []
         quickAddSuggestions = []
+        groupChatThreadStates = [:]
         loadedFriendSchedule = nil
         activeGroupChatID = nil
         statusMessage = nil
@@ -164,8 +172,6 @@ final class SocialManager: ObservableObject {
 
             let snapshot = try await getDocuments(
                 firestore.collection("users")
-                    .order(by: "createdAt", descending: true)
-                    .limit(to: 80)
             )
 
             quickAddSuggestions = snapshot.documents
@@ -180,7 +186,6 @@ final class SocialManager: ObservableObject {
                 .sorted { lhs, rhs in
                     lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
                 }
-                .prefix(8)
                 .map { user in
                     SocialSearchResult(
                         id: user.id,
@@ -230,6 +235,30 @@ final class SocialManager: ObservableObject {
     func setActiveGroupChat(id: String?) {
         activeGroupChatID = id
         NotificationManager.setActiveSocialContextID(id)
+    }
+
+    func markGroupChatSeen(_ reference: SocialGroupChatReference) {
+        let seenValue = groupChatThreadStates[reference.id]?.updatedAt ?? nowISO()
+        var stored = groupChatLastSeenValues
+        stored[reference.id] = seenValue
+        UserDefaults.standard.set(stored, forKey: groupChatLastSeenKey)
+        objectWillChange.send()
+    }
+
+    func hasUnreadMessages(in reference: SocialGroupChatReference) -> Bool {
+        guard let viewer = currentUser,
+              let threadState = groupChatThreadStates[reference.id],
+              threadState.lastSenderID != viewer.id,
+              let updatedAt = isoDate(threadState.updatedAt) else {
+            return false
+        }
+
+        guard let lastSeenRaw = groupChatLastSeenValues[reference.id],
+              let lastSeen = isoDate(lastSeenRaw) else {
+            return true
+        }
+
+        return updatedAt > lastSeen
     }
 
     func isChatMuted(_ reference: SocialGroupChatReference) -> Bool {
@@ -1263,6 +1292,7 @@ final class SocialManager: ObservableObject {
             try await setData(groupChatMessageData(message), at: threadRef.collection("messages").document(message.id))
             try await updateData([
                 "updatedAt": message.createdAt,
+                "lastSenderID": viewer.id,
                 "memberIDs": reference.memberIDs,
                 "title": reference.title,
                 "subtitle": reference.subtitle,
@@ -1894,6 +1924,16 @@ final class SocialManager: ObservableObject {
         } catch {
             if isPermissionDenied(error) {
                 feedItems = []
+            } else {
+                throw error
+            }
+        }
+
+        do {
+            groupChatThreadStates = try await loadGroupChatThreadStates(memberID: viewer.id)
+        } catch {
+            if isPermissionDenied(error) {
+                groupChatThreadStates = [:]
             } else {
                 throw error
             }
@@ -3623,11 +3663,11 @@ final class SocialManager: ObservableObject {
         let fallbackItems = fallback?.items ?? []
 
         for item in fallbackItems {
-            mergedByID[item.id] = item
+            mergedByID[scheduleMergeKey(for: item)] = item
         }
 
         for item in primaryItems {
-            mergedByID[item.id] = item
+            mergedByID[scheduleMergeKey(for: item)] = item
         }
 
         let mergedItems = mergedByID.values.sorted { lhs, rhs in
@@ -3938,7 +3978,7 @@ final class SocialManager: ObservableObject {
             .sorted { $0.startDate < $1.startDate }
             .map { event in
                 SharedScheduleItem(
-                    id: event.id.uuidString,
+                    id: stableScheduleItemID(for: event),
                     title: event.title,
                     location: event.location,
                     startDate: ISO8601DateFormatter().string(from: event.startDate),
@@ -3948,6 +3988,46 @@ final class SocialManager: ObservableObject {
                     badge: event.badge?.rawValue
                 )
             }
+    }
+
+    private func loadGroupChatThreadStates(memberID: String) async throws -> [String: GroupChatThreadState] {
+        let snapshot = try await getDocuments(
+            firestore.collection("groupChats")
+                .whereField("memberIDs", arrayContains: memberID)
+        )
+
+        return Dictionary(uniqueKeysWithValues: snapshot.documents.compactMap { document in
+            let data = document.data()
+            let updatedAt = data["updatedAt"] as? String ?? ""
+            guard !updatedAt.isEmpty else { return nil }
+            return (
+                document.documentID,
+                GroupChatThreadState(
+                    updatedAt: updatedAt,
+                    lastSenderID: emptyToNil(data["lastSenderID"] as? String)
+                )
+            )
+        })
+    }
+
+    private var groupChatLastSeenValues: [String: String] {
+        UserDefaults.standard.dictionary(forKey: groupChatLastSeenKey) as? [String: String] ?? [:]
+    }
+
+    private func scheduleMergeKey(for item: SharedScheduleItem) -> String {
+        [
+            item.title,
+            item.location,
+            item.startDate,
+            item.endDate,
+            String(item.isAllDay),
+            item.kind,
+            item.badge ?? ""
+        ].joined(separator: "|")
+    }
+
+    private func stableScheduleItemID(for event: ClassEvent) -> String {
+        event.interactionKey
     }
 
     private func normalizeDisplayName(_ value: String) -> String {
