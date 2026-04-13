@@ -237,8 +237,17 @@ final class SocialManager: ObservableObject {
         NotificationManager.setActiveSocialContextID(id)
     }
 
-    func markGroupChatSeen(_ reference: SocialGroupChatReference) {
-        let seenValue = groupChatThreadStates[reference.id]?.updatedAt ?? nowISO()
+    func markGroupChatSeen(_ reference: SocialGroupChatReference, latestMessageAt: String? = nil) {
+        let threadUpdatedAt = groupChatThreadStates[reference.id]?.updatedAt
+        let seenValue: String
+        if let latestMessageAt,
+           let latestDate = isoDate(latestMessageAt),
+           let threadUpdatedAt,
+           let threadDate = isoDate(threadUpdatedAt) {
+            seenValue = threadDate > latestDate ? threadUpdatedAt : latestMessageAt
+        } else {
+            seenValue = latestMessageAt ?? threadUpdatedAt ?? nowISO()
+        }
         var stored = groupChatLastSeenValues
         stored[reference.id] = seenValue
         UserDefaults.standard.set(stored, forKey: groupChatLastSeenKey)
@@ -1211,7 +1220,9 @@ final class SocialManager: ObservableObject {
                     .order(by: "createdAt", descending: false)
                     .limit(toLast: 200)
             )
-            return snapshot.documents.compactMap(makeGroupChatMessage)
+            let messages = snapshot.documents.compactMap(makeGroupChatMessage)
+            updateGroupChatThreadState(for: reference, messages: messages)
+            return messages
         } catch {
             if !isPermissionDenied(error) {
                 errorMessage = error.localizedDescription
@@ -1250,6 +1261,7 @@ final class SocialManager: ObservableObject {
                         }
 
                         let messages = snapshot?.documents.compactMap(self.makeGroupChatMessage) ?? []
+                        self.updateGroupChatThreadState(for: reference, messages: messages)
                         onChange(messages)
                     }
                 }
@@ -1298,6 +1310,11 @@ final class SocialManager: ObservableObject {
                 "subtitle": reference.subtitle,
                 "sourceKind": reference.sourceKind.rawValue,
             ], at: threadRef)
+
+            groupChatThreadStates[reference.id] = GroupChatThreadState(
+                updatedAt: message.createdAt,
+                lastSenderID: viewer.id
+            )
 
             if reference.sourceKind != .campusGroup {
                 let deliveredViaRelay = try await triggerGroupChatPushIfPossible(
@@ -3335,7 +3352,6 @@ final class SocialManager: ObservableObject {
                 "sourceKind": reference.sourceKind.rawValue,
                 "memberIDs": reference.memberIDs,
                 "isCampusWide": reference.sourceKind == .campusGroup,
-                "updatedAt": nowISO(),
             ], at: ref)
         } catch {
             if isDocumentMissing(error) {
@@ -4012,6 +4028,17 @@ final class SocialManager: ObservableObject {
 
     private var groupChatLastSeenValues: [String: String] {
         UserDefaults.standard.dictionary(forKey: groupChatLastSeenKey) as? [String: String] ?? [:]
+    }
+
+    private func updateGroupChatThreadState(
+        for reference: SocialGroupChatReference,
+        messages: [SocialGroupChatMessage]
+    ) {
+        guard let lastMessage = messages.last else { return }
+        groupChatThreadStates[reference.id] = GroupChatThreadState(
+            updatedAt: lastMessage.createdAt,
+            lastSenderID: lastMessage.userID
+        )
     }
 
     private func scheduleMergeKey(for item: SharedScheduleItem) -> String {
