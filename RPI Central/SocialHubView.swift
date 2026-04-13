@@ -162,10 +162,18 @@ struct SocialHubView: View {
                 demoCard
             }
         case .feed:
-            groupsCard
-            classGroupsCard
+            if socialManager.overview == nil {
+                socialLoadingCard
+            } else {
+                groupsCard
+                classGroupsCard
+            }
         case .friends:
-            friendsCard
+            if socialManager.overview == nil {
+                socialLoadingCard
+            } else {
+                friendsCard
+            }
         }
     }
 
@@ -245,8 +253,27 @@ struct SocialHubView: View {
     private var sectionBar: some View {
         HStack(spacing: 10) {
             sectionButton(title: "Friends", section: .friends)
-            sectionButton(title: "Feed", section: .feed)
+            sectionButton(title: "Chat", section: .feed)
             sectionButton(title: "Profile", section: .profile)
+        }
+    }
+
+    private var socialLoadingCard: some View {
+        SocialCard {
+            HStack(spacing: 12) {
+                ProgressView()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Loading social")
+                        .font(.headline)
+                    Text("Pulling in your friends, groups, and class chats.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 6)
         }
     }
 
@@ -678,6 +705,7 @@ struct SocialHubView: View {
                         .foregroundStyle(.secondary)
 
                     if let campusWideChat {
+                        let hasUnread = socialManager.hasUnreadMessages(in: campusWideChat)
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 3) {
@@ -698,8 +726,7 @@ struct SocialHubView: View {
                             Button {
                                 selectedGroupChat = campusWideChat
                             } label: {
-                                Label("Open chat", systemImage: "bubble.left.and.bubble.right")
-                                    .frame(maxWidth: .infinity)
+                                chatActionLabel("Open chat", unread: hasUnread)
                             }
                             .buttonStyle(.bordered)
                         }
@@ -747,12 +774,11 @@ struct SocialHubView: View {
 
                                     HStack(spacing: 10) {
                                         if let reference = socialManager.chatReference(for: group) {
+                                            let hasUnread = socialManager.hasUnreadMessages(in: reference)
                                             Button {
                                                 selectedGroupChat = reference
                                             } label: {
-                                                Label("Open chat", systemImage: "bubble.left.and.bubble.right")
-                                                    .frame(maxWidth: .infinity)
-                                                    .lineLimit(1)
+                                                chatActionLabel("Open chat", unread: hasUnread)
                                             }
                                             .buttonStyle(.bordered)
                                         }
@@ -856,6 +882,8 @@ struct SocialHubView: View {
                     } else {
                         LazyVStack(spacing: 10) {
                             ForEach(classGroups) { group in
+                                let reference = socialManager.chatReference(for: group)
+                                let hasUnread = socialManager.hasUnreadMessages(in: reference)
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(alignment: .top) {
                                         VStack(alignment: .leading, spacing: 3) {
@@ -886,8 +914,7 @@ struct SocialHubView: View {
                                         Button {
                                             selectedGroupChat = socialManager.chatReference(for: group)
                                         } label: {
-                                            Label("Open chat", systemImage: "bubble.left.and.bubble.right")
-                                                .frame(maxWidth: .infinity)
+                                            chatActionLabel("Open chat", unread: hasUnread)
                                         }
                                         .buttonStyle(.bordered)
                                     }
@@ -1469,8 +1496,22 @@ struct SocialHubView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(isSelected ? calendarViewModel.themeColor.opacity(0.2) : Color.primary.opacity(0.05), lineWidth: 1)
             )
-        }
+    }
         .buttonStyle(.plain)
+    }
+
+    private func chatActionLabel(_ title: String, unread: Bool) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: "bubble.left.and.bubble.right")
+                .lineLimit(1)
+
+            if unread {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 9, height: 9)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func syncSharedScheduleIfNeeded() async {
@@ -2292,6 +2333,7 @@ private struct GroupChatSheet: View {
         await refreshParticipants(using: initialMessages)
         await MainActor.run {
             messages = initialMessages
+            socialManager.markGroupChatSeen(reference)
             if !initialMessages.isEmpty {
                 didPerformInitialScroll = true
                 scrollToBottom(proxy, animated: false)
@@ -2306,6 +2348,7 @@ private struct GroupChatSheet: View {
         chatListener = await socialManager.observeGroupChatMessages(for: reference) { updatedMessages in
             let shouldScroll = updatedMessages.last?.id != messages.last?.id
             messages = updatedMessages
+            socialManager.markGroupChatSeen(reference)
             Task {
                 await refreshParticipants(using: updatedMessages)
             }
