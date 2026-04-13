@@ -15,6 +15,8 @@ import FirebaseFirestore
 
 @MainActor
 final class SocialManager: ObservableObject {
+    static let defaultChatPushRelayBaseURL = "https://rpi-central-web.onrender.com"
+
     @Published private(set) var currentUser: SocialUser? {
         didSet {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -46,6 +48,7 @@ final class SocialManager: ObservableObject {
     private let deliveredSocialAlertIDsKey = "social.delivered_alert_ids_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
+    private let chatPushRelayBaseURLKey = "chat_push_relay_base_url_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -71,6 +74,10 @@ final class SocialManager: ObservableObject {
             Task {
                 await self.syncPushNotificationPreferences()
             }
+        }
+        UserDefaults.standard.set(Self.defaultChatPushRelayBaseURL, forKey: chatPushRelayBaseURLKey)
+        if socialFeedNotificationsEnabled || socialGroupNotificationsEnabled {
+            NotificationManager.requestAuthorization()
         }
         NotificationManager.registerForRemoteNotificationsIfAuthorized()
         Task {
@@ -1245,14 +1252,21 @@ final class SocialManager: ObservableObject {
             ], at: threadRef)
 
             if reference.sourceKind != .campusGroup {
-                try await sendSocialAlert(
-                    to: reference.memberIDs,
-                    type: "groupMessage",
-                    title: reference.title,
-                    body: "\(viewer.displayName): \(trimmedBody)",
-                    eventDate: nil,
-                    contextID: reference.id
+                let deliveredViaRelay = try await triggerGroupChatPushIfPossible(
+                    for: reference,
+                    message: message
                 )
+
+                if !deliveredViaRelay {
+                    try await sendSocialAlert(
+                        to: reference.memberIDs,
+                        type: "groupMessage",
+                        title: reference.title,
+                        body: "\(viewer.displayName): \(trimmedBody)",
+                        eventDate: nil,
+                        contextID: reference.id
+                    )
+                }
             }
 
             didSucceed = true
@@ -1262,6 +1276,67 @@ final class SocialManager: ObservableObject {
         }
 
         return didSucceed
+    }
+
+    private func triggerGroupChatPushIfPossible(
+        for reference: SocialGroupChatReference,
+        message: SocialGroupChatMessage
+    ) async throws -> Bool {
+        guard let relayEndpoint = chatPushRelayEndpoint else {
+            return false
+        }
+
+        let idToken = try await currentAuthToken()
+        var request = URLRequest(url: relayEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+        request.httpBody = try JSONEncoder().encode(
+            GroupChatPushRelayRequest(
+                threadID: reference.id,
+                messageID: message.id,
+                messageBody: message.body,
+                threadTitle: reference.title
+            )
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SocialError.invalidResponse
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw SocialError.api("Push relay request failed.")
+        }
+
+        if let relayResponse = try? JSONDecoder().decode(GroupChatPushRelayResponse.self, from: data) {
+            return relayResponse.delivered > 0
+        }
+
+        return false
+    }
+
+    private var chatPushRelayEndpoint: URL? {
+        let normalizedBase = Self.defaultChatPushRelayBaseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let baseURL = URL(string: normalizedBase) else {
+            return nil
+        }
+
+        return baseURL.appendingPathComponent("api/push/group-message")
+    }
+
+    private struct GroupChatPushRelayRequest: Encodable {
+        let threadID: String
+        let messageID: String
+        let messageBody: String
+        let threadTitle: String
+    }
+
+    private struct GroupChatPushRelayResponse: Decodable {
+        let delivered: Int
     }
 
     @discardableResult
@@ -1960,8 +2035,14 @@ final class SocialManager: ObservableObject {
     }
 
     private func refreshAuthTokenIfNeeded(forceRefresh: Bool = false) async throws {
-        guard let user = Auth.auth().currentUser else { return }
-        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+        _ = try await currentAuthToken(forceRefresh: forceRefresh)
+    }
+
+    private func currentAuthToken(forceRefresh: Bool = false) async throws -> String {
+        guard let user = Auth.auth().currentUser else {
+            throw SocialError.notAuthenticated
+        }
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             user.getIDTokenForcingRefresh(forceRefresh) { token, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -2643,10 +2724,6 @@ final class SocialManager: ObservableObject {
                 delivered.insert(alert.id)
                 continue
             }
-            if usesRemotePushForSocialAlerts {
-                delivered.insert(alert.id)
-                continue
-            }
             guard shouldDeliverSocialAlert(alert) else {
                 delivered.insert(alert.id)
                 continue
@@ -2694,10 +2771,6 @@ final class SocialManager: ObservableObject {
 #else
         true
 #endif
-    }
-
-    private var usesRemotePushForSocialAlerts: Bool {
-        NotificationManager.canReceiveRemotePush
     }
 
     private func nextAvailableUsername(base: String, firestore: Firestore? = nil) async throws -> String {

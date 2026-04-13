@@ -178,10 +178,10 @@ struct SocialHubView: View {
                 demoCard
             }
         case .feed:
+            groupsCard
             feedListCard
         case .friends:
             friendsCard
-            groupsCard
             classGroupsCard
         }
     }
@@ -1143,7 +1143,7 @@ struct SocialHubView: View {
     }
 
     private func friendCard(_ friend: SocialFriend) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(friend.displayName)
@@ -1158,10 +1158,21 @@ struct SocialHubView: View {
                 badgeLabel(friend.shareSchedule ? "Sharing on" : "Sharing off", color: friend.shareSchedule ? .green : .secondary)
             }
 
-            if friend.canViewSchedule {
-                HStack {
-                    Spacer()
+            HStack(spacing: 8) {
+                Button {
+                    Task {
+                        await socialManager.unfriend(friend.id)
+                    }
+                } label: {
+                    Text("Remove friend")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
 
+                Spacer(minLength: 0)
+
+                if friend.canViewSchedule {
                     Button("View schedule") {
                         Task {
                             await socialManager.loadFriendSchedule(friendID: friend.id)
@@ -1171,17 +1182,11 @@ struct SocialHubView: View {
                         }
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
-
-            Button("Remove friend", role: .destructive) {
-                Task {
-                    await socialManager.unfriend(friend.id)
-                }
-            }
-            .font(.caption)
         }
-        .padding(14)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
     }

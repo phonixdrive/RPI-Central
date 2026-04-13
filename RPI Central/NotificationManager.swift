@@ -21,6 +21,13 @@ enum NotificationManager {
     private static let pushAPNsRegisteredKey = "push.apns_registered_v1"
     private static let activeSocialContextIDKey = "social.active_context_id_v1"
 
+    struct SocialPushPayload {
+        let alertID: String
+        let type: String
+        let contextID: String
+        let senderID: String
+    }
+
     static var pushTokenDidChangeNotification: Notification.Name {
         .rpiCentralPushTokenDidChange
     }
@@ -44,6 +51,26 @@ enum NotificationManager {
 
     static var activeSocialContextID: String? {
         normalizedValue(UserDefaults.standard.string(forKey: activeSocialContextIDKey))
+    }
+
+    static func socialPushPayload(from userInfo: [AnyHashable: Any]) -> SocialPushPayload? {
+        let alertID = normalizedValue(userInfo["socialAlertId"] as? String) ?? normalizedValue(userInfo["alertID"] as? String) ?? ""
+        let type = normalizedValue(userInfo["socialType"] as? String) ?? normalizedValue(userInfo["type"] as? String) ?? ""
+        let contextID = normalizedValue(userInfo["socialContextID"] as? String) ?? normalizedValue(userInfo["contextID"] as? String) ?? ""
+        let senderID = normalizedValue(userInfo["senderID"] as? String) ?? ""
+
+        guard !type.isEmpty else { return nil }
+        return SocialPushPayload(
+            alertID: alertID,
+            type: type,
+            contextID: contextID,
+            senderID: senderID
+        )
+    }
+
+    static func shouldSuppressForegroundSocialPush(userInfo: [AnyHashable: Any]) -> Bool {
+        guard let payload = socialPushPayload(from: userInfo) else { return false }
+        return payload.type == "groupMessage" && payload.contextID == activeSocialContextID
     }
 
     static func updateFCMToken(_ token: String?) {
@@ -87,6 +114,9 @@ enum NotificationManager {
             }
             guard canRegister else { return }
             DispatchQueue.main.async {
+                #if DEBUG
+                print("📲 Calling registerForRemoteNotifications()")
+                #endif
                 UIApplication.shared.registerForRemoteNotifications()
             }
         }
