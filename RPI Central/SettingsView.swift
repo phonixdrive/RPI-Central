@@ -246,35 +246,39 @@ struct SettingsView: View {
                     ) {
                         Toggle("Show All RPI Students group", isOn: $showCampusWideGroup)
                         Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
-
-                        Picker("Feed auto-refresh", selection: $calendarViewModel.socialFeedRefreshIntervalSeconds) {
-                            ForEach(SocialFeedRefreshOption.allCases) { option in
-                                Text(option.title).tag(option.seconds)
+                        Button {
+                            // Live activity is paused for now.
+                        } label: {
+                            HStack {
+                                Text("Live activity visibility")
+                                Spacer()
+                                Text("Paused")
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
                             }
                         }
                     }
 
                     Section(header: Text("Notifications")) {
-                        Toggle("Enable calendar reminders", isOn: $calendarViewModel.notificationsEnabled)
-                        Toggle("Enable feed and shared-event alerts", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
-                        Toggle("Enable group chat alerts", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
+                        Toggle("Calendar notifications", isOn: $calendarViewModel.notificationsEnabled)
+                        Toggle("Live activity notifications", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
+                        Toggle("Group chat notifications", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
 
                         if calendarViewModel.notificationsEnabled {
-                            HStack {
-                                Text("Remind me")
-                                Spacer()
-                                Text("\(calendarViewModel.minutesBeforeClass) min before")
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Slider(
-                                value: Binding(
-                                    get: { Double(calendarViewModel.minutesBeforeClass) },
-                                    set: { calendarViewModel.minutesBeforeClass = Int($0) }
-                                ),
+                            Stepper(
+                                value: $calendarViewModel.minutesBeforeClass,
                                 in: 0...120,
                                 step: 5
-                            )
+                            ) {
+                                HStack {
+                                    Text("Remind me")
+                                    Spacer()
+                                    Text("\(calendarViewModel.minutesBeforeClass) min before")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
 
                             // ✅ temporary debug button
                             Button("Test notification (5 seconds)") {
