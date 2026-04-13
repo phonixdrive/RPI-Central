@@ -30,9 +30,6 @@ struct SocialHubView: View {
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
-    private var feedRefreshTaskID: String {
-        "\(selectedSection.rawValue)-\(calendarViewModel.socialFeedRefreshIntervalSeconds)-\(socialManager.currentUser?.id ?? "none")"
-    }
     private var scheduleSyncTaskID: String {
         [
             socialManager.currentUser?.id ?? "none",
@@ -90,13 +87,6 @@ struct SocialHubView: View {
                 .task(id: scheduleSyncTaskID) {
                     await syncSharedScheduleIfNeeded()
                 }
-                .task(id: feedRefreshTaskID) {
-                    await runFeedRefreshLoop()
-                }
-                .task(id: selectedSection) {
-                    guard selectedSection == .feed else { return }
-                    await socialManager.refreshOverview()
-                }
         )
 
         return withTasks
@@ -120,14 +110,8 @@ struct SocialHubView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 18)
-                    .padding(.bottom, selectedSection == .feed || selectedSection == .friends ? 96 : 18)
+                    .padding(.bottom, selectedSection == .friends ? 96 : 18)
                 }
-            }
-
-            if socialManager.isAuthenticated && selectedSection == .feed {
-                feedFloatingButton
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 24)
             }
 
             if socialManager.isAuthenticated && selectedSection == .friends {
@@ -179,10 +163,9 @@ struct SocialHubView: View {
             }
         case .feed:
             groupsCard
-            feedListCard
+            classGroupsCard
         case .friends:
             friendsCard
-            classGroupsCard
         }
     }
 
@@ -2035,6 +2018,7 @@ private struct GroupChatSheet: View {
     @State private var draftMessage: String = ""
     @State private var isSending = false
     @State private var didPerformInitialScroll = false
+    @State private var isMuted = false
     @State private var participantsByID: [String: SocialUser] = [:]
     @State private var selectedProfileUser: SocialUser?
 #if canImport(FirebaseFirestore)
@@ -2113,9 +2097,25 @@ private struct GroupChatSheet: View {
                             Label("Back", systemImage: "chevron.left")
                         }
                     }
+
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            let nextValue = !isMuted
+                            Task {
+                                await socialManager.setChatMuted(nextValue, for: reference)
+                                await MainActor.run {
+                                    isMuted = nextValue
+                                }
+                            }
+                        } label: {
+                            Image(systemName: isMuted ? "bell.slash.fill" : "bell.badge.fill")
+                        }
+                        .accessibilityLabel(isMuted ? "Unmute chat notifications" : "Mute chat notifications")
+                    }
                 }
                 .task(id: reference.id) {
                     socialManager.setActiveGroupChat(id: reference.id)
+                    isMuted = socialManager.isChatMuted(reference)
                     await startListening(proxy: proxy)
                 }
                 .onChange(of: messages.count) { _, newCount in

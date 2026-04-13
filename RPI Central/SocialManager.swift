@@ -48,6 +48,7 @@ final class SocialManager: ObservableObject {
     private let deliveredSocialAlertIDsKey = "social.delivered_alert_ids_v1"
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
+    private let mutedGroupChatIDsKey = "social.muted_group_chat_ids_v1"
     private let chatPushRelayBaseURLKey = "chat_push_relay_base_url_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
@@ -229,6 +230,23 @@ final class SocialManager: ObservableObject {
     func setActiveGroupChat(id: String?) {
         activeGroupChatID = id
         NotificationManager.setActiveSocialContextID(id)
+    }
+
+    func isChatMuted(_ reference: SocialGroupChatReference) -> Bool {
+        mutedGroupChatIDs.contains(reference.id)
+    }
+
+    func setChatMuted(_ muted: Bool, for reference: SocialGroupChatReference) async {
+        var updated = mutedGroupChatIDs
+        if muted {
+            updated.insert(reference.id)
+        } else {
+            updated.remove(reference.id)
+        }
+
+        UserDefaults.standard.set(Array(updated).sorted(), forKey: mutedGroupChatIDsKey)
+        objectWillChange.send()
+        await syncPushRegistrationIfPossible()
     }
 
     func syncPushNotificationPreferences() async {
@@ -2088,6 +2106,7 @@ final class SocialManager: ObservableObject {
             "bundleID": Bundle.main.bundleIdentifier ?? "RPI Central",
             "feedNotificationsEnabled": socialFeedNotificationsEnabled,
             "groupNotificationsEnabled": socialGroupNotificationsEnabled,
+            "mutedGroupChatIDs": Array(mutedGroupChatIDs).sorted(),
             "remoteNotificationsRegistered": NotificationManager.canReceiveRemotePush,
             "updatedAt": nowISO(),
         ]
@@ -2724,6 +2743,10 @@ final class SocialManager: ObservableObject {
                 delivered.insert(alert.id)
                 continue
             }
+            if alert.type == "groupMessage", isMutedChatContext(alert.contextID) {
+                delivered.insert(alert.id)
+                continue
+            }
             guard shouldDeliverSocialAlert(alert) else {
                 delivered.insert(alert.id)
                 continue
@@ -2763,6 +2786,19 @@ final class SocialManager: ObservableObject {
             return true
         }
         return UserDefaults.standard.bool(forKey: socialGroupNotificationsEnabledKey)
+    }
+
+    private var mutedGroupChatIDs: Set<String> {
+        Set(
+            (UserDefaults.standard.stringArray(forKey: mutedGroupChatIDsKey) ?? [])
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private func isMutedChatContext(_ contextID: String?) -> Bool {
+        guard let contextID, !contextID.isEmpty else { return false }
+        return mutedGroupChatIDs.contains(contextID)
     }
 
     private var isAppActive: Bool {
