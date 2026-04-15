@@ -57,9 +57,27 @@ struct SemesterGPAOverride: Codable, Equatable {
     var credits: Double
 }
 
+enum HomeDashboardWidgetSize: String, CaseIterable, Identifiable, Codable {
+    case oneByOne = "1x1"
+    case oneByTwo = "1x2"
+    case twoByTwo = "2x2"
+
+    var id: String { rawValue }
+    var displayName: String { rawValue.replacingOccurrences(of: "x", with: "×") }
+
+    var columnSpan: Int {
+        self == .oneByOne ? 1 : 2
+    }
+
+    var height: CGFloat {
+        self == .twoByTwo ? 332 : 160
+    }
+}
+
 enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
     case shuttleTracker
     case diningHours
+    case next
     case upcoming
     case mealSwipes
     case flexDollars
@@ -71,10 +89,52 @@ enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .shuttleTracker: return "Shuttle Tracker"
         case .diningHours: return "Dining Hours"
+        case .next: return "Next"
         case .upcoming: return "Upcoming Assignments"
         case .mealSwipes: return "Meal Swipes"
         case .flexDollars: return "Flex Dollars"
         case .studyTimer: return "Study Timer"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .shuttleTracker: return "bus.fill"
+        case .diningHours: return "fork.knife"
+        case .next: return "clock.fill"
+        case .upcoming: return "checklist"
+        case .mealSwipes: return "fork.knife.circle"
+        case .flexDollars: return "dollarsign.circle.fill"
+        case .studyTimer: return "timer"
+        }
+    }
+
+    var widgetTitle: String {
+        switch self {
+        case .shuttleTracker: return "Shuttle"
+        case .diningHours: return "Dining"
+        case .upcoming: return "Upcoming"
+        default: return title
+        }
+    }
+
+    var supportedWidgetSizes: [HomeDashboardWidgetSize] {
+        switch self {
+        case .next, .upcoming:
+            return [.oneByTwo, .twoByTwo]
+        case .shuttleTracker, .mealSwipes, .studyTimer:
+            return [.oneByOne, .oneByTwo]
+        case .diningHours, .flexDollars:
+            return HomeDashboardWidgetSize.allCases
+        }
+    }
+
+    var defaultWidgetSize: HomeDashboardWidgetSize {
+        switch self {
+        case .next, .upcoming, .flexDollars:
+            return .oneByTwo
+        case .shuttleTracker, .diningHours, .mealSwipes, .studyTimer:
+            return .oneByOne
         }
     }
 }
@@ -101,7 +161,7 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    @Published var currentSemester: Semester = .spring2026 {
+    @Published var currentSemester: Semester = .fall2026 {
         didSet {
             UserDefaults.standard.set(currentSemester.rawValue, forKey: currentSemesterKey)
         }
@@ -142,13 +202,21 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    private struct StoredHomeDashboardPreferences: Codable {
+        let order: [String]
+        let hidden: [String]
+        let sizes: [String: String]
+        let updatedAt: Date
+    }
+
+    private static let homeDashboardPreferencesKey = "settings_home_dashboard_preferences_v2"
+
     private let themeColorKey = "settings_theme_color_v1"
     private let appearanceModeKey = "settings_appearance_mode_v1"
     private let notificationsEnabledKey = "settings_notifications_enabled_v1"
     private let minutesBeforeClassKey   = "settings_minutes_before_class_v1"
-    private let homeSectionOrderKey = "settings_home_section_order_v1"
-    private let hiddenHomeSectionsKey = "settings_hidden_home_sections_v1"
     private let currentSemesterKey = "settings_current_term_v1"
+    private let fall2026CurrentSemesterMigrationKey = "settings_current_term.migratedToFall2026.v1"
     private let visibleSemesterKey = "settings_visible_term_v1"
     private let academicHistoryStartSemesterKey = "settings_academic_history_start_semester_v1"
     private let semesterGPAOverridesKey = "settings_semester_gpa_overrides_v1"
@@ -195,6 +263,10 @@ final class CalendarViewModel: ObservableObject {
         didSet { saveHomeSectionPreferences() }
     }
 
+    @Published var homeSectionSizes: [HomeDashboardSection: HomeDashboardWidgetSize] = [:] {
+        didSet { saveHomeSectionPreferences() }
+    }
+
     @Published var academicHistoryStartSemester: Semester = .fall2024 {
         didSet {
             UserDefaults.standard.set(academicHistoryStartSemester.rawValue, forKey: academicHistoryStartSemesterKey)
@@ -237,6 +309,9 @@ final class CalendarViewModel: ObservableObject {
 
     @Published private(set) var academicEventsLoaded: Bool = false
     @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:]
+    @Published private(set) var loadingAcademicYearStarts: Set<Int> = []
+    @Published private(set) var loadingTermBoundsSemesterCodes: Set<String> = []
+    @Published private(set) var refreshingEnrollmentSemesterCodes: Set<String> = []
     @Published var lmsCalendarFeedURL: String = "" {
         didSet {
             UserDefaults.standard.set(lmsCalendarFeedURL, forKey: lmsCalendarFeedURLKey)
@@ -260,62 +335,65 @@ final class CalendarViewModel: ObservableObject {
         }
     }
     
-    //Notifcation shit
     private func applyNotificationScheduling() {
-        // if disabled, wipe pending requests
         if !notificationsEnabled {
-            NotificationManager.clearScheduledNotifications()
-            NotificationManager.clearAllTaskNotifications()
+            NotificationManager.clearManagedCalendarNotifications()
             return
         }
 
         NotificationManager.requestAuthorization()
 
-        // reschedule everything
-        NotificationManager.clearScheduledNotifications()
-        NotificationManager.clearAllTaskNotifications()
+        let now = Date()
+        let classMeetings = notificationClassMeetings(now: now)
+        let storedTaskList = storedTasks()
+        let lmsEvents = notificationEligibleLMSImportedEvents()
 
-        // --- ✅ Only schedule current-semester class notifications ---
-        // Determine current semester code
-        let currentCode: String? = currentSemester.rawValue
-
-        // Build a fast lookup: enrollmentID -> semesterCode
-        let enrollmentSemesterByID: [String: String] = Dictionary(
-            uniqueKeysWithValues: enrolledCourses.map { ($0.id, $0.semesterCode) }
+        NotificationManager.replaceManagedCalendarNotifications(
+            classEvents: classMeetings,
+            minutesBeforeClass: minutesBeforeClass,
+            tasks: storedTaskList,
+            lmsEvents: lmsEvents,
+            now: now
         )
 
-        // Filter to current-semester class meetings only
-        let classMeetings = events.filter { ev in
-            guard !ev.isAllDay, ev.kind == .classMeeting else { return false }
-
-            // If we don't have a current semester, fall back to scheduling everything (safe fallback)
-            guard let currentCode else { return true }
-
-            // If event isn't tied to an enrollment (manual event), keep it (or change to false if you want)
-            guard let eid = ev.enrollmentID else { return true }
-
-            // Only schedule if the enrollment's semester matches current semester
-            return enrollmentSemesterByID[eid] == currentCode
-        }
-
-        for ev in classMeetings {
-            NotificationManager.scheduleNotification(for: ev, minutesBefore: minutesBeforeClass)
-        }
-
-        let storedTaskList = storedTasks()
-        for task in storedTaskList {
-            for offset in task.reminderOffsetsMinutes {
-                NotificationManager.scheduleTaskReminder(task: task, minutesBefore: offset)
-            }
-        }
-
         #if DEBUG
-        if let currentCode {
-            print("🔔 Rescheduled notifications (current semester only):", classMeetings.count, "semester:", currentCode, "lead:", minutesBeforeClass, "tasks:", storedTaskList.count)
-        } else {
-            print("🔔 Rescheduled notifications (no current semester set):", classMeetings.count, "events", "lead:", minutesBeforeClass, "tasks:", storedTaskList.count)
-        }
+        print("🔔 Prepared upcoming reminders:", classMeetings.count, "classes", "semester:", currentSemester.rawValue, "lead:", minutesBeforeClass, "tasks:", storedTaskList.count, "lms:", lmsEvents.count)
         #endif
+    }
+
+    func notificationClassMeetings(now: Date = Date(), lookAheadDays: Int = 45) -> [ClassEvent] {
+        guard lookAheadDays >= 0,
+              let termBounds = termBoundsBySemesterCode[currentSemester.rawValue] else { return [] }
+
+        let currentEnrollmentIDs = Set(
+            enrolledCourses
+                .filter { $0.semesterCode == currentSemester.rawValue }
+                .map(\.id)
+        )
+        guard !currentEnrollmentIDs.isEmpty else { return [] }
+
+        let today = calendar.startOfDay(for: now)
+        let termStart = calendar.startOfDay(for: termBounds.start)
+        let termEnd = calendar.startOfDay(for: termBounds.end)
+        let firstDay = max(today, termStart)
+        let horizon = calendar.date(byAdding: .day, value: lookAheadDays, to: today) ?? today
+        let lastDay = min(termEnd, horizon)
+        guard firstDay <= lastDay else { return [] }
+
+        var result: [ClassEvent] = []
+        var day = firstDay
+        while day <= lastDay {
+            result.append(contentsOf: events(on: day).filter { event in
+                guard event.kind == .classMeeting,
+                      event.startDate > now,
+                      let enrollmentID = event.enrollmentID else { return false }
+                return currentEnrollmentIDs.contains(enrollmentID)
+            })
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = nextDay
+        }
+
+        return result.sorted { $0.startDate < $1.startDate }
     }
 
     // MARK: - GPA / Grades (per enrollment)
@@ -400,7 +478,7 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    private static func defaultCurrentSemester(for date: Date = Date()) -> Semester {
+    static func defaultCurrentSemester(for date: Date = Date()) -> Semester {
         let components = Calendar.current.dateComponents([.year, .month], from: date)
         let year = components.year ?? 2026
         let month = components.month ?? 1
@@ -414,7 +492,7 @@ final class CalendarViewModel: ObservableObject {
             code = "\(year)01"
         }
 
-        return Semester(rawValue: code) ?? .spring2026
+        return Semester(rawValue: code) ?? .fall2026
     }
 
     init() {
@@ -457,14 +535,22 @@ final class CalendarViewModel: ObservableObject {
 
         let savedMinutes = UserDefaults.standard.integer(forKey: minutesBeforeClassKey)
         self.minutesBeforeClass = savedMinutes == 0 ? 10 : savedMinutes
-        if let raw = UserDefaults.standard.string(forKey: currentSemesterKey),
-           let semester = Semester(rawValue: raw) {
-            self.currentSemester = semester
+        let storedCurrentSemester = UserDefaults.standard
+            .string(forKey: currentSemesterKey)
+            .flatMap(Semester.init(rawValue:))
+        let needsFall2026Migration = !UserDefaults.standard.bool(forKey: fall2026CurrentSemesterMigrationKey)
+
+        if needsFall2026Migration, storedCurrentSemester == nil || storedCurrentSemester == .spring2026 {
+            self.currentSemester = .fall2026
+            UserDefaults.standard.set(Semester.fall2026.rawValue, forKey: currentSemesterKey)
+        } else if let storedCurrentSemester {
+            self.currentSemester = storedCurrentSemester
         } else {
             let fallbackCurrent = Self.defaultCurrentSemester(for: today)
             self.currentSemester = fallbackCurrent
             UserDefaults.standard.set(fallbackCurrent.rawValue, forKey: currentSemesterKey)
         }
+        UserDefaults.standard.set(true, forKey: fall2026CurrentSemesterMigrationKey)
         if let raw = UserDefaults.standard.string(forKey: visibleSemesterKey),
            let semester = Semester(rawValue: raw) {
             self.visibleSemester = semester
@@ -474,6 +560,7 @@ final class CalendarViewModel: ObservableObject {
         }
         self.homeSectionOrder = Self.loadHomeSectionOrder()
         self.hiddenHomeSections = Self.loadHiddenHomeSections()
+        self.homeSectionSizes = Self.loadHomeSectionSizes()
         if let raw = UserDefaults.standard.string(forKey: academicHistoryStartSemesterKey),
            let semester = Semester(rawValue: raw) {
             self.academicHistoryStartSemester = semester
@@ -540,6 +627,7 @@ final class CalendarViewModel: ObservableObject {
         // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
         publishWidgetSnapshot()
         applyNotificationScheduling()
+        refreshCurrentSemesterEnrollmentDetails()
     }
 
     deinit {
@@ -561,15 +649,57 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func moveHomeSections(from source: IndexSet, to destination: Int) {
-        homeSectionOrder.move(fromOffsets: source, toOffset: destination)
+        var updatedOrder = homeSectionOrder
+        updatedOrder.move(fromOffsets: source, toOffset: destination)
+        guard updatedOrder != homeSectionOrder else { return }
+
+        // Assigning a fresh value guarantees the Published observer and the
+        // atomic dashboard-preferences write both run before the drag ends.
+        homeSectionOrder = updatedOrder
+    }
+
+    func homeWidgetSize(for section: HomeDashboardSection) -> HomeDashboardWidgetSize {
+        let stored = homeSectionSizes[section] ?? section.defaultWidgetSize
+        return section.supportedWidgetSizes.contains(stored) ? stored : section.defaultWidgetSize
+    }
+
+    func setHomeWidgetSize(_ size: HomeDashboardWidgetSize, for section: HomeDashboardSection) {
+        guard section.supportedWidgetSizes.contains(size) else { return }
+        homeSectionSizes[section] = size
     }
 
     private func saveHomeSectionPreferences() {
-        let order = homeSectionOrder.map(\.rawValue)
-        UserDefaults.standard.set(order, forKey: homeSectionOrderKey)
+        Self.saveHomeDashboardPreferences(
+            order: homeSectionOrder,
+            hidden: hiddenHomeSections,
+            sizes: homeSectionSizes
+        )
+    }
 
-        let hidden = hiddenHomeSections.map(\.rawValue)
-        UserDefaults.standard.set(hidden, forKey: hiddenHomeSectionsKey)
+    static func saveHomeDashboardPreferences(
+        order: [HomeDashboardSection],
+        hidden: Set<HomeDashboardSection>,
+        sizes: [HomeDashboardSection: HomeDashboardWidgetSize],
+        to defaults: UserDefaults = .standard
+    ) {
+        let rawOrder = order.map(\.rawValue)
+        defaults.set(rawOrder, forKey: "settings_home_section_order_v1")
+
+        let rawHidden = hidden.map(\.rawValue)
+        defaults.set(rawHidden, forKey: "settings_hidden_home_sections_v1")
+
+        let rawSizes = Dictionary(uniqueKeysWithValues: sizes.map { ($0.key.rawValue, $0.value.rawValue) })
+        defaults.set(rawSizes, forKey: "settings_home_section_sizes_v1")
+
+        let snapshot = StoredHomeDashboardPreferences(
+            order: rawOrder,
+            hidden: rawHidden.sorted(),
+            sizes: rawSizes,
+            updatedAt: Date()
+        )
+        if let data = try? JSONEncoder().encode(snapshot) {
+            defaults.set(data, forKey: Self.homeDashboardPreferencesKey)
+        }
     }
 
     private func saveSemesterGPAOverrides() {
