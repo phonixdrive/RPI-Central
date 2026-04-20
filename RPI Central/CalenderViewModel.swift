@@ -707,15 +707,22 @@ final class CalendarViewModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: semesterGPAOverridesKey)
     }
 
-    private static func loadHomeSectionOrder() -> [HomeDashboardSection] {
-        let rawOrder = UserDefaults.standard.stringArray(forKey: "settings_home_section_order_v1") ?? []
+    static func loadHomeSectionOrder(from defaults: UserDefaults = .standard) -> [HomeDashboardSection] {
+        let rawOrder = loadStoredHomeDashboardPreferences(from: defaults)?.order
+            ?? defaults.stringArray(forKey: "settings_home_section_order_v1")
+            ?? []
         let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
         guard !saved.isEmpty else { return HomeDashboardSection.allCases }
 
-        var merged = saved
+        var merged: [HomeDashboardSection] = []
+        for section in saved where !merged.contains(section) {
+            merged.append(section)
+        }
         for section in HomeDashboardSection.allCases where !merged.contains(section) {
             if section == .diningHours, let shuttleIndex = merged.firstIndex(of: .shuttleTracker) {
                 merged.insert(section, at: shuttleIndex + 1)
+            } else if section == .next, let upcomingIndex = merged.firstIndex(of: .upcoming) {
+                merged.insert(section, at: upcomingIndex)
             } else if section == .flexDollars, let mealIndex = merged.firstIndex(of: .mealSwipes) {
                 merged.insert(section, at: mealIndex + 1)
             } else {
@@ -725,9 +732,32 @@ final class CalendarViewModel: ObservableObject {
         return merged
     }
 
-    private static func loadHiddenHomeSections() -> Set<HomeDashboardSection> {
-        let rawHidden = UserDefaults.standard.stringArray(forKey: "settings_hidden_home_sections_v1") ?? []
+    static func loadHiddenHomeSections(from defaults: UserDefaults = .standard) -> Set<HomeDashboardSection> {
+        let rawHidden = loadStoredHomeDashboardPreferences(from: defaults)?.hidden
+            ?? defaults.stringArray(forKey: "settings_hidden_home_sections_v1")
+            ?? []
         return Set(rawHidden.compactMap(HomeDashboardSection.init(rawValue:)))
+    }
+
+    static func loadHomeSectionSizes(from defaults: UserDefaults = .standard) -> [HomeDashboardSection: HomeDashboardWidgetSize] {
+        let rawSizes = loadStoredHomeDashboardPreferences(from: defaults)?.sizes
+            ?? defaults.dictionary(forKey: "settings_home_section_sizes_v1") as? [String: String]
+            ?? [:]
+        return Dictionary(uniqueKeysWithValues: rawSizes.compactMap { key, value in
+            guard let section = HomeDashboardSection(rawValue: key),
+                  let size = HomeDashboardWidgetSize(rawValue: value),
+                  section.supportedWidgetSizes.contains(size) else {
+                return nil
+            }
+            return (section, size)
+        })
+    }
+
+    private static func loadStoredHomeDashboardPreferences(from defaults: UserDefaults) -> StoredHomeDashboardPreferences? {
+        guard let data = defaults.data(forKey: homeDashboardPreferencesKey) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(StoredHomeDashboardPreferences.self, from: data)
     }
 
     private static func loadSemesterGPAOverrides() -> [String: SemesterGPAOverride] {
@@ -837,6 +867,27 @@ final class CalendarViewModel: ObservableObject {
             return []
         }
         return decoded
+    }
+
+    private func notificationEligibleLMSImportedEvents(now: Date = Date()) -> [StoredPersonalEvent] {
+        let currentTermBounds = termBoundsBySemesterCode[currentSemester.rawValue]
+
+        return lmsImportedPersonalEvents().filter { event in
+            let dueDate: Date
+            if event.isAllDay ?? false {
+                dueDate = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: event.startDate) ?? event.startDate
+            } else {
+                dueDate = event.startDate
+            }
+
+            guard dueDate > now else { return false }
+            guard let currentTermBounds else { return true }
+
+            let eventDay = Calendar.current.startOfDay(for: event.startDate)
+            let boundsStart = Calendar.current.startOfDay(for: currentTermBounds.start)
+            let boundsEnd = Calendar.current.startOfDay(for: currentTermBounds.end)
+            return boundsStart <= eventDay && eventDay <= boundsEnd
+        }
     }
 
     private func hasExamTask(for enrollmentID: String?, on date: Date, tasks: [CourseTask]? = nil) -> Bool {
@@ -1361,6 +1412,9 @@ final class CalendarViewModel: ObservableObject {
     func ensureTermBoundsLoaded(for semester: Semester) {
         let code = semester.rawValue
         if termBoundsBySemesterCode[code] != nil { return }
+        if loadingTermBoundsSemesterCodes.contains(code) { return }
+
+        loadingTermBoundsSemesterCodes.insert(code)
 
         if !attemptedTermBoundsCodes.contains(code) {
             attemptedTermBoundsCodes.insert(code)
@@ -1375,15 +1429,20 @@ final class CalendarViewModel: ObservableObject {
             switch result {
             case .success(let bounds):
                 DispatchQueue.main.async {
+                    self.loadingTermBoundsSemesterCodes.remove(code)
                     self.termBoundsBySemesterCode[code] = DateInterval(start: bounds.start, end: bounds.end)
                     self.objectWillChange.send()
                     self.refreshSemesterWindow(anchorPreferred: nil)
                     self.refreshBootLoadingStateIfPossible()
                     self.scheduleWidgetSnapshotPublish() // ✅ term gating can change widget "up next"
+                    self.applyNotificationScheduling()
                 }
             case .failure(let err):
                 print("❌ Failed to load term bounds for \(semester.displayName):", err)
-                DispatchQueue.main.async { self.refreshBootLoadingStateIfPossible() }
+                DispatchQueue.main.async {
+                    self.loadingTermBoundsSemesterCodes.remove(code)
+                    self.refreshBootLoadingStateIfPossible()
+                }
             }
         }
     }
@@ -1402,6 +1461,9 @@ final class CalendarViewModel: ObservableObject {
     func ensureAcademicEventsLoaded(for semester: Semester) {
         let ayStart = academicYearStart(for: semester)
         if loadedAcademicYearStarts.contains(ayStart) { return }
+        if loadingAcademicYearStarts.contains(ayStart) { return }
+
+        loadingAcademicYearStarts.insert(ayStart)
 
         if !attemptedAcademicYearStarts.contains(ayStart) {
             attemptedAcademicYearStarts.insert(ayStart)
@@ -1415,6 +1477,7 @@ final class CalendarViewModel: ObservableObject {
             switch result {
             case .success(let evs):
                 DispatchQueue.main.async {
+                    self.loadingAcademicYearStarts.remove(ayStart)
                     self.addAcademicEvents(evs)
                     self.loadedAcademicYearStarts.insert(ayStart)
                     self.academicEventsLoaded = true
@@ -1423,7 +1486,10 @@ final class CalendarViewModel: ObservableObject {
                 }
             case .failure(let err):
                 print("❌ Failed to load academic events for \(semester.displayName):", err)
-                DispatchQueue.main.async { self.refreshBootLoadingStateIfPossible() }
+                DispatchQueue.main.async {
+                    self.loadingAcademicYearStarts.remove(ayStart)
+                    self.refreshBootLoadingStateIfPossible()
+                }
             }
         }
     }
@@ -1698,6 +1764,7 @@ final class CalendarViewModel: ObservableObject {
         updateBootLoadingStatus()
         refreshSemesterWindow(anchorPreferred: newSemester)
         scheduleWidgetSnapshotPublish()
+        refreshCurrentSemesterEnrollmentDetails()
     }
 
     func changeVisibleSemester(to newSemester: Semester) {
@@ -1747,6 +1814,122 @@ final class CalendarViewModel: ObservableObject {
     }
 
     // MARK: - Enrollment helpers
+
+    /// Replaces persisted current-term course snapshots with the newest bundled
+    /// catalog records. Enrollment IDs remain stable, so grades, notes, overrides,
+    /// and other user-entered data continue to point at the same enrollment.
+    static func refreshedEnrollmentSnapshots(
+        _ enrollments: [EnrolledCourse],
+        from catalogCourses: [Course],
+        for semester: Semester
+    ) -> [EnrolledCourse] {
+        let coursesByID = Dictionary(catalogCourses.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        return enrollments.map { enrollment in
+            guard enrollment.semesterCode == semester.rawValue,
+                  let currentCourse = coursesByID[enrollment.course.id]
+            else {
+                return enrollment
+            }
+
+            let currentSection: CourseSection?
+            if let crn = enrollment.section.crn {
+                currentSection = currentCourse.sections.first { $0.crn == crn }
+            } else {
+                currentSection = currentCourse.sections.first { $0.section == enrollment.section.section }
+            }
+
+            guard let currentSection else { return enrollment }
+            return EnrolledCourse(
+                id: enrollment.id,
+                course: currentCourse,
+                section: currentSection,
+                semesterCode: enrollment.semesterCode
+            )
+        }
+    }
+
+    /// A stable value used to re-sync shared schedules when a room, instructor,
+    /// time, or seat record changes without changing the number of enrollments.
+    var currentEnrollmentScheduleFingerprint: String {
+        enrolledCourses
+            .filter { $0.semesterCode == currentSemester.rawValue }
+            .sorted { $0.id < $1.id }
+            .map { enrollment in
+                let meetings = enrollment.section.meetings.map { meeting in
+                    let days = meeting.days.map(\.rawValue).joined()
+                    return "\(days),\(meeting.start),\(meeting.end),\(meeting.location)"
+                }.joined(separator: ";")
+
+                return [
+                    enrollment.id,
+                    enrollment.course.title,
+                    enrollment.section.section,
+                    enrollment.section.instructor,
+                    meetings
+                ].joined(separator: ",")
+            }
+            .joined(separator: "|")
+    }
+
+    func refreshCurrentSemesterEnrollmentDetails() {
+        let semester = currentSemester
+        let semesterCode = semester.rawValue
+        guard !refreshingEnrollmentSemesterCodes.contains(semesterCode) else { return }
+
+        refreshingEnrollmentSemesterCodes.insert(semesterCode)
+
+        Task.detached(priority: .utility) { [weak self, semester, semesterCode] in
+            do {
+                let catalogCourses = try QuACSLoader.buildCourses(termCode: semester.rawValue)
+                guard !Task.isCancelled else {
+                    await MainActor.run { [weak self] in
+                        _ = self?.refreshingEnrollmentSemesterCodes.remove(semesterCode)
+                    }
+                    return
+                }
+
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    defer { self.refreshingEnrollmentSemesterCodes.remove(semesterCode) }
+                    guard self.currentSemester == semester else { return }
+                    self.refreshCurrentSemesterEnrollmentDetails(from: catalogCourses, for: semester)
+                }
+            } catch {
+                print("Could not refresh saved \(semester.displayName) course details:", error)
+                await MainActor.run { [weak self] in
+                    _ = self?.refreshingEnrollmentSemesterCodes.remove(semesterCode)
+                }
+            }
+        }
+    }
+
+    func refreshCurrentSemesterEnrollmentDetails(
+        from catalogCourses: [Course],
+        for semester: Semester
+    ) {
+        guard semester == currentSemester, !catalogCourses.isEmpty else { return }
+
+        let refreshed = Self.refreshedEnrollmentSnapshots(
+            enrolledCourses,
+            from: catalogCourses,
+            for: semester
+        )
+        let encoder = JSONEncoder()
+        guard let oldData = try? encoder.encode(enrolledCourses),
+              let refreshedData = try? encoder.encode(refreshed),
+              oldData != refreshedData
+        else {
+            return
+        }
+
+        withWidgetPublishingSuppressed {
+            enrolledCourses = refreshed
+            saveEnrollment()
+            rebuildEventsFromEnrollment()
+        }
+        applyNotificationScheduling()
+    }
 
     private func enrollmentID(for course: Course, section: CourseSection) -> String {
         let crnText = section.crn.map(String.init) ?? "NA"
@@ -2025,13 +2208,20 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Add/remove a course section
 
-    func addCourseSection(_ section: CourseSection, course: Course, semester: Semester? = nil) {
+    func addCourseSection(
+        _ section: CourseSection,
+        course: Course,
+        semester: Semester? = nil,
+        allowFullSection: Bool = false
+    ) {
         let targetSemester = semester ?? currentSemester
         let semesterCode = targetSemester.rawValue
         let id = enrollmentID(for: course, section: section)
         if enrolledCourses.contains(where: { $0.id == id && $0.semesterCode == semesterCode }) { return }
 
         ensureTermBoundsLoaded(for: targetSemester)
+        if section.isRegistrationClosed { return }
+        if section.isFullForRegistration && !allowFullSection { return }
         if hasTimeConflict(for: section, semesterCode: semesterCode) { return }
 
         let missing = missingPrerequisites(for: course)
@@ -2530,7 +2720,43 @@ final class CalendarViewModel: ObservableObject {
             }
     }
 
+    func replaceSystemCalendarEvents(_ importedEvents: [ImportedSystemCalendarEvent]) {
+        let sourceKind = "systemCalendar"
+        let existingIDs = Dictionary(
+            uniqueKeysWithValues: personalEvents.compactMap { event -> (String, UUID)? in
+                guard event.externalSourceKind == sourceKind,
+                      let sourceID = event.externalSourceID else { return nil }
+                return (sourceID, event.id)
+            }
+        )
+
+        personalEvents.removeAll { $0.externalSourceKind == sourceKind }
+        personalEvents.append(contentsOf: importedEvents.map { event in
+            StoredPersonalEvent(
+                id: existingIDs[event.sourceID] ?? UUID(),
+                title: event.title,
+                location: event.location,
+                startDate: event.startDate,
+                endDate: event.endDate,
+                seriesID: nil,
+                shareMode: .none,
+                sharedFriendIDs: [],
+                sharedGroupIDs: [],
+                externalSourceKind: sourceKind,
+                externalSourceID: event.sourceID,
+                relatedEnrollmentID: matchedEnrollmentForImportedEvent(title: event.title, on: event.startDate)?.id,
+                isAllDay: event.isAllDay
+            )
+        })
+        savePersonalEvents()
+        rebuildEventsFromEnrollment()
+        applyNotificationScheduling()
+    }
+
     func hideLMSImportedEvent(_ event: StoredPersonalEvent) {
+        if let sourceID = event.externalSourceID, !sourceID.isEmpty {
+            NotificationManager.clearLMSNotifications(sourceID: sourceID)
+        }
         if let sourceID = event.externalSourceID, !sourceID.isEmpty {
             hiddenLMSCalendarEventSourceIDs.insert(sourceID)
             UserDefaults.standard.set(
@@ -2542,6 +2768,7 @@ final class CalendarViewModel: ObservableObject {
         personalEvents.removeAll { $0.id == event.id }
         savePersonalEvents()
         rebuildEventsFromEnrollment()
+        applyNotificationScheduling()
     }
 
     private var shouldAutoSyncLMSCalendarFeed: Bool {
@@ -2580,6 +2807,7 @@ final class CalendarViewModel: ObservableObject {
         personalEvents.append(contentsOf: importedStoredEvents)
         savePersonalEvents()
         rebuildEventsFromEnrollment()
+        applyNotificationScheduling()
     }
 
     private func matchedEnrollmentForImportedEvent(title: String, on date: Date) -> EnrolledCourse? {
@@ -2912,6 +3140,7 @@ final class CalendarViewModel: ObservableObject {
             showCampusWideGroup: showCampusWideGroup,
             homeSectionOrder: homeSectionOrder.map(\.rawValue),
             hiddenHomeSections: hiddenHomeSections.map(\.rawValue).sorted(),
+            homeSectionSizes: Dictionary(uniqueKeysWithValues: homeSectionSizes.map { ($0.key.rawValue, $0.value.rawValue) }),
             calendarDisplayMode: "week"
         )
 
@@ -2978,10 +3207,22 @@ final class CalendarViewModel: ObservableObject {
             let proposedOrder = snapshot.settings.homeSectionOrder.compactMap(HomeDashboardSection.init(rawValue:))
             var mergedOrder = proposedOrder
             for section in HomeDashboardSection.allCases where !mergedOrder.contains(section) {
-                mergedOrder.append(section)
+                if section == .next, let upcomingIndex = mergedOrder.firstIndex(of: .upcoming) {
+                    mergedOrder.insert(section, at: upcomingIndex)
+                } else {
+                    mergedOrder.append(section)
+                }
             }
             homeSectionOrder = mergedOrder
             hiddenHomeSections = Set(snapshot.settings.hiddenHomeSections.compactMap(HomeDashboardSection.init(rawValue:)))
+            homeSectionSizes = Dictionary(uniqueKeysWithValues: snapshot.settings.homeSectionSizes.compactMap { key, value in
+                guard let section = HomeDashboardSection(rawValue: key),
+                      let size = HomeDashboardWidgetSize(rawValue: value),
+                      section.supportedWidgetSizes.contains(size) else {
+                    return nil
+                }
+                return (section, size)
+            })
 
             enrolledCourses = snapshot.enrollments.compactMap(\.enrolledCourseValue)
             personalEvents = snapshot.personalEvents.compactMap(\.storedEventValue)
@@ -3018,6 +3259,7 @@ final class CalendarViewModel: ObservableObject {
 
         applyNotificationScheduling()
         objectWillChange.send()
+        refreshCurrentSemesterEnrollmentDetails()
     }
     
 }
