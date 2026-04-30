@@ -157,6 +157,59 @@ struct CourseSection: Codable, Identifiable {
     let prerequisitesText: String
     let prerequisiteExpression: PrerequisiteExpression?
     let credits: Double
+    let currentEnrollment: Int?
+    let enrollmentCap: Int?
+    let seatsRemaining: Int?
+
+    var isClosedForRegistration: Bool {
+        if let seatsRemaining {
+            return seatsRemaining <= 0
+        }
+        if let enrollmentCap {
+            return enrollmentCap <= 0
+        }
+        return false
+    }
+
+    var isRegistrationClosed: Bool {
+        enrollmentCap == 0
+    }
+
+    var isFullForRegistration: Bool {
+        isClosedForRegistration && !isRegistrationClosed
+    }
+
+    var seatStatusLabel: String? {
+        guard currentEnrollment != nil || enrollmentCap != nil || seatsRemaining != nil else { return nil }
+
+        if let seatsRemaining, seatsRemaining <= 0 {
+            if let enrollmentCap, enrollmentCap <= 0 {
+                return "Closed"
+            }
+            if let currentEnrollment, let enrollmentCap {
+                return "Full • \(currentEnrollment)/\(enrollmentCap)"
+            }
+            return "Full"
+        }
+
+        if let currentEnrollment, let enrollmentCap, let seatsRemaining {
+            return "\(currentEnrollment)/\(enrollmentCap) enrolled • \(seatsRemaining) left"
+        }
+
+        if let seatsRemaining {
+            return "\(seatsRemaining) seats left"
+        }
+
+        if let currentEnrollment, let enrollmentCap {
+            return "\(currentEnrollment)/\(enrollmentCap) enrolled"
+        }
+
+        if let enrollmentCap {
+            return "Cap \(enrollmentCap)"
+        }
+
+        return nil
+    }
 
     enum CodingKeys: String, CodingKey {
         case crn
@@ -166,6 +219,9 @@ struct CourseSection: Codable, Identifiable {
         case prerequisitesText
         case prerequisiteExpression
         case credits
+        case currentEnrollment
+        case enrollmentCap
+        case seatsRemaining
     }
 
     // Custom decode so section can be String or Int, etc.
@@ -190,6 +246,9 @@ struct CourseSection: Codable, Identifiable {
 
         // ✅ Key fix: old persisted data won't have this key, so default to 4.0 (not 0.0)
         credits = (try? container.decode(Double.self, forKey: .credits)) ?? 4.0
+        currentEnrollment = try? container.decode(Int.self, forKey: .currentEnrollment)
+        enrollmentCap = try? container.decode(Int.self, forKey: .enrollmentCap)
+        seatsRemaining = try? container.decode(Int.self, forKey: .seatsRemaining)
     }
 
     // Manual memberwise init so we can use this in builders/tests
@@ -200,7 +259,10 @@ struct CourseSection: Codable, Identifiable {
         meetings: [Meeting],
         prerequisitesText: String = "",
         prerequisiteExpression: PrerequisiteExpression? = nil,
-        credits: Double = 4.0
+        credits: Double = 4.0,
+        currentEnrollment: Int? = nil,
+        enrollmentCap: Int? = nil,
+        seatsRemaining: Int? = nil
     ) {
         self.crn = crn
         self.section = section
@@ -209,6 +271,9 @@ struct CourseSection: Codable, Identifiable {
         self.prerequisitesText = prerequisitesText
         self.prerequisiteExpression = prerequisiteExpression
         self.credits = credits
+        self.currentEnrollment = currentEnrollment
+        self.enrollmentCap = enrollmentCap
+        self.seatsRemaining = seatsRemaining
     }
 }
 

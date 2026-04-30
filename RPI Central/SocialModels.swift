@@ -14,6 +14,16 @@ struct SocialUser: Codable, Identifiable, Equatable {
     let sharedSectionKeys: [String]
 }
 
+struct SocialModerationState: Equatable {
+    let isBanned: Bool
+    let mutedUntil: Date?
+
+    func isMuted(at date: Date = Date()) -> Bool {
+        guard let mutedUntil else { return false }
+        return mutedUntil > date
+    }
+}
+
 struct SocialAuthResponse: Codable {
     let token: String
     let user: SocialUser
@@ -107,6 +117,7 @@ struct SocialCourseComment: Codable, Identifiable, Equatable {
 }
 
 enum SocialGroupChatSourceKind: String, Codable, Equatable {
+    case directMessage
     case manualGroup
     case classGroup
     case campusGroup
