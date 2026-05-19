@@ -20,6 +20,15 @@ enum NotificationManager {
     private static let pushFCMTokenKey = "push.fcm_token_v1"
     private static let pushAPNsRegisteredKey = "push.apns_registered_v1"
     private static let activeSocialContextIDKey = "social.active_context_id_v1"
+    private static let legacyClassNotificationMigrationKey = "notifications.classIdentifiersMigrated.v1"
+    private static let managedNotificationQueue = DispatchQueue(label: "rpiCentral.managedNotifications")
+    private static var managedNotificationRevision = 0
+    private static let maxManagedPendingNotifications = 60
+
+    private struct DatedNotificationRequest {
+        let deliveryDate: Date
+        let request: UNNotificationRequest
+    }
 
     struct SocialPushPayload {
         let alertID: String
@@ -139,8 +148,83 @@ enum NotificationManager {
 
     // MARK: - Clear
 
-    static func clearScheduledNotifications() {
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+    static func clearManagedCalendarNotifications() {
+        let center = UNUserNotificationCenter.current()
+
+        managedNotificationQueue.async {
+            managedNotificationRevision += 1
+            let revision = managedNotificationRevision
+
+            center.getPendingNotificationRequests { requests in
+                managedNotificationQueue.async {
+                    guard revision == managedNotificationRevision else { return }
+                    let identifiers = managedCalendarIdentifiersToRemove(from: requests)
+                    guard !identifiers.isEmpty else { return }
+                    center.removePendingNotificationRequests(withIdentifiers: identifiers)
+                }
+            }
+        }
+    }
+
+    static func replaceManagedCalendarNotifications(
+        classEvents: [ClassEvent],
+        minutesBeforeClass: Int,
+        tasks: [CourseTask],
+        lmsEvents: [StoredPersonalEvent],
+        now: Date = Date()
+    ) {
+        var desiredRequests = classEvents.compactMap {
+            classNotificationRequest(for: $0, minutesBefore: minutesBeforeClass, now: now)
+        }
+
+        desiredRequests.append(contentsOf: tasks.flatMap { task in
+            task.reminderOffsetsMinutes.compactMap {
+                taskNotificationRequest(task: task, minutesBefore: $0, now: now)
+            }
+        })
+
+        desiredRequests.append(contentsOf: lmsEvents.flatMap { event in
+            [1440, 60].compactMap {
+                lmsNotificationRequest(event: event, minutesBefore: $0, now: now)
+            }
+        })
+
+        let requestsToSchedule = Array(
+            desiredRequests
+                .sorted { $0.deliveryDate < $1.deliveryDate }
+                .prefix(maxManagedPendingNotifications)
+        )
+        let center = UNUserNotificationCenter.current()
+
+        managedNotificationQueue.async {
+            managedNotificationRevision += 1
+            let revision = managedNotificationRevision
+
+            center.getPendingNotificationRequests { requests in
+                managedNotificationQueue.async {
+                    guard revision == managedNotificationRevision else { return }
+
+                    let identifiers = managedCalendarIdentifiersToRemove(from: requests)
+                    if !identifiers.isEmpty {
+                        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+                    }
+
+                    for datedRequest in requestsToSchedule {
+                        center.add(datedRequest.request)
+                    }
+
+                    #if DEBUG
+                    print(
+                        "🔔 Replaced managed reminders:",
+                        requestsToSchedule.count,
+                        "of",
+                        desiredRequests.count,
+                        "eligible"
+                    )
+                    #endif
+                }
+            }
+        }
     }
 
     /// Clears only notifications scheduled for a specific CourseTask
@@ -178,41 +262,55 @@ enum NotificationManager {
         }
     }
 
+    static func clearLMSNotifications(sourceID: String) {
+        let center = UNUserNotificationCenter.current()
+        let prefix = lmsNotificationPrefix(sourceID: sourceID)
+
+        center.getPendingNotificationRequests { requests in
+            let ids = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix(prefix) }
+
+            if !ids.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: ids)
+                #if DEBUG
+                print("🧹 Cleared \(ids.count) LMS notifications for", sourceID)
+                #endif
+            }
+        }
+    }
+
+    static func clearAllLMSNotifications() {
+        let center = UNUserNotificationCenter.current()
+
+        center.getPendingNotificationRequests { requests in
+            let ids = requests
+                .map(\.identifier)
+                .filter { $0.hasPrefix("lms.") }
+
+            guard !ids.isEmpty else { return }
+            center.removePendingNotificationRequests(withIdentifiers: ids)
+            #if DEBUG
+            print("🧹 Cleared all LMS notifications:", ids.count)
+            #endif
+        }
+    }
+
     // MARK: - Class reminder notifications
 
     static func scheduleNotification(for event: ClassEvent, minutesBefore: Int) {
-        guard minutesBefore >= 0 else { return }
-        // Don’t schedule for academic all-day events / holidays / breaks.
-        guard !event.isAllDay else { return }
+        guard let datedRequest = classNotificationRequest(
+            for: event,
+            minutesBefore: minutesBefore,
+            now: Date()
+        ) else { return }
 
-        let center = UNUserNotificationCenter.current()
-
-        let triggerDate = event.startDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))
-        guard triggerDate > Date() else { return } // don't schedule in the past
-
-        let content = UNMutableNotificationContent()
-        content.title = event.title
-        content.body = "Starts at \(timeString(event.startDate))"
-        content.sound = .default
-
-        let comps = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute],
-            from: triggerDate
-        )
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-
-        let request = UNNotificationRequest(
-            identifier: event.id.uuidString,
-            content: content,
-            trigger: trigger
-        )
-
-        center.add(request) { err in
+        UNUserNotificationCenter.current().add(datedRequest.request) { err in
             #if DEBUG
             if let err {
                 print("❌ Notification schedule failed:", err)
             } else {
-                print("✅ Scheduled:", event.title, "at", triggerDate)
+                print("✅ Scheduled:", event.title, "at", datedRequest.deliveryDate)
             }
             #endif
         }
@@ -249,49 +347,36 @@ enum NotificationManager {
     /// Schedules a reminder for a CourseTask `minutesBefore` due date.
     /// Example offsets: 10080 (7d), 1440 (1d), 60 (1h)
     static func scheduleTaskReminder(task: CourseTask, minutesBefore: Int) {
-        let center = UNUserNotificationCenter.current()
+        guard let datedRequest = taskNotificationRequest(
+            task: task,
+            minutesBefore: minutesBefore,
+            now: Date()
+        ) else { return }
 
-        let triggerDate = task.dueDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))
-        guard triggerDate > Date() else { return } // don't schedule in the past
-
-        let content = UNMutableNotificationContent()
-        content.title = task.title
-        content.sound = .default
-
-        let kindText = task.kind.label
-        let dueText = dateTimeString(task.dueDate)
-
-        if minutesBefore >= 1440 {
-            let days = minutesBefore / 1440
-            content.body = "\(kindText) due in \(days)d • \(dueText)"
-        } else if minutesBefore >= 60 {
-            let hrs = minutesBefore / 60
-            content.body = "\(kindText) due in \(hrs)h • \(dueText)"
-        } else {
-            content.body = "\(kindText) due soon • \(dueText)"
-        }
-
-        let comps = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute],
-            from: triggerDate
-        )
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-
-        // Stable identifier so we can delete/update them later
-        let id = taskNotificationID(taskID: task.id, minutesBefore: minutesBefore)
-
-        let request = UNNotificationRequest(
-            identifier: id,
-            content: content,
-            trigger: trigger
-        )
-
-        center.add(request) { err in
+        UNUserNotificationCenter.current().add(datedRequest.request) { err in
             #if DEBUG
             if let err {
                 print("❌ Task reminder failed:", err)
             } else {
                 print("✅ Task reminder scheduled:", task.title, "offset", minutesBefore, "mins")
+            }
+            #endif
+        }
+    }
+
+    static func scheduleLMSReminder(event: StoredPersonalEvent, minutesBefore: Int) {
+        guard let datedRequest = lmsNotificationRequest(
+            event: event,
+            minutesBefore: minutesBefore,
+            now: Date()
+        ) else { return }
+
+        UNUserNotificationCenter.current().add(datedRequest.request) { err in
+            #if DEBUG
+            if let err {
+                print("❌ LMS reminder failed:", err)
+            } else {
+                print("✅ LMS reminder scheduled:", event.title, "offset", minutesBefore, "mins")
             }
             #endif
         }
