@@ -452,12 +452,159 @@ enum NotificationManager {
 
     // MARK: - Helpers
 
+    private static func classNotificationRequest(
+        for event: ClassEvent,
+        minutesBefore: Int,
+        now: Date
+    ) -> DatedNotificationRequest? {
+        guard minutesBefore >= 0, !event.isAllDay, event.kind == .classMeeting else { return nil }
+
+        let deliveryDate = event.startDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))
+        guard deliveryDate > now else { return nil }
+
+        let content = UNMutableNotificationContent()
+        content.title = event.title
+        content.body = "Starts at \(timeString(event.startDate))"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: classNotificationID(for: event, minutesBefore: minutesBefore),
+            content: content,
+            trigger: calendarTrigger(for: deliveryDate)
+        )
+        return DatedNotificationRequest(deliveryDate: deliveryDate, request: request)
+    }
+
+    private static func taskNotificationRequest(
+        task: CourseTask,
+        minutesBefore: Int,
+        now: Date
+    ) -> DatedNotificationRequest? {
+        guard minutesBefore >= 0 else { return nil }
+        let deliveryDate = task.dueDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))
+        guard deliveryDate > now else { return nil }
+
+        let content = UNMutableNotificationContent()
+        content.title = task.title
+        content.sound = .default
+
+        let kindText = task.kind.label
+        let dueText = dateTimeString(task.dueDate)
+        if minutesBefore >= 1440 {
+            content.body = "\(kindText) due in \(minutesBefore / 1440)d • \(dueText)"
+        } else if minutesBefore >= 60 {
+            content.body = "\(kindText) due in \(minutesBefore / 60)h • \(dueText)"
+        } else {
+            content.body = "\(kindText) due soon • \(dueText)"
+        }
+
+        let request = UNNotificationRequest(
+            identifier: taskNotificationID(taskID: task.id, minutesBefore: minutesBefore),
+            content: content,
+            trigger: calendarTrigger(for: deliveryDate)
+        )
+        return DatedNotificationRequest(deliveryDate: deliveryDate, request: request)
+    }
+
+    private static func lmsNotificationRequest(
+        event: StoredPersonalEvent,
+        minutesBefore: Int,
+        now: Date
+    ) -> DatedNotificationRequest? {
+        guard minutesBefore >= 0,
+              let sourceID = normalizedValue(event.externalSourceID) else { return nil }
+
+        let dueDate = lmsReminderDueDate(for: event)
+        let deliveryDate = dueDate.addingTimeInterval(TimeInterval(-minutesBefore * 60))
+        guard deliveryDate > now else { return nil }
+
+        let content = UNMutableNotificationContent()
+        content.title = event.title
+        content.sound = .default
+
+        let dueText = dateTimeString(dueDate)
+        if minutesBefore >= 1440 {
+            content.body = "Blackboard item due in \(minutesBefore / 1440)d • \(dueText)"
+        } else if minutesBefore >= 60 {
+            content.body = "Blackboard item due in \(minutesBefore / 60)h • \(dueText)"
+        } else {
+            content.body = "Blackboard item due soon • \(dueText)"
+        }
+
+        let request = UNNotificationRequest(
+            identifier: lmsNotificationID(sourceID: sourceID, minutesBefore: minutesBefore),
+            content: content,
+            trigger: calendarTrigger(for: deliveryDate)
+        )
+        return DatedNotificationRequest(deliveryDate: deliveryDate, request: request)
+    }
+
+    private static func calendarTrigger(for deliveryDate: Date) -> UNCalendarNotificationTrigger {
+        let calendar = Calendar.autoupdatingCurrent
+        var components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: deliveryDate
+        )
+        components.timeZone = calendar.timeZone
+        return UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+    }
+
+    private static func classNotificationID(for event: ClassEvent, minutesBefore: Int) -> String {
+        "class.\(stableNotificationToken(from: event.interactionKey)).\(minutesBefore)m"
+    }
+
+    private static func isManagedCalendarNotificationIdentifier(_ identifier: String) -> Bool {
+        identifier.hasPrefix("class.") || identifier.hasPrefix("task.") || identifier.hasPrefix("lms.")
+    }
+
+    private static func managedCalendarIdentifiersToRemove(
+        from requests: [UNNotificationRequest]
+    ) -> [String] {
+        let shouldMigrateLegacyClassIDs = !UserDefaults.standard.bool(
+            forKey: legacyClassNotificationMigrationKey
+        )
+
+        let identifiers = requests
+            .map(\.identifier)
+            .filter { identifier in
+                isManagedCalendarNotificationIdentifier(identifier) ||
+                    (shouldMigrateLegacyClassIDs && UUID(uuidString: identifier) != nil)
+            }
+
+        if shouldMigrateLegacyClassIDs {
+            UserDefaults.standard.set(true, forKey: legacyClassNotificationMigrationKey)
+        }
+        return identifiers
+    }
+
     private static func taskNotificationPrefix(taskID: UUID) -> String {
         "task.\(taskID.uuidString)."
     }
 
     private static func taskNotificationID(taskID: UUID, minutesBefore: Int) -> String {
         "\(taskNotificationPrefix(taskID: taskID))\(minutesBefore)m"
+    }
+
+    private static func lmsNotificationPrefix(sourceID: String) -> String {
+        "lms.\(stableNotificationToken(from: sourceID))."
+    }
+
+    private static func lmsNotificationID(sourceID: String, minutesBefore: Int) -> String {
+        "\(lmsNotificationPrefix(sourceID: sourceID))\(minutesBefore)m"
+    }
+
+    private static func lmsReminderDueDate(for event: StoredPersonalEvent) -> Date {
+        guard event.isAllDay ?? false else { return event.startDate }
+        return Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: event.startDate) ?? event.startDate
+    }
+
+    private static func stableNotificationToken(from value: String) -> String {
+        var hash: UInt64 = 1469598103934665603
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
+        return String(hash, radix: 16)
     }
 
     private static func timeString(_ date: Date) -> String {
