@@ -13,13 +13,80 @@ import FirebaseAuth
 import FirebaseFirestore
 #endif
 
+enum GroupChatUnreadPolicy {
+    static func hasUnread(
+        latestMessageID: String?,
+        latestMessageDate: Date?,
+        latestSenderID: String?,
+        viewerID: String,
+        readMessageID: String?,
+        readMessageDate: Date?
+    ) -> Bool {
+        hasUnread(
+            latestMessageID: latestMessageID,
+            latestMessageDate: latestMessageDate,
+            latestSenderID: latestSenderID,
+            viewerID: viewerID,
+            readMessageID: readMessageID,
+            readMessageDate: readMessageDate,
+            latestThreadVersionWasAcknowledged: false
+        )
+    }
+
+    static func hasUnread(
+        latestMessageID: String?,
+        latestMessageDate: Date?,
+        latestSenderID: String?,
+        viewerID: String,
+        readMessageID: String?,
+        readMessageDate: Date?,
+        latestThreadVersionWasAcknowledged: Bool
+    ) -> Bool {
+        // A thread without an actual last sender has no messages. Messages sent by
+        // the viewer are also already read by definition.
+        guard let latestSenderID, latestSenderID != viewerID else { return false }
+        guard !latestThreadVersionWasAcknowledged else { return false }
+
+        guard let readMessageDate else { return true }
+
+        if let latestMessageID, latestMessageID == readMessageID {
+            return false
+        }
+
+        if let latestMessageDate {
+            if latestMessageDate > readMessageDate { return true }
+            if latestMessageDate < readMessageDate { return false }
+
+            // IDs disambiguate distinct messages created during the same second.
+            // Stale IDs are handled by the local acknowledged-version ledger.
+            if let latestMessageID, let readMessageID {
+                return latestMessageID != readMessageID
+            }
+            return false
+        }
+
+        // Malformed legacy timestamps can still use message identity safely.
+        if let latestMessageID {
+            return latestMessageID != readMessageID
+        }
+        return false
+    }
+}
+
 @MainActor
 final class SocialManager: ObservableObject {
     static let defaultChatPushRelayBaseURL = "https://rpi-central-web.onrender.com"
 
     private struct GroupChatThreadState {
         let updatedAt: String
+        let latestMessageID: String?
         let lastSenderID: String?
+    }
+
+    private struct StoredGroupChatReadReceipt: Codable, Equatable {
+        let messageID: String?
+        let messageAt: String
+        var acknowledgedThreadVersions: [String]? = nil
     }
 
     @Published private(set) var currentUser: SocialUser? {
@@ -41,6 +108,7 @@ final class SocialManager: ObservableObject {
     @Published private(set) var searchResults: [SocialSearchResult] = []
     @Published private(set) var quickAddSuggestions: [SocialSearchResult] = []
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
+    @Published private var friendScheduleCacheByFriendID: [String: FriendScheduleResponse] = [:]
     @Published private(set) var activeGroupChatID: String?
     @Published private var groupChatThreadStates: [String: GroupChatThreadState] = [:]
     @Published var isLoading: Bool = false
@@ -55,13 +123,16 @@ final class SocialManager: ObservableObject {
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
     private let mutedGroupChatIDsKey = "social.muted_group_chat_ids_v1"
-    private let groupChatLastSeenKey = "social.group_chat_last_seen_v1"
+    private let groupChatReadReceiptsKey = "social.group_chat_read_receipts_v2"
+    private let legacyGroupChatLastSeenKey = "social.group_chat_last_seen_v1"
+    private let legacyGroupChatLastSeenMessageIDKey = "social.group_chat_last_seen_message_ids_v1"
     private let chatPushRelayBaseURLKey = "chat_push_relay_base_url_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
     private var listenerRegistrations: [ListenerRegistration] = []
     private var activeListenerUserID: String?
+    private var realtimeMemberGroupChatIDs: Set<String> = []
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
     private var permissionRecoveryInFlight = false
 #endif
@@ -111,6 +182,70 @@ final class SocialManager: ObservableObject {
         isModeratorIdentity(currentUser)
     }
 
+    func canDeleteGroupChatMessage(_ message: SocialGroupChatMessage) -> Bool {
+        currentUser?.id == message.userID || canModerateSocialContent
+    }
+
+    func moderationState(for userID: String) async -> SocialModerationState {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            return try await loadModerationState(for: userID)
+        } catch {
+            return SocialModerationState(isBanned: false, mutedUntil: nil)
+        }
+#else
+        return SocialModerationState(isBanned: false, mutedUntil: nil)
+#endif
+    }
+
+    @discardableResult
+    func setUserBanned(_ banned: Bool, userID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canModerateSocialContent else {
+                throw SocialError.api("You do not have moderation access.")
+            }
+
+            try await updateData([
+                "socialBanned": banned
+            ], at: firestore.collection("users").document(userID))
+            statusMessage = banned ? "User banned from social." : "User unbanned."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func setUserMuted(until: Date?, userID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canModerateSocialContent else {
+                throw SocialError.api("You do not have moderation access.")
+            }
+
+            let value: Any = until.map { Timestamp(date: $0) } ?? NSNull()
+            try await updateData([
+                "socialMutedUntil": value
+            ], at: firestore.collection("users").document(userID))
+
+            if let until {
+                statusMessage = "User muted until \(DateFormatter.localizedString(from: until, dateStyle: .medium, timeStyle: .short))."
+            } else {
+                statusMessage = "User unmuted."
+            }
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
     var campusWideChatReference: SocialGroupChatReference? {
         guard let currentUser else { return nil }
         return SocialGroupChatReference(
@@ -157,6 +292,7 @@ final class SocialManager: ObservableObject {
         quickAddSuggestions = []
         groupChatThreadStates = [:]
         loadedFriendSchedule = nil
+        friendScheduleCacheByFriendID = [:]
         activeGroupChatID = nil
         statusMessage = nil
     }
@@ -235,39 +371,85 @@ final class SocialManager: ObservableObject {
     func setActiveGroupChat(id: String?) {
         activeGroupChatID = id
         NotificationManager.setActiveSocialContextID(id)
+        if let id {
+            acknowledgeGroupChatThreadState(threadID: id)
+        }
     }
 
-    func markGroupChatSeen(_ reference: SocialGroupChatReference, latestMessageAt: String? = nil) {
-        let threadUpdatedAt = groupChatThreadStates[reference.id]?.updatedAt
-        let seenValue: String
-        if let latestMessageAt,
-           let latestDate = isoDate(latestMessageAt),
-           let threadUpdatedAt,
-           let threadDate = isoDate(threadUpdatedAt) {
-            seenValue = threadDate > latestDate ? threadUpdatedAt : latestMessageAt
-        } else {
-            seenValue = latestMessageAt ?? threadUpdatedAt ?? nowISO()
+    func markGroupChatSeen(
+        _ reference: SocialGroupChatReference,
+        latestMessageID: String? = nil,
+        latestMessageAt: String? = nil
+    ) {
+        guard let viewerID = currentUser?.id,
+              let latestMessageID,
+              !latestMessageID.isEmpty,
+              let latestMessageAt,
+              let latestDate = isoDate(latestMessageAt) else {
+            // Never clear an unread badge when loading returned no messages.
+            return
         }
-        var stored = groupChatLastSeenValues
-        stored[reference.id] = seenValue
-        UserDefaults.standard.set(stored, forKey: groupChatLastSeenKey)
+
+        let key = groupChatReadReceiptKey(userID: viewerID, threadID: reference.id)
+        let existing = groupChatReadReceipt(storageKey: key, legacyThreadID: reference.id)
+        var acknowledgedVersions = existing?.acknowledgedThreadVersions ?? []
+        if let threadState = groupChatThreadStates[reference.id],
+           let version = groupChatThreadVersionKey(for: threadState) {
+            acknowledgedVersions = appendingAcknowledgedThreadVersion(
+                version,
+                to: acknowledgedVersions
+            )
+        }
+        let actualMessageVersion = groupChatThreadVersionKey(
+            latestMessageID: latestMessageID,
+            updatedAt: latestMessageAt
+        )
+        acknowledgedVersions = appendingAcknowledgedThreadVersion(
+            actualMessageVersion,
+            to: acknowledgedVersions
+        )
+
+        let shouldKeepExistingCursor = existing
+            .flatMap { isoDate($0.messageAt) }
+            .map { $0 > latestDate } ?? false
+        let receipt = StoredGroupChatReadReceipt(
+            messageID: shouldKeepExistingCursor ? existing?.messageID : latestMessageID,
+            messageAt: shouldKeepExistingCursor ? (existing?.messageAt ?? latestMessageAt) : latestMessageAt,
+            acknowledgedThreadVersions: acknowledgedVersions
+        )
+
+        var receipts = groupChatReadReceipts
+        guard receipts[key] != receipt else { return }
+        receipts[key] = receipt
+        persistGroupChatReadReceipts(receipts)
         objectWillChange.send()
     }
 
     func hasUnreadMessages(in reference: SocialGroupChatReference) -> Bool {
         guard let viewer = currentUser,
               let threadState = groupChatThreadStates[reference.id],
-              threadState.lastSenderID != viewer.id,
-              let updatedAt = isoDate(threadState.updatedAt) else {
+              let lastSenderID = threadState.lastSenderID else {
             return false
         }
 
-        guard let lastSeenRaw = groupChatLastSeenValues[reference.id],
-              let lastSeen = isoDate(lastSeenRaw) else {
-            return true
-        }
-
-        return updatedAt > lastSeen
+        let key = groupChatReadReceiptKey(userID: viewer.id, threadID: reference.id)
+        let receipt = groupChatReadReceipt(
+            storageKey: key,
+            legacyThreadID: reference.id
+        )
+        let threadVersion = groupChatThreadVersionKey(for: threadState)
+        let latestThreadVersionWasAcknowledged = threadVersion.map {
+            receipt?.acknowledgedThreadVersions?.contains($0) == true
+        } ?? false
+        return GroupChatUnreadPolicy.hasUnread(
+            latestMessageID: threadState.latestMessageID,
+            latestMessageDate: isoDate(threadState.updatedAt),
+            latestSenderID: lastSenderID,
+            viewerID: viewer.id,
+            readMessageID: receipt?.messageID,
+            readMessageDate: receipt.flatMap { isoDate($0.messageAt) },
+            latestThreadVersionWasAcknowledged: latestThreadVersionWasAcknowledged
+        )
     }
 
     func isChatMuted(_ reference: SocialGroupChatReference) -> Bool {
