@@ -799,6 +799,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanUseSocial()
             let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalizedName.isEmpty else {
                 throw SocialError.api("Group name is required.")
@@ -892,6 +893,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanUseSocial()
             guard !incomingMemberIDs.isEmpty else { throw SocialError.api("Pick at least one person to add.") }
 
             let groups = try await loadFriendGroups(ownerID: viewer.id)
@@ -1005,6 +1007,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard !trimmedBody.isEmpty else {
                 throw SocialError.api("Comment cannot be empty.")
             }
@@ -1139,6 +1142,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard community.memberIDs.contains(viewer.id) else {
                 throw SocialError.api("You are not part of that class group.")
             }
@@ -1237,6 +1241,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard reference.memberIDs.contains(viewer.id) else {
                 throw SocialError.api("You are not part of that group.")
             }
@@ -1367,6 +1372,23 @@ final class SocialManager: ObservableObject {
         )
     }
 
+    func directMessageReference(with friend: SocialFriend) -> SocialGroupChatReference? {
+        guard let currentUser, currentUser.id != friend.id else { return nil }
+        let memberIDs = [currentUser.id, friend.id].sorted()
+        let stableMembers = memberIDs
+            .map { "\($0.utf8.count)-\($0)" }
+            .joined(separator: "_")
+
+        return SocialGroupChatReference(
+            id: "directMessage_\(stableMembers)",
+            title: friend.displayName,
+            subtitle: "@\(friend.username)",
+            memberDisplayNames: [currentUser.displayName, friend.displayName],
+            memberIDs: memberIDs,
+            sourceKind: .directMessage
+        )
+    }
+
     func chatReference(for community: SocialCourseCommunity) -> SocialGroupChatReference {
         let friendNames = Dictionary(uniqueKeysWithValues: (overview?.friends ?? []).map { ($0.id, $0.displayName) })
         let memberDisplayNames = community.memberIDs.compactMap { memberID -> String? in
@@ -1464,6 +1486,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard !trimmedBody.isEmpty else {
                 throw SocialError.api("Message cannot be empty.")
             }
@@ -1486,6 +1509,7 @@ final class SocialManager: ObservableObject {
             try await setData(groupChatMessageData(message), at: threadRef.collection("messages").document(message.id))
             try await updateData([
                 "updatedAt": message.createdAt,
+                "lastMessageID": message.id,
                 "lastSenderID": viewer.id,
                 "memberIDs": reference.memberIDs,
                 "title": reference.title,
@@ -1495,7 +1519,13 @@ final class SocialManager: ObservableObject {
 
             groupChatThreadStates[reference.id] = GroupChatThreadState(
                 updatedAt: message.createdAt,
+                latestMessageID: message.id,
                 lastSenderID: viewer.id
+            )
+            markGroupChatSeen(
+                reference,
+                latestMessageID: message.id,
+                latestMessageAt: message.createdAt
             )
 
             if reference.sourceKind != .campusGroup {
@@ -1508,14 +1538,67 @@ final class SocialManager: ObservableObject {
                     try await sendSocialAlert(
                         to: reference.memberIDs,
                         type: "groupMessage",
-                        title: reference.title,
-                        body: "\(viewer.displayName): \(trimmedBody)",
+                        title: reference.sourceKind == .directMessage ? viewer.displayName : reference.title,
+                        body: reference.sourceKind == .directMessage
+                            ? trimmedBody
+                            : "\(viewer.displayName): \(trimmedBody)",
                         eventDate: nil,
                         contextID: reference.id
                     )
                 }
             }
 
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+
+        return didSucceed
+    }
+
+    @discardableResult
+    func deleteGroupChatMessage(_ message: SocialGroupChatMessage, in reference: SocialGroupChatReference) async -> Bool {
+        var didSucceed = false
+
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canDeleteGroupChatMessage(message) else {
+                throw SocialError.api("You cannot delete that message.")
+            }
+
+            let threadRef = firestore.collection("groupChats").document(reference.id)
+            let messagesRef = threadRef.collection("messages")
+            try await deleteDocument(messagesRef.document(message.id))
+
+            let latestSnapshot = try await getDocuments(
+                messagesRef
+                    .order(by: "createdAt", descending: true)
+                    .limit(to: 1)
+            )
+
+            if let latestDocument = latestSnapshot.documents.first,
+               let latestMessage = makeGroupChatMessage(from: latestDocument) {
+                try await updateData([
+                    "updatedAt": latestMessage.createdAt,
+                    "lastMessageID": latestMessage.id,
+                    "lastSenderID": latestMessage.userID,
+                ], at: threadRef)
+                groupChatThreadStates[reference.id] = GroupChatThreadState(
+                    updatedAt: latestMessage.createdAt,
+                    latestMessageID: latestMessage.id,
+                    lastSenderID: latestMessage.userID
+                )
+            } else {
+                try await updateData([
+                    "updatedAt": nowISO(),
+                    "lastMessageID": NSNull(),
+                    "lastSenderID": NSNull(),
+                ], at: threadRef)
+                groupChatThreadStates.removeValue(forKey: reference.id)
+            }
+
+            statusMessage = "Message removed."
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
@@ -1544,7 +1627,9 @@ final class SocialManager: ObservableObject {
                 threadID: reference.id,
                 messageID: message.id,
                 messageBody: message.body,
-                threadTitle: reference.title
+                threadTitle: reference.sourceKind == .directMessage
+                    ? message.displayName
+                    : reference.title
             )
         )
 
@@ -1599,6 +1684,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1792,6 +1878,7 @@ final class SocialManager: ObservableObject {
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
             let friendshipRef = firestore.collection("friendships").document(canonicalFriendshipID(viewer.id, friendID))
             try await deleteDocument(friendshipRef)
+            friendScheduleCacheByFriendID.removeValue(forKey: friendID)
             try await refreshOverviewInternal()
             statusMessage = "Friend removed."
 #else
@@ -1950,28 +2037,91 @@ final class SocialManager: ObservableObject {
         }
     }
 
-    func loadFriendSchedule(friendID: String) async {
+    func cachedFriendSchedule(for friend: SocialFriend) -> FriendScheduleResponse? {
+        guard let cached = friendScheduleCacheByFriendID[friend.id],
+              cached.owner.lastScheduleAt == friend.lastScheduleAt else {
+            return nil
+        }
+        return cached
+    }
+
+    func preloadFriendSchedulesForActivity() async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewer = currentUser else { return }
+        let friends = overview?.friends ?? []
+
+        for friend in friends where friend.canViewSchedule && friend.shareSchedule {
+            guard !Task.isCancelled else { return }
+            guard cachedFriendSchedule(for: friend) == nil else { continue }
+
+            do {
+                let owner = SocialUser(
+                    id: friend.id,
+                    username: friend.username,
+                    displayName: friend.displayName,
+                    email: friend.email,
+                    isGuest: friend.isGuest,
+                    shareSchedule: friend.shareSchedule,
+                    shareLocation: friend.shareLocation,
+                    createdAt: friend.createdAt,
+                    lastScheduleAt: friend.lastScheduleAt,
+                    sharedCourseKeys: friend.sharedCourseKeys,
+                    sharedSectionKeys: friend.sharedSectionKeys
+                )
+                let schedule = try await loadScheduleSnapshot(ownerID: friend.id, viewerID: viewer.id)
+                friendScheduleCacheByFriendID[friend.id] = FriendScheduleResponse(
+                    owner: owner,
+                    schedule: schedule
+                )
+            } catch {
+                // Activity is supplementary; a friend's full schedule still has its own retry UI.
+                continue
+            }
+        }
+#endif
+    }
+
+    @discardableResult
+    func loadFriendSchedule(friendID: String) async -> FriendScheduleResponse? {
         loadedFriendSchedule = nil
-        await runOperation {
+        await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
-            guard try await friendshipExists(viewer.id, friendID) else {
+            guard let friend = overview?.friends.first(where: { $0.id == friendID }) else {
                 throw SocialError.api("You are not friends with that user.")
             }
-
-            guard let owner = try await fetchUser(id: friendID) else {
-                throw SocialError.api("That user was not found.")
-            }
-            guard owner.shareSchedule else {
+            guard friend.canViewSchedule, friend.shareSchedule else {
                 throw SocialError.api("That user is not sharing their schedule.")
             }
 
+            if let cached = cachedFriendSchedule(for: friend) {
+                loadedFriendSchedule = cached
+                return
+            }
+
+            let owner = SocialUser(
+                id: friend.id,
+                username: friend.username,
+                displayName: friend.displayName,
+                email: friend.email,
+                isGuest: friend.isGuest,
+                shareSchedule: friend.shareSchedule,
+                shareLocation: friend.shareLocation,
+                createdAt: friend.createdAt,
+                lastScheduleAt: friend.lastScheduleAt,
+                sharedCourseKeys: friend.sharedCourseKeys,
+                sharedSectionKeys: friend.sharedSectionKeys
+            )
+
             let schedule = try await loadScheduleSnapshot(ownerID: friendID, viewerID: viewer.id)
-            loadedFriendSchedule = FriendScheduleResponse(owner: owner, schedule: schedule)
+            let response = FriendScheduleResponse(owner: owner, schedule: schedule)
+            friendScheduleCacheByFriendID[friendID] = response
+            loadedFriendSchedule = response
 #else
             throw SocialError.firebaseNotLinked
 #endif
         }
+        return loadedFriendSchedule
     }
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -2172,6 +2322,16 @@ final class SocialManager: ObservableObject {
                 .whereField("members", arrayContains: userID)
                 .addSnapshotListener { [weak self] _, error in
                     self?.handleRealtimeEvent(error: error)
+                },
+            firestore.collection("groupChats")
+                .whereField("memberIDs", arrayContains: userID)
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleGroupChatThreadsListener(snapshot: snapshot, error: error)
+                },
+            firestore.collection("groupChats")
+                .document(campusWideGroupThreadID)
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleCampusWideChatThreadListener(snapshot: snapshot, error: error)
                 },
             firestore.collection("users")
                 .document(userID)
