@@ -73,19 +73,10 @@ struct CalendarView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
     @Environment(\.colorScheme) private var colorScheme
-    @State private var displayMode: CalendarDisplayMode = .week
+    @AppStorage("calendar_display_mode_v1") private var displayMode: CalendarDisplayMode = .week
 
     // ✅ Add-event sheet
     @State private var showingAddEvent: Bool = false
-
-    // ✅ Fullscreen boot overlay (local to view)
-    @State private var showBootOverlay: Bool = false
-    @State private var bootCanSkip: Bool = false
-    @State private var bootSubtitle: String = "Loading calendar…"
-    @State private var bootTimerStarted: Bool = false
-
-    // ✅ NEW: when user presses Continue, suppress ALL loading overlays for this session
-    @State private var suppressLoadingOverlays: Bool = false
 
     var body: some View {
         ZStack {
@@ -114,10 +105,7 @@ struct CalendarView: View {
                 including: .gesture
             )
             .task {
-                // ✅ Start fullscreen boot overlay (Simulator-safe)
-                beginBootOverlayIfNeeded()
-
-                // ✅ Your existing loading work
+                // Loading happens in place so the calendar and tab bar remain interactive.
                 viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
                 viewModel.ensureTermBoundsForAllEnrollments()
                 viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
@@ -129,104 +117,10 @@ struct CalendarView: View {
             .onChange(of: viewModel.enrolledCourses) { _, _ in
                 viewModel.ensureTermBoundsForAllEnrollments()
             }
-            .onChange(of: isCalendarLoading) { _, loading in
-                if !loading {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        showBootOverlay = false
-                    }
-                } else {
-                    beginBootOverlayIfNeeded()
-                }
-            }
             .sheet(isPresented: $showingAddEvent) {
                 AddEventView(date: viewModel.selectedDate, isPresented: $showingAddEvent)
                     .environmentObject(viewModel)
                     .environmentObject(socialManager)
-            }
-
-            // ✅ Fullscreen boot overlay (shown only if NOT suppressed)
-            if showBootOverlay && isCalendarLoading && !suppressLoadingOverlays {
-                BootLoadingOverlay(
-                    title: "RPI Central",
-                    subtitle: bootSubtitle,
-                    showSkip: bootCanSkip,
-                    onSkip: {
-                        // ✅ Once user continues, kill BOTH layers for this session.
-                        suppressLoadingOverlays = true
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            showBootOverlay = false
-                        }
-                    },
-                    onRetry: {
-                        bootSubtitle = "Retrying…"
-                        viewModel.ensureAcademicEventsLoaded(for: viewModel.currentSemester)
-                        viewModel.ensureTermBoundsForAllEnrollments()
-                        viewModel.ensureTermBoundsLoaded(for: viewModel.currentSemester)
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(1000)
-            }
-
-            // ✅ Optional small overlay (non-blocking) ONLY if NOT suppressed
-            if isCalendarLoading && !showBootOverlay && !suppressLoadingOverlays {
-                ZStack {
-                    Color.black.opacity(0.20).ignoresSafeArea()
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .tint(CalendarChrome.primaryText(colorScheme))
-                        Text("Loading calendar…")
-                            .foregroundColor(CalendarChrome.primaryText(colorScheme))
-                            .font(.callout)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(CalendarChrome.elevatedSurface(colorScheme))
-                    .cornerRadius(12)
-                }
-                .zIndex(999)
-            }
-        }
-    }
-
-    private var isCalendarLoading: Bool {
-        // Academic: treat “attempted” as non-blocking (prevents simulator perma-load)
-        let academicReady = viewModel.academicEventsLoaded
-            || viewModel.didAttemptAcademicEvents(for: viewModel.currentSemester)
-
-        // Term bounds: only block on bounds that are missing AND unattempted
-        let codes = Set(viewModel.enrolledCourses.map { $0.semesterCode })
-        let missingUnattemptedBounds = codes.contains { code in
-            (viewModel.termBoundsBySemesterCode[code] == nil) && !viewModel.didAttemptTermBounds(for: code)
-        }
-
-        return (!academicReady) || missingUnattemptedBounds
-    }
-
-    // MARK: - Boot overlay helpers
-
-    private func beginBootOverlayIfNeeded() {
-        // ✅ If user pressed Continue, never show loading overlays again this session
-        if suppressLoadingOverlays { return }
-
-        guard !bootTimerStarted else {
-            if isCalendarLoading && !showBootOverlay {
-                showBootOverlay = true
-            }
-            return
-        }
-
-        bootTimerStarted = true
-        showBootOverlay = true
-        bootCanSkip = false
-        bootSubtitle = "Loading calendar…"
-
-        // Enable skip quickly (Simulator can hang)
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_500_000_000) // 2.5s
-            if isCalendarLoading && !suppressLoadingOverlays {
-                bootCanSkip = true
-                bootSubtitle = "Still loading… (You can continue if the Simulator hangs)"
             }
         }
     }
@@ -1460,100 +1354,6 @@ struct AllDayEventsListView: View {
         Task {
             await socialManager.syncSchedule(from: viewModel)
         }
-    }
-}
-
-// MARK: - Boot loading overlay
-
-fileprivate struct BootLoadingOverlay: View {
-    let title: String
-    let subtitle: String
-    let showSkip: Bool
-    let onSkip: () -> Void
-    let onRetry: () -> Void
-
-    @State private var pulse: Bool = false
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.95),
-                    Color.black.opacity(0.85),
-                    Color.black.opacity(0.95)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 52, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .scaleEffect(pulse ? 1.04 : 1.0)
-                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
-
-                VStack(spacing: 6) {
-                    Text(title)
-                        .font(.title2.bold())
-                        .foregroundColor(.white)
-
-                    Text(subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-                }
-
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                    .scaleEffect(1.1)
-
-                HStack(spacing: 12) {
-                    Button {
-                        onRetry()
-                    } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
-                            .font(.callout.bold())
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.14))
-                            .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.white)
-
-                    if showSkip {
-                        Button {
-                            onSkip()
-                        } label: {
-                            Text("Continue")
-                                .font(.callout.bold())
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.white)
-                                .cornerRadius(12)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.black)
-                    }
-                }
-                .padding(.top, 4)
-
-                if showSkip {
-                    Text("If the Simulator gets stuck, tap Continue — your calendar will still load when it can.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 26)
-                        .padding(.top, 2)
-                }
-            }
-            .padding(.top, 10)
-        }
-        .onAppear { pulse = true }
     }
 }
 
