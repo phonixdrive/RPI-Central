@@ -8,11 +8,12 @@ import SwiftUI
 struct CourseDetailView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
+    @AppStorage("courses_auto_collapse_prerequisites_v1") private var autoCollapsePrerequisites = true
 
     let course: Course
     var displaySemester: Semester? = nil
 
-    // per-section prereq bypass arming
+    // Per-section prerequisite/full-section bypass arming.
     @State private var bypassArmed: Set<String> = []
 
     // exam-date picker sheet state
@@ -23,6 +24,7 @@ struct CourseDetailView: View {
     @State private var courseCommentDraft: String = ""
     @State private var selectedPrerequisiteID: String?
     @State private var isPrerequisitesExpanded: Bool = false
+    @State private var didSeedPrerequisiteExpansion = false
     @FocusState private var commentFieldFocused: Bool
 
     private var discussionTaskID: String {
@@ -166,6 +168,18 @@ struct CourseDetailView: View {
         .alert(item: selectedPrerequisiteDetails) { prereq in
             prerequisiteAlert(for: prereq)
         }
+        .onAppear {
+            seedPrerequisiteExpansionIfNeeded()
+        }
+        .onChange(of: autoCollapsePrerequisites) { _, newValue in
+            isPrerequisitesExpanded = !newValue
+        }
+    }
+
+    private func seedPrerequisiteExpansionIfNeeded() {
+        guard !didSeedPrerequisiteExpansion else { return }
+        didSeedPrerequisiteExpansion = true
+        isPrerequisitesExpanded = !autoCollapsePrerequisites
     }
 
     // MARK: - Enrollments for this course (may exist across semesters)
@@ -350,10 +364,13 @@ struct CourseDetailView: View {
 
     private func sectionCard(_ section: CourseSection) -> some View {
         let isEnrolled = calendarViewModel.isEnrolled(for: course, section: section, semester: activeSemester)
+        let isRegistrationClosed = (!isEnrolled) && section.isRegistrationClosed
+        let isFullForRegistration = (!isEnrolled) && section.isFullForRegistration
         let hasConflict = (!isEnrolled) && calendarViewModel.hasConflict(for: course, section: section, semester: activeSemester)
 
         let missing = calendarViewModel.missingPrerequisites(for: course)
         let prereqGateOn = calendarViewModel.enforcePrerequisites && !missing.isEmpty && !isEnrolled
+        let bypassRequired = prereqGateOn || isFullForRegistration
         let armed = bypassArmed.contains(section.id)
 
         let crnText = section.crn.map(String.init) ?? "N/A"
@@ -361,15 +378,18 @@ struct CourseDetailView: View {
         // button label + disabled logic
         let buttonTitle: String = {
             if isEnrolled { return "Remove" }
+            if isRegistrationClosed { return "Closed" }
             if hasConflict { return "Time conflict" }
-            if prereqGateOn { return armed ? "Bypass prereq" : "Add" }
+            if bypassRequired && armed { return "Add anyway" }
+            if isFullForRegistration { return "Full" }
             return "Add"
         }()
 
         let buttonTint: Color = {
             if isEnrolled { return .red }
+            if isRegistrationClosed { return .gray }
             if hasConflict { return .gray }
-            if prereqGateOn && armed { return .orange }
+            if bypassRequired { return .orange }
             return .accentColor
         }()
 
@@ -400,12 +420,21 @@ struct CourseDetailView: View {
                         return
                     }
 
-                    if prereqGateOn && !armed {
+                    if isRegistrationClosed {
+                        return
+                    }
+
+                    if bypassRequired && !armed {
                         bypassArmed.insert(section.id)
                         return
                     }
 
-                    calendarViewModel.addCourseSection(section, course: course, semester: activeSemester)
+                    calendarViewModel.addCourseSection(
+                        section,
+                        course: course,
+                        semester: activeSemester,
+                        allowFullSection: isFullForRegistration
+                    )
                     bypassArmed.remove(section.id)
                     if socialManager.isFirebaseAvailable && socialManager.isAuthenticated {
                         Task {
@@ -420,12 +449,18 @@ struct CourseDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(buttonTint)
                 .font(.caption)
-                .disabled(hasConflict)
+                .disabled(hasConflict || isRegistrationClosed)
             }
 
             if !section.instructor.isEmpty {
                 Text(section.instructor)
                     .font(.subheadline)
+            }
+
+            if let seatStatusLabel = section.seatStatusLabel {
+                Text(seatStatusLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(section.isClosedForRegistration ? .red : .secondary)
             }
 
             if prereqGateOn && !armed {
@@ -436,6 +471,20 @@ struct CourseDetailView: View {
                 }
 
                 Text("Tap Add again to bypass, or mark the prerequisite as already taken above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isFullForRegistration {
+                Text(armed
+                     ? "Bypass armed. Tap Add anyway if SIS already has you registered for this section."
+                     : "This section is full in the course data. Tap Full to open a bypass if SIS already has you registered.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isRegistrationClosed {
+                Text("This section is marked closed in the course data and can’t be added.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

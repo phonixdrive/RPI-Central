@@ -109,8 +109,12 @@ struct CoursesView: View {
         .onAppear {
             clearUnavailableSubjectFilterIfNeeded()
         }
-        .onReceive(catalog.$courses) { _ in
+        .onReceive(catalog.$courses) { courses in
             clearUnavailableSubjectFilterIfNeeded()
+            calendarViewModel.refreshCurrentSemesterEnrollmentDetails(
+                from: courses,
+                for: catalog.semester
+            )
         }
     }
 
