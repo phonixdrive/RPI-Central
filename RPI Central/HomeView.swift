@@ -1387,6 +1387,8 @@ struct HomeView: View {
             shuttleTrackerSection
         case .diningHours:
             diningHoursSection
+        case .next:
+            nextSection
         case .upcoming:
             upcomingSection
         case .mealSwipes:
@@ -1472,6 +1474,219 @@ struct HomeView: View {
         } header: {
             Text("Campus Dining")
         }
+    }
+
+    private var nextSection: some View {
+        Section {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                adaptiveNextContent(at: context.date)
+            }
+        } header: {
+            Text("Next")
+        }
+    }
+
+    @ViewBuilder
+    private func adaptiveNextContent(at now: Date) -> some View {
+        let nextClass = nextClassMeeting(after: now)
+        let upcoming = combinedUpcomingItems(days: 30)
+        let classDeadline = nextClass.flatMap { event in
+            upcoming.first { $0.enrollmentID == event.enrollmentID }
+        }
+        let fallbackDeadline = upcoming.first { item in
+            guard let classDeadline else { return true }
+            return item.id != classDeadline.id
+        }
+
+        VStack(alignment: .leading, spacing: 12) {
+            if let nextClass {
+                Button {
+                    calendarViewModel.setSelectedDate(nextClass.startDate)
+                    NotificationCenter.default.post(name: .openCalendarTab, object: nil)
+                } label: {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: nextClass.startDate <= now ? "clock.badge.checkmark.fill" : "clock.fill")
+                            .font(.title3)
+                            .foregroundStyle(calendarViewModel.themeColor)
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(nextClass.startDate <= now ? "Happening now" : "Next class")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+
+                            Text(nextClassCourseLine(nextClass))
+                                .font(.headline)
+                                .lineLimit(1)
+
+                            Text(nextClass.title.replacingOccurrences(of: "★ ", with: ""))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            HStack(spacing: 5) {
+                                Text(nextClassTimingText(nextClass, now: now))
+                                if !nextClass.location.isEmpty {
+                                    Text("•")
+                                    Text(nextClass.location)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 4)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 4)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+
+                if let classDeadline {
+                    adaptiveDeadlineRow(classDeadline, label: "Due for this class")
+                } else {
+                    Label("Nothing due in the next 30 days for this class.", systemImage: "checkmark.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if classDeadline == nil, let fallbackDeadline {
+                    Divider()
+                    adaptiveDeadlineRow(fallbackDeadline, label: "Next deadline")
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.checkmark")
+                        .font(.title3)
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("No class coming up")
+                            .font(.headline)
+                        Text("There are no scheduled classes in the next two weeks.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let fallbackDeadline {
+                    Divider()
+                    adaptiveDeadlineRow(fallbackDeadline, label: "Next deadline")
+                }
+            }
+
+            HStack {
+                Button {
+                    editingTask = nil
+                    showTaskEditor = true
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Button("View all") {
+                    showAllTasks = true
+                }
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderless)
+            }
+            .tint(calendarViewModel.themeColor)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func adaptiveDeadlineRow(_ item: UpcomingItem, label: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.icon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(calendarViewModel.themeColor)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(calendarViewModel.themeColor)
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(item.relativeText)
+                Text(item.dueText)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func nextClassMeeting(after now: Date) -> ClassEvent? {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: now)
+
+        for dayOffset in 0...14 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+            let next = calendarViewModel.events(on: day)
+                .filter { event in
+                    guard event.kind == .classMeeting,
+                          event.endDate > now,
+                          let enrollmentID = event.enrollmentID,
+                          let enrollment = calendarViewModel.enrollment(withID: enrollmentID) else {
+                        return false
+                    }
+                    return enrollment.semesterCode == calendarViewModel.currentSemester.rawValue
+                }
+                .min { $0.startDate < $1.startDate }
+
+            if let next { return next }
+        }
+
+        return nil
+    }
+
+    private func nextClassCourseLine(_ event: ClassEvent) -> String {
+        guard let enrollment = calendarViewModel.enrollment(withID: event.enrollmentID) else {
+            return "Class"
+        }
+        return "\(enrollment.course.subject) \(enrollment.course.number)"
+    }
+
+    private func nextClassTimingText(_ event: ClassEvent, now: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+
+        if event.startDate <= now, event.endDate > now {
+            return "Ends \(timeFormatter.string(from: event.endDate))"
+        }
+
+        let time = timeFormatter.string(from: event.startDate)
+        if calendar.isDateInToday(event.startDate) {
+            return "Today at \(time) • in \(taskRelativeDueText(to: event.startDate, now: now))"
+        }
+        if calendar.isDateInTomorrow(event.startDate) {
+            return "Tomorrow at \(time)"
+        }
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "EEE, MMM d"
+        return "\(dayFormatter.string(from: event.startDate)) at \(time)"
     }
 
     private var upcomingSection: some View {
@@ -1746,6 +1961,16 @@ struct HomeView: View {
         let icon: String
         let source: UpcomingSource
         let isAllDay: Bool
+
+        var enrollmentID: String? {
+            switch source {
+            case .task(let task):
+                return task.enrollmentID
+            case .calendarExam(_, _, let enrollmentID),
+                 .lmsCalendarEvent(_, let enrollmentID):
+                return enrollmentID
+            }
+        }
 
         var dueText: String {
             let df = DateFormatter()
@@ -2414,8 +2639,48 @@ private struct SemesterGPAOverrideEditorView: View {
     @State private var gpa: Double = 0
     @State private var credits: Double = 16
 
+    private var gradedEnrollments: [(grade: LetterGrade, credits: Double)] {
+        calendarViewModel.enrolledCourses
+            .filter { $0.semesterCode == semester.rawValue }
+            .compactMap { enrollment in
+                guard let grade = GPACalculator.resolvedLetter(
+                    enrollmentID: enrollment.id,
+                    fallbackLetter: calendarViewModel.grade(for: enrollment.id)
+                ) else { return nil }
+                return (grade, enrollment.section.credits)
+            }
+    }
+
+    private var gradedCredits: Double {
+        gradedEnrollments.reduce(0) { $0 + $1.credits }
+    }
+
+    private var displayedGPASourceText: String {
+        if let override = calendarViewModel.semesterGPAOverride(for: semester.rawValue) {
+            return "The displayed GPA comes from your saved semester override, weighted as \(override.credits.formatted()) credits in Overall GPA."
+        }
+
+        if !gradedEnrollments.isEmpty {
+            let courseWord = gradedEnrollments.count == 1 ? "course grade" : "course grades"
+            return "The displayed GPA is calculated from \(gradedEnrollments.count) \(courseWord) entered in RPI Central, totaling \(gradedCredits.formatted()) credits."
+        }
+
+        return "No semester GPA is displayed yet because there is no saved override or entered course grade for this term."
+    }
+
     var body: some View {
         Form {
+            Section("Current Display") {
+                LabeledContent("GPA") {
+                    Text(GPACalculator.format(calendarViewModel.gpa(for: semester.rawValue)))
+                        .fontWeight(.semibold)
+                }
+
+                Text(displayedGPASourceText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section(semester.displayName) {
                 HStack {
                     Text("Semester GPA")
@@ -2467,6 +2732,11 @@ private struct SemesterGPAOverrideEditorView: View {
             if let override = calendarViewModel.semesterGPAOverride(for: semester.rawValue) {
                 gpa = override.gpa
                 credits = override.credits
+            } else if let calculatedGPA = calendarViewModel.gpa(for: semester.rawValue) {
+                gpa = calculatedGPA
+                if gradedCredits > 0 {
+                    credits = gradedCredits
+                }
             }
         }
     }
