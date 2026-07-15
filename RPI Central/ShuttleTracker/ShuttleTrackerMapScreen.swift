@@ -237,6 +237,10 @@ struct ShuttleTrackerMapScreen: View {
 
     private var resolvedSelectedRouteID: String {
         let visibleRoutes = viewModel.routes.filter { !$0.isHidden }
+        if let favoriteRouteID = ShuttlePreferencesStore.splitFavoriteStopID(favoriteStopIDStorage)?.routeID,
+           visibleRoutes.contains(where: { $0.id == favoriteRouteID }) {
+            return favoriteRouteID
+        }
         if visibleRoutes.contains(where: { $0.id == selectedRouteIDStorage }) {
             return selectedRouteIDStorage
         }
