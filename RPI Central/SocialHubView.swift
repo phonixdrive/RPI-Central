@@ -3,12 +3,60 @@ import SwiftUI
 import FirebaseFirestore
 #endif
 
+private struct FriendActivitySummary {
+    let title: String
+    let detail: String
+    let systemImage: String
+
+    static func current(
+        friend: SocialFriend,
+        response: FriendScheduleResponse?,
+        at now: Date
+    ) -> FriendActivitySummary? {
+        guard friend.canViewSchedule, let response else { return nil }
+
+        let activeItems = response.schedule.items.compactMap { item -> (SharedScheduleItem, Date, Date)? in
+            guard let start = activityISODate(item.startDate),
+                  let end = activityISODate(item.endDate),
+                  start <= now,
+                  now < end else { return nil }
+            return (item, start, end)
+        }
+        let active = activeItems.sorted { lhs, rhs in
+            let lhsIsClass = lhs.0.kind == "classMeeting"
+            let rhsIsClass = rhs.0.kind == "classMeeting"
+            if lhsIsClass != rhsIsClass { return lhsIsClass }
+            return lhs.1 < rhs.1
+        }.first
+
+        guard let (item, _, end) = active else { return nil }
+        let activity = item.kind == "classMeeting" ? "In class • \(item.title)" : item.title
+        let timeText = item.isAllDay
+            ? "All day"
+            : "Until \(end.formatted(date: .omitted, time: .shortened))"
+        let detail = [item.location.trimmingCharacters(in: .whitespacesAndNewlines), timeText]
+            .filter { !$0.isEmpty }
+            .joined(separator: " • ")
+
+        return FriendActivitySummary(
+            title: activity,
+            detail: detail,
+            systemImage: item.kind == "classMeeting" ? "book.closed.fill" : "calendar"
+        )
+    }
+
+    private static func activityISODate(_ value: String) -> Date? {
+        groupChatISOFormatterWithFractionalSeconds.date(from: value)
+            ?? groupChatISOFormatter.date(from: value)
+    }
+}
+
 struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
     @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
 
-    @State private var selectedSection: SocialHubSection = .feed
+    @State private var selectedSection: SocialHubSection = .chat
     @State private var authMode: AuthMode = .login
     @State private var displayName: String = ""
     @State private var email: String = ""
@@ -18,11 +66,13 @@ struct SocialHubView: View {
     @State private var showFriendTools = false
     @State private var showCreateGroup = false
     @State private var showFeedComposer = false
-    @State private var selectedFriendSchedule: FriendScheduleResponse?
+    @State private var selectedFriendSchedule: FriendSchedulePresentation?
     @State private var selectedGroupChat: SocialGroupChatReference?
     @State private var selectedGroupHub: GroupHubPresentation?
     @State private var selectedGroupMembers: GroupMembersPresentation?
+    @State private var selectedProfileUser: SocialUser?
     @State private var friendsExpanded = true
+    @State private var directMessagesExpanded = true
     @State private var groupsExpanded = true
     @State private var classGroupsExpanded = false
     @State private var classGroupFilter: ClassGroupFilter = .currentOverall
@@ -36,8 +86,15 @@ struct SocialHubView: View {
             calendarViewModel.currentSemester.rawValue,
             String(calendarViewModel.events.count),
             String(calendarViewModel.enrolledCourses.count),
+            calendarViewModel.currentEnrollmentScheduleFingerprint,
             String(friendCount)
         ].joined(separator: "|")
+    }
+    private var friendActivityTaskID: String {
+        let friendsVersion = (socialManager.overview?.friends ?? [])
+            .map { "\($0.id):\($0.lastScheduleAt ?? "none"):\($0.canViewSchedule)" }
+            .joined(separator: "|")
+        return "\(socialManager.currentUser?.id ?? "none")|\(friendsVersion)"
     }
 
     var body: some View {
@@ -60,10 +117,15 @@ struct SocialHubView: View {
                     guard socialManager.isAuthenticated else { return }
                     await socialManager.refreshOverview()
                 }
-                .sheet(item: $selectedFriendSchedule) { schedule in friendScheduleSheet(schedule) }
+                .sheet(item: $selectedFriendSchedule) { presentation in
+                    friendScheduleSheet(presentation)
+                }
                 .sheet(item: $selectedGroupChat) { reference in groupChatSheet(reference) }
                 .sheet(item: $selectedGroupHub) { presentation in groupHubSheet(presentation) }
                 .sheet(item: $selectedGroupMembers) { presentation in groupMembersSheet(presentation) }
+                .sheet(item: $selectedProfileUser) { user in
+                    SocialUserProfileSheet(user: user)
+                }
                 .sheet(isPresented: $showFriendTools) { friendToolsSheet }
                 .sheet(isPresented: $showCreateGroup) { createGroupSheet }
                 .sheet(isPresented: $showFeedComposer) { feedComposerSheet }
@@ -86,6 +148,9 @@ struct SocialHubView: View {
                 }
                 .task(id: scheduleSyncTaskID) {
                     await syncSharedScheduleIfNeeded()
+                }
+                .task(id: friendActivityTaskID) {
+                    await socialManager.preloadFriendSchedulesForActivity()
                 }
         )
 
@@ -161,10 +226,11 @@ struct SocialHubView: View {
             if calendarViewModel.socialDemoToolsEnabled {
                 demoCard
             }
-        case .feed:
+        case .chat:
             if socialManager.overview == nil {
                 socialLoadingCard
             } else {
+                directMessagesCard
                 groupsCard
                 classGroupsCard
             }
@@ -173,6 +239,7 @@ struct SocialHubView: View {
                 socialLoadingCard
             } else {
                 friendsCard
+                feedListCard
             }
         }
     }
@@ -233,13 +300,12 @@ struct SocialHubView: View {
         }
     }
 
-    private func friendScheduleSheet(_ schedule: FriendScheduleResponse) -> some View {
-        FriendScheduleView(response: schedule)
+    private func friendScheduleSheet(_ presentation: FriendSchedulePresentation) -> some View {
+        FriendScheduleLoadingView(presentation: presentation)
     }
 
     private func groupChatSheet(_ reference: SocialGroupChatReference) -> some View {
         GroupChatSheet(reference: reference)
-            .interactiveDismissDisabled()
     }
 
     private func groupHubSheet(_ presentation: GroupHubPresentation) -> some View {
@@ -252,8 +318,8 @@ struct SocialHubView: View {
 
     private var sectionBar: some View {
         HStack(spacing: 10) {
-            sectionButton(title: "Friends", section: .friends)
-            sectionButton(title: "Chat", section: .feed)
+            sectionButton(title: "Chat", section: .chat)
+            sectionButton(title: "Friends", section: .friends, badgeCount: incomingCount)
             sectionButton(title: "Profile", section: .profile)
         }
     }
@@ -670,6 +736,77 @@ struct SocialHubView: View {
         }
     }
 
+    private var directMessagesCard: some View {
+        let friends = socialManager.overview?.friends ?? []
+
+        return SocialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                collapsibleHeader(
+                    title: "Direct Messages",
+                    systemImage: "message.fill",
+                    countText: "\(friends.count)",
+                    isExpanded: $directMessagesExpanded
+                )
+
+                if directMessagesExpanded {
+                    if friends.isEmpty {
+                        Text("Add a friend to start a private conversation.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        LazyVStack(spacing: 6) {
+                            ForEach(friends) { friend in
+                                if let reference = socialManager.directMessageReference(with: friend) {
+                                    Button {
+                                        selectedGroupChat = reference
+                                    } label: {
+                                        HStack(spacing: 11) {
+                                            Circle()
+                                                .fill(calendarViewModel.themeColor.opacity(0.14))
+                                                .frame(width: 38, height: 38)
+                                                .overlay {
+                                                    Text(String(friend.displayName.prefix(1)).uppercased())
+                                                        .font(.caption.weight(.bold))
+                                                        .foregroundStyle(calendarViewModel.themeColor)
+                                                }
+
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(friend.displayName)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.primary)
+                                                friendActivityLine(friend, compact: true)
+                                            }
+
+                                            Spacer(minLength: 6)
+
+                                            if socialManager.hasUnreadMessages(in: reference) {
+                                                Text("New")
+                                                    .font(.caption2.weight(.bold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 7)
+                                                    .padding(.vertical, 4)
+                                                    .background(calendarViewModel.themeColor, in: Capsule())
+                                            }
+
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 15))
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var groupsCard: some View {
         let groups = socialManager.friendGroups
         let campusWideChat = showCampusWideGroup ? socialManager.campusWideChatReference : nil
@@ -919,51 +1056,6 @@ struct SocialHubView: View {
                 }
             }
         }
-    }
-
-    private var feedHeaderCard: some View {
-        SocialCard(
-            background: Color(red: 0.16, green: 0.18, blue: 0.23),
-            stroke: Color.white.opacity(0.08)
-        ) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Campus Feed")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                        Text("Share what you are doing right now and let people join in.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.white.opacity(0.72))
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "dot.radiowaves.left.and.right")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(calendarViewModel.themeColor)
-                        .padding(12)
-                        .background(Circle().fill(Color.white.opacity(0.12)))
-                }
-
-                Text("Tap the floating plus button to post a study session, meal, or hangout.")
-                    .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.62))
-            }
-        }
-    }
-
-    private var feedFloatingButton: some View {
-        Button {
-            showFeedComposer = true
-        } label: {
-            floatingActionCircle(
-                icon: "plus",
-                fill: calendarViewModel.themeColor
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Create activity")
     }
 
     private var friendToolsFloatingButton: some View {
