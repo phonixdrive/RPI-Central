@@ -1099,11 +1099,12 @@ struct SocialHubView: View {
                     Spacer()
 
                     Button {
-                        Task { await socialManager.refreshOverview() }
+                        showFeedComposer = true
                     } label: {
-                        Image(systemName: "arrow.clockwise")
+                        Label("Post", systemImage: "plus")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
 
                 Text("Post quick plans, study sessions, and hangouts. Activities auto-end after 6 hours if nobody closes them first.")
@@ -1237,51 +1238,109 @@ struct SocialHubView: View {
 
     private func friendCard(_ friend: SocialFriend) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(friend.displayName)
-                        .font(.headline)
-                    Text("@\(friend.username)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                badgeLabel(friend.shareSchedule ? "Sharing on" : "Sharing off", color: friend.shareSchedule ? .green : .secondary)
-            }
-
-            HStack(spacing: 8) {
-                Button {
-                    Task {
-                        await socialManager.unfriend(friend.id)
-                    }
-                } label: {
-                    Text("Remove friend")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.red)
-                }
-                .buttonStyle(.plain)
-
-                Spacer(minLength: 0)
-
-                if friend.canViewSchedule {
-                    Button("View schedule") {
-                        Task {
-                            await socialManager.loadFriendSchedule(friendID: friend.id)
-                            if let schedule = socialManager.loadedFriendSchedule {
-                                selectedFriendSchedule = schedule
-                            }
+            Button {
+                selectedProfileUser = profileUser(for: friend)
+            } label: {
+                HStack(spacing: 11) {
+                    Circle()
+                        .fill(calendarViewModel.themeColor.opacity(0.13))
+                        .frame(width: 42, height: 42)
+                        .overlay {
+                            Text(String(friend.displayName.prefix(1)).uppercased())
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(calendarViewModel.themeColor)
                         }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(friend.displayName)
+                            .font(.headline)
+                        Text("@\(friend.username)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+
+                    Spacer(minLength: 6)
+
+                    if friend.shareSchedule {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .foregroundStyle(.green)
+                            .accessibilityLabel("Sharing schedule")
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            friendActivityLine(friend)
+
+            if friend.canViewSchedule {
+                Button {
+                    selectedFriendSchedule = FriendSchedulePresentation(
+                        friend: friend,
+                        cachedResponse: socialManager.cachedFriendSchedule(for: friend)
+                    )
+                } label: {
+                    Label("View shared schedule", systemImage: "calendar")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+    }
+
+    private func friendActivityLine(_ friend: SocialFriend, compact: Bool = false) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let activity = FriendActivitySummary.current(
+                friend: friend,
+                response: socialManager.cachedFriendSchedule(for: friend),
+                at: context.date
+            )
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Circle()
+                    .fill(activity == nil ? Color.secondary.opacity(0.45) : Color.green)
+                    .frame(width: 7, height: 7)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(activity?.title ?? (friend.canViewSchedule ? "No current calendar activity" : "Activity hidden"))
+                        .font(.caption.weight(activity == nil ? .regular : .semibold))
+                        .foregroundStyle(activity == nil ? .secondary : .primary)
+                        .lineLimit(1)
+
+                    if !compact, let detail = activity?.detail, !detail.isEmpty {
+                        Label(detail, systemImage: activity?.systemImage ?? "calendar")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+    }
+
+    private func profileUser(for friend: SocialFriend) -> SocialUser {
+        SocialUser(
+            id: friend.id,
+            username: friend.username,
+            displayName: friend.displayName,
+            email: friend.email,
+            isGuest: friend.isGuest,
+            shareSchedule: friend.shareSchedule,
+            shareLocation: friend.shareLocation,
+            createdAt: friend.createdAt,
+            lastScheduleAt: friend.lastScheduleAt,
+            sharedCourseKeys: friend.sharedCourseKeys,
+            sharedSectionKeys: friend.sharedSectionKeys
+        )
     }
 
     private func feedPostCard(_ item: SocialFeedItem) -> some View {
@@ -1614,26 +1673,6 @@ struct SocialHubView: View {
         profileDisplayName = socialManager.currentUser?.displayName ?? ""
     }
 
-    private func runFeedRefreshLoop() async {
-        guard socialManager.isAuthenticated, selectedSection == .feed else { return }
-        guard calendarViewModel.socialFeedRefreshIntervalSeconds > 0 else { return }
-
-        while !Task.isCancelled {
-            do {
-                try await Task.sleep(nanoseconds: UInt64(calendarViewModel.socialFeedRefreshIntervalSeconds) * 1_000_000_000)
-            } catch {
-                return
-            }
-
-            guard !Task.isCancelled,
-                  socialManager.isAuthenticated,
-                  selectedSection == .feed,
-                  calendarViewModel.socialFeedRefreshIntervalSeconds > 0 else { return }
-
-            await socialManager.refreshOverview()
-        }
-    }
-
     private func groupSummary(for group: SocialFriendGroup, namesByID: [String: String]) -> String {
         let names = ([group.ownerID] + group.memberIDs).compactMap { namesByID[$0] }
         if names.isEmpty {
@@ -1825,7 +1864,7 @@ struct SocialHubView: View {
 
 private enum SocialHubSection: String {
     case friends
-    case feed
+    case chat
     case profile
 }
 
@@ -2145,12 +2184,14 @@ private struct GroupChatSheet: View {
     @FocusState private var composerFocused: Bool
 
     @State private var messages: [SocialGroupChatMessage] = []
+    @State private var isLoadingMessages = true
     @State private var draftMessage: String = ""
     @State private var isSending = false
     @State private var didPerformInitialScroll = false
     @State private var isMuted = false
     @State private var participantsByID: [String: SocialUser] = [:]
     @State private var selectedProfileUser: SocialUser?
+    @State private var showParticipants = false
 #if canImport(FirebaseFirestore)
     @State private var chatListener: ListenerRegistration?
 #endif
@@ -2161,10 +2202,21 @@ private struct GroupChatSheet: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    conversationHeader
-
                     ZStack {
-                        if messages.isEmpty {
+                        if isLoadingMessages {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .controlSize(.large)
+                                    .tint(calendarViewModel.themeColor)
+                                Text("Loading messages…")
+                                    .font(.headline)
+                                Text("Checking for the latest conversation.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding()
+                        } else if messages.isEmpty {
                             VStack(spacing: 10) {
                                 Image(systemName: "bubble.left.and.bubble.right")
                                     .font(.title2.weight(.semibold))
@@ -2183,9 +2235,23 @@ private struct GroupChatSheet: View {
                             }
                         } else {
                             ScrollView {
-                                LazyVStack(spacing: 12) {
-                                    ForEach(messages) { message in
-                                        chatMessageRow(message)
+                                LazyVStack(spacing: 5) {
+                                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                                        let previousSenderID = index > 0 ? messages[index - 1].userID : nil
+                                        let showsTimeSeparator = shouldShowTimeSeparator(at: index)
+                                        let showsIdentity = previousSenderID != message.userID || showsTimeSeparator
+
+                                        if showsTimeSeparator {
+                                            Text(chatTimestamp(message.createdAt))
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.tertiary)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.top, index == 0 ? 0 : 9)
+                                                .padding(.bottom, 3)
+                                        }
+
+                                        chatMessageRow(message, showsIdentity: showsIdentity)
+                                            .padding(.top, showsIdentity && !showsTimeSeparator && index > 0 ? 7 : 0)
                                     }
 
                                     Color.clear
@@ -2217,30 +2283,63 @@ private struct GroupChatSheet: View {
                 .safeAreaInset(edge: .bottom) {
                     composerBar(proxy: proxy)
                 }
-                .navigationTitle(reference.title)
+                .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
                             dismiss()
                         } label: {
-                            Label("Back", systemImage: "chevron.left")
+                            Image(systemName: "xmark")
                         }
+                        .accessibilityLabel("Close chat")
+                    }
+
+                    ToolbarItem(placement: .principal) {
+                        Button {
+                            showParticipants = true
+                        } label: {
+                            VStack(spacing: 1) {
+                                Text(reference.title)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text(chatHeaderSubtitle)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View chat members")
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            let nextValue = !isMuted
-                            Task {
-                                await socialManager.setChatMuted(nextValue, for: reference)
-                                await MainActor.run {
-                                    isMuted = nextValue
+                        Menu {
+                            Button {
+                                showParticipants = true
+                            } label: {
+                                Label("View members", systemImage: "person.2")
+                            }
+
+                            Button {
+                                let nextValue = !isMuted
+                                Task {
+                                    await socialManager.setChatMuted(nextValue, for: reference)
+                                    await MainActor.run {
+                                        isMuted = nextValue
+                                    }
                                 }
+                            } label: {
+                                Label(
+                                    isMuted ? "Unmute notifications" : "Mute notifications",
+                                    systemImage: isMuted ? "bell" : "bell.slash"
+                                )
                             }
                         } label: {
-                            Image(systemName: isMuted ? "bell.slash.fill" : "bell.badge.fill")
+                            Image(systemName: "ellipsis.circle")
                         }
-                        .accessibilityLabel(isMuted ? "Unmute chat notifications" : "Mute chat notifications")
+                        .accessibilityLabel("Chat options")
                     }
                 }
                 .task(id: reference.id) {
