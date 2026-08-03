@@ -2366,55 +2366,28 @@ private struct GroupChatSheet: View {
         .sheet(item: $selectedProfileUser) { user in
             SocialUserProfileSheet(user: user)
         }
+        .sheet(isPresented: $showParticipants) {
+            ChatParticipantsSheet(
+                title: reference.title,
+                profiles: participantProfiles,
+                fallbackNames: reference.memberDisplayNames
+            )
+        }
     }
 
-    private var conversationHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if !participantProfiles.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(participantProfiles) { user in
-                            Button {
-                                selectedProfileUser = user
-                            } label: {
-                                Text(user.displayName)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule()
-                                            .fill(calendarViewModel.themeColor.opacity(0.12))
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            } else if !reference.memberDisplayNames.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(reference.memberDisplayNames, id: \.self) { name in
-                            Text(name)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule()
-                                        .fill(calendarViewModel.themeColor.opacity(0.12))
-                                )
-                        }
-                    }
-                }
-            } else {
-                Text(reference.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+    private var chatHeaderSubtitle: String {
+        let count = Set(reference.memberIDs).count
+        let base: String
+        if reference.sourceKind == .campusGroup {
+            base = reference.subtitle
+        } else if reference.sourceKind == .directMessage {
+            base = reference.subtitle
+        } else if count > 0 {
+            base = "\(count) \(count == 1 ? "member" : "members")"
+        } else {
+            base = reference.subtitle
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
+        return isMuted ? "\(base) • Muted" : base
     }
 
     private func composerBar(proxy: ScrollViewProxy) -> some View {
@@ -2427,7 +2400,7 @@ private struct GroupChatSheet: View {
                 .padding(.vertical, 11)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemBackground))
+                        .fill(Color(.secondarySystemBackground))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
@@ -2452,18 +2425,25 @@ private struct GroupChatSheet: View {
                     }
                 }
             } label: {
-                Image(systemName: isSending ? "hourglass" : "paperplane.fill")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(
-                        Circle()
-                            .fill(
-                                draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending
-                                    ? Color(.tertiarySystemFill)
-                                    : calendarViewModel.themeColor
-                            )
-                    )
+                Group {
+                    if isSending {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(
+                            draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending
+                                ? Color(.tertiarySystemFill)
+                                : calendarViewModel.themeColor
+                        )
+                )
             }
             .buttonStyle(.plain)
             .disabled(draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
@@ -2474,14 +2454,38 @@ private struct GroupChatSheet: View {
         .background(.ultraThinMaterial)
     }
 
-    private func chatMessageRow(_ message: SocialGroupChatMessage) -> some View {
+    private func chatMessageRow(
+        _ message: SocialGroupChatMessage,
+        showsIdentity: Bool
+    ) -> some View {
         let isMine = message.userID == socialManager.currentUser?.id
 
-        return HStack {
-            if isMine { Spacer(minLength: 50) }
+        return HStack(alignment: .bottom, spacing: 7) {
+            if isMine {
+                Spacer(minLength: 54)
+            } else if showsIdentity {
+                Button {
+                    Task {
+                        await openProfile(for: message.userID)
+                    }
+                } label: {
+                    Circle()
+                        .fill(calendarViewModel.themeColor.opacity(0.14))
+                        .frame(width: 30, height: 30)
+                        .overlay {
+                            Text(String(message.displayName.prefix(1)).uppercased())
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+                        }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Color.clear
+                    .frame(width: 30, height: 1)
+            }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 3) {
+                if showsIdentity && !isMine {
                     Button {
                         Task {
                             await openProfile(for: message.userID)
@@ -2491,37 +2495,55 @@ private struct GroupChatSheet: View {
                             .font(.caption.weight(.semibold))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.primary)
-                    Spacer(minLength: 0)
-                    Text(chatTimestamp(message.createdAt))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
                 }
 
                 Text(message.body)
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isMine ? Color.white : Color.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(isMine ? calendarViewModel.themeColor : Color(.secondarySystemBackground))
+                    )
+                    .textSelection(.enabled)
+                    .contextMenu {
+                        if socialManager.canDeleteGroupChatMessage(message) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await socialManager.deleteGroupChatMessage(message, in: reference)
+                                }
+                            } label: {
+                                Label("Delete message", systemImage: "trash")
+                            }
+                        }
+                    }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(isMine ? calendarViewModel.themeColor.opacity(0.16) : Color(.secondarySystemBackground))
-            )
+            .frame(maxWidth: 300, alignment: isMine ? .trailing : .leading)
 
-            if !isMine { Spacer(minLength: 50) }
+            if !isMine { Spacer(minLength: 40) }
         }
     }
 
     private func startListening(proxy: ScrollViewProxy) async {
         await MainActor.run {
             didPerformInitialScroll = false
+            messages = []
+            isLoadingMessages = true
         }
+        async let minimumLoadingDelay: Void = Task.sleep(for: .milliseconds(700))
         let initialMessages = await socialManager.loadGroupChatMessages(for: reference)
         await refreshParticipants(using: initialMessages)
+        try? await minimumLoadingDelay
         await MainActor.run {
             messages = initialMessages
-            socialManager.markGroupChatSeen(reference, latestMessageAt: initialMessages.last?.createdAt)
+            isLoadingMessages = false
+            socialManager.markGroupChatSeen(
+                reference,
+                latestMessageID: initialMessages.last?.id,
+                latestMessageAt: initialMessages.last?.createdAt
+            )
             if !initialMessages.isEmpty {
                 didPerformInitialScroll = true
                 scrollToBottom(proxy, animated: false)
@@ -2536,7 +2558,12 @@ private struct GroupChatSheet: View {
         chatListener = await socialManager.observeGroupChatMessages(for: reference) { updatedMessages in
             let shouldScroll = updatedMessages.last?.id != messages.last?.id
             messages = updatedMessages
-            socialManager.markGroupChatSeen(reference, latestMessageAt: updatedMessages.last?.createdAt)
+            isLoadingMessages = false
+            socialManager.markGroupChatSeen(
+                reference,
+                latestMessageID: updatedMessages.last?.id,
+                latestMessageAt: updatedMessages.last?.createdAt
+            )
             Task {
                 await refreshParticipants(using: updatedMessages)
             }
@@ -2637,11 +2664,120 @@ private struct GroupChatSheet: View {
     }
 
     private func chatTimestamp(_ isoString: String) -> String {
-        if let date = groupChatISOFormatter.date(from: isoString)
-            ?? groupChatISOFormatterWithFractionalSeconds.date(from: isoString) {
-            return groupChatTimestampFormatter.string(from: date)
+        if let date = chatDate(isoString) {
+            if Calendar.current.isDateInToday(date) {
+                return date.formatted(date: .omitted, time: .shortened)
+            }
+            return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
         }
         return "Now"
+    }
+
+    private func shouldShowTimeSeparator(at index: Int) -> Bool {
+        guard messages.indices.contains(index) else { return false }
+        guard index > 0 else { return true }
+        guard let currentDate = chatDate(messages[index].createdAt),
+              let previousDate = chatDate(messages[index - 1].createdAt) else {
+            return false
+        }
+
+        return !Calendar.current.isDate(currentDate, inSameDayAs: previousDate)
+            || currentDate.timeIntervalSince(previousDate) >= 15 * 60
+    }
+
+    private func chatDate(_ isoString: String) -> Date? {
+        groupChatISOFormatter.date(from: isoString)
+            ?? groupChatISOFormatterWithFractionalSeconds.date(from: isoString)
+    }
+}
+
+private struct ChatParticipantsSheet: View {
+    let title: String
+    let profiles: [SocialUser]
+    let fallbackNames: [String]
+
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedProfile: SocialUser?
+
+    private var unresolvedNames: [String] {
+        let resolved = Set(profiles.map(\.displayName))
+        return fallbackNames.filter { !resolved.contains($0) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if profiles.isEmpty && unresolvedNames.isEmpty {
+                    ContentUnavailableView(
+                        "No Members Available",
+                        systemImage: "person.2",
+                        description: Text("Member profiles will appear after the conversation loads.")
+                    )
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(profiles) { user in
+                        Button {
+                            selectedProfile = user
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(calendarViewModel.themeColor.opacity(0.13))
+                                    .frame(width: 42, height: 42)
+                                    .overlay {
+                                        Text(String(user.displayName.prefix(1)).uppercased())
+                                            .font(.subheadline.weight(.bold))
+                                            .foregroundStyle(calendarViewModel.themeColor)
+                                    }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(user.displayName)
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text("@\(user.username)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    ForEach(unresolvedNames, id: \.self) { name in
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color.secondary.opacity(0.12))
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    Text(String(name.prefix(1)).uppercased())
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            Text(name)
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .sheet(item: $selectedProfile) { user in
+            SocialUserProfileSheet(user: user)
+        }
     }
 }
 
