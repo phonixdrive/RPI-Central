@@ -8,9 +8,12 @@ import FirebaseCore
 
 @main
 struct RPI_CentralApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor(FirebaseAppDelegate.self) private var firebaseAppDelegate
     @StateObject private var calendarViewModel = CalendarViewModel()
     @StateObject private var socialManager = SocialManager()
+    @StateObject private var externalCalendarSyncManager = ExternalCalendarSyncManager()
+    @StateObject private var appStateSyncManager = AppStateSyncManager()
 
     init() {
 #if canImport(FirebaseCore)
@@ -27,10 +30,24 @@ struct RPI_CentralApp: App {
             ContentView()
                 .environmentObject(calendarViewModel)
                 .environmentObject(socialManager)
+                .environmentObject(externalCalendarSyncManager)
+                .environmentObject(appStateSyncManager)
                 // ✅ persisted theme tint
                 .tint(calendarViewModel.themeColor)
                 // ✅ persisted system/light/dark (default dark)
                 .preferredColorScheme(calendarViewModel.appearanceMode.colorScheme)
+                .task {
+                    await externalCalendarSyncManager.autoSyncIfNeeded(into: calendarViewModel)
+                    await appStateSyncManager.createWeeklyBackupIfNeeded(calendarViewModel: calendarViewModel)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task {
+                        externalCalendarSyncManager.reloadAvailableCalendars()
+                        await externalCalendarSyncManager.autoSyncIfNeeded(into: calendarViewModel)
+                        await appStateSyncManager.createWeeklyBackupIfNeeded(calendarViewModel: calendarViewModel)
+                    }
+                }
         }
     }
 }

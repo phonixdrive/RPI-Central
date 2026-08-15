@@ -3032,6 +3032,12 @@ private struct SocialUserProfileSheet: View {
             )
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .task(id: user.id) {
+                guard canModerateUser else { return }
+                moderationLoaded = false
+                moderationState = await socialManager.moderationState(for: user.id)
+                moderationLoaded = true
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
@@ -3039,7 +3045,51 @@ private struct SocialUserProfileSheet: View {
                     }
                 }
             }
+            .confirmationDialog(
+                "Remove \(user.displayName) from your friends?",
+                isPresented: $showRemoveFriendConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Remove Friend", role: .destructive) {
+                    Task {
+                        isUpdatingRelationship = true
+                        await socialManager.unfriend(user.id)
+                        isUpdatingRelationship = false
+                        dismiss()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(item: $selectedFriendSchedule) { presentation in
+                FriendScheduleLoadingView(presentation: presentation)
+            }
+            .sheet(item: $selectedDirectMessage) { reference in
+                GroupChatSheet(reference: reference)
+            }
         }
+    }
+
+    private func applyMute(days: Int?) async {
+        guard canModerateUser else { return }
+        isModerating = true
+        let until = days.map { Calendar.current.date(byAdding: .day, value: $0, to: Date()) ?? Date() }
+        let success = await socialManager.setUserMuted(until: until, userID: user.id)
+        if success {
+            moderationState = await socialManager.moderationState(for: user.id)
+            moderationLoaded = true
+        }
+        isModerating = false
+    }
+
+    private func applyBan(_ banned: Bool) async {
+        guard canModerateUser else { return }
+        isModerating = true
+        let success = await socialManager.setUserBanned(banned, userID: user.id)
+        if success {
+            moderationState = await socialManager.moderationState(for: user.id)
+            moderationLoaded = true
+        }
+        isModerating = false
     }
 }
 
@@ -3257,13 +3307,6 @@ private enum FeedFormatters {
     }()
 }
 
-private let groupChatTimestampFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .short
-    return formatter
-}()
-
 private let groupChatISOFormatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
@@ -3275,6 +3318,94 @@ private let groupChatISOFormatterWithFractionalSeconds: ISO8601DateFormatter = {
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter
 }()
+
+private struct FriendSchedulePresentation: Identifiable {
+    let friend: SocialFriend
+    let cachedResponse: FriendScheduleResponse?
+
+    var id: String {
+        "\(friend.id)|\(friend.lastScheduleAt ?? "none")"
+    }
+}
+
+private struct FriendScheduleLoadingView: View {
+    let presentation: FriendSchedulePresentation
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var response: FriendScheduleResponse?
+    @State private var didFinishLoading = false
+
+    init(presentation: FriendSchedulePresentation) {
+        self.presentation = presentation
+        _response = State(initialValue: presentation.cachedResponse)
+    }
+
+    var body: some View {
+        Group {
+            if let response {
+                FriendScheduleView(response: response)
+            } else {
+                NavigationStack {
+                    VStack(spacing: 16) {
+                        if didFinishLoading {
+                            Image(systemName: "exclamationmark.calendar")
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+
+                            Text("Couldn’t load this schedule")
+                                .font(.headline)
+
+                            Text(socialManager.errorMessage ?? "Please check your connection and try again.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+
+                            Button("Try Again") {
+                                Task { await loadSchedule() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            ProgressView()
+                                .controlSize(.large)
+
+                            Text("Loading \(presentation.friend.displayName)’s calendar")
+                                .font(.headline)
+
+                            Text("The calendar will appear as soon as its latest schedule arrives.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(28)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
+                    .navigationTitle(presentation.friend.displayName)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { dismiss() }
+                        }
+                    }
+                }
+            }
+        }
+        .task(id: presentation.id) {
+            guard response == nil else { return }
+            await loadSchedule()
+        }
+    }
+
+    private func loadSchedule() async {
+        didFinishLoading = false
+        let loaded = await socialManager.loadFriendSchedule(friendID: presentation.friend.id)
+        guard !Task.isCancelled else { return }
+        response = loaded
+        didFinishLoading = true
+    }
+}
 
 private struct FriendScheduleView: View {
     let response: FriendScheduleResponse
