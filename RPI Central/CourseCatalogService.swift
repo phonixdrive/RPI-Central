@@ -9,10 +9,13 @@ import Foundation
 final class CourseCatalogService: ObservableObject {
     static let shared = CourseCatalogService()
     private let selectedCatalogSemesterKey = "courses.selectedCatalogSemester.v1"
+    private let fall2026CatalogMigrationKey = "courses.selectedCatalogSemester.migratedToFall2026.v1"
 
     @Published private(set) var courses: [Course] = []
+    @Published private(set) var loadingSemester: Semester?
+    private var activeLoadID = UUID()
 
-    @Published var semester: Semester = .spring2026 {
+    @Published var semester: Semester = .fall2026 {
         didSet {
             guard oldValue != semester else { return }
             UserDefaults.standard.set(semester.rawValue, forKey: selectedCatalogSemesterKey)
@@ -21,10 +24,19 @@ final class CourseCatalogService: ObservableObject {
     }
 
     private init() {
-        if let storedCode = UserDefaults.standard.string(forKey: selectedCatalogSemesterKey),
-           let storedSemester = Semester(rawValue: storedCode) {
+        let defaults = UserDefaults.standard
+        let storedSemester = defaults.string(forKey: selectedCatalogSemesterKey).flatMap(Semester.init(rawValue:))
+        let needsFall2026Migration = !defaults.bool(forKey: fall2026CatalogMigrationKey)
+
+        if needsFall2026Migration, storedSemester == nil || storedSemester == .spring2026 {
+            semester = .fall2026
+            defaults.set(Semester.fall2026.rawValue, forKey: selectedCatalogSemesterKey)
+        } else if let storedSemester {
             semester = storedSemester
+        } else {
+            defaults.set(Semester.fall2026.rawValue, forKey: selectedCatalogSemesterKey)
         }
+        defaults.set(true, forKey: fall2026CatalogMigrationKey)
         loadCourses(for: semester)
     }
 
@@ -39,17 +51,26 @@ final class CourseCatalogService: ObservableObject {
 
     private func loadCourses(for semester: Semester) {
         let term = semester.rawValue
+        let loadID = UUID()
+        activeLoadID = loadID
+        loadingSemester = semester
         print("🟦 Loading QuACS term:", term, "semester:", semester)
 
         Task.detached(priority: .userInitiated) { [term] in
             do {
                 let built = try QuACSLoader.buildCourses(termCode: term)
                 await MainActor.run {
+                    guard self.activeLoadID == loadID else { return }
                     self.courses = built
+                    self.loadingSemester = nil
                 }
             } catch {
                 print("❌ QuACS load failed:", error)
-                await MainActor.run { self.courses = [] }
+                await MainActor.run {
+                    guard self.activeLoadID == loadID else { return }
+                    self.courses = []
+                    self.loadingSemester = nil
+                }
             }
         }
     }
@@ -57,7 +78,7 @@ final class CourseCatalogService: ObservableObject {
 
 // MARK: - QuACS Loader
 
-private enum QuACSLoader {
+enum QuACSLoader {
 
     // ---- File layout in bundle (FOLDER REFERENCE REQUIRED) ----
     //
@@ -67,22 +88,25 @@ private enum QuACSLoader {
     //     catalog.json
     //     prerequisites.json
     //
-    static func buildCourses(termCode: String) throws -> [Course] {
+    static func buildCourses(termCode: String, bundle: Bundle = .main) throws -> [Course] {
         let subdir = "semester_data/\(termCode)"
 
         let coursesBySubject: [QuACSCoursesSubject] = try loadJSON(
             "courses",
-            subdirectory: subdir
+            subdirectory: subdir,
+            bundle: bundle
         )
 
         let catalog: [String: QuACSCatalogItem] = try loadJSON(
             "catalog",
-            subdirectory: subdir
+            subdirectory: subdir,
+            bundle: bundle
         )
 
         let prereqsByCRN: [String: QuACSPrereqEntry] = (try? loadJSON(
             "prerequisites",
-            subdirectory: subdir
+            subdirectory: subdir,
+            bundle: bundle
         )) ?? [:]
 
         var result: [Course] = []
@@ -118,7 +142,10 @@ private enum QuACSLoader {
                         meetings: meetings,
                         prerequisitesText: prereqText,
                         prerequisiteExpression: prereqExpression,
-                        credits: sec.credMax ?? sec.credMin ?? 4.0 //fallback 4
+                        credits: sec.credMax ?? sec.credMin ?? 4.0, //fallback 4
+                        currentEnrollment: sec.act,
+                        enrollmentCap: sec.cap,
+                        seatsRemaining: sec.rem
                     )
                 }
 
@@ -137,8 +164,12 @@ private enum QuACSLoader {
         return result
     }
 
-    private static func loadJSON<T: Decodable>(_ name: String, subdirectory: String) throws -> T {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "json", subdirectory: subdirectory) else {
+    private static func loadJSON<T: Decodable>(
+        _ name: String,
+        subdirectory: String,
+        bundle: Bundle
+    ) throws -> T {
+        guard let url = bundle.url(forResource: name, withExtension: "json", subdirectory: subdirectory) else {
             throw NSError(
                 domain: "QuACSLoader",
                 code: 1,
@@ -219,11 +250,14 @@ private struct QuACSCourse: Decodable {
 }
 
 private struct QuACSSection: Decodable {
+    let act: Int?
+    let cap: Int?
     let crn: Int?
     let sec: String
     let subj: String
     let crse: Int
     let title: String?
+    let rem: Int?
     let credMin: Double?
     let credMax: Double?
     let timeslots: [QuACSTimeslot]
@@ -244,7 +278,7 @@ private struct QuACSCatalogItem: Decodable {
     let crse: String
     let name: String
     let description: String
-    let source: String
+    let source: String?
 }
 
 private struct QuACSPrereqEntry: Decodable {

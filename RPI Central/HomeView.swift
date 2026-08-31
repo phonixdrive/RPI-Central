@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models + Managers (stored locally in this file to avoid file explosion)
 
@@ -381,6 +384,17 @@ final class PomodoroSettingsManager: ObservableObject {
     }
 }
 
+private struct HomeDashboardWidgetFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [HomeDashboardSection: CGRect] = [:]
+
+    static func reduce(
+        value: inout [HomeDashboardSection: CGRect],
+        nextValue: () -> [HomeDashboardSection: CGRect]
+    ) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
 // MARK: - HomeView
 
 struct HomeView: View {
@@ -400,7 +414,14 @@ struct HomeView: View {
     @State private var showFlexDollarPlanner = false
     @State private var showFlexDollarUpdate = false
     @State private var showTimer = false
+    @State private var showShuttleTracker = false
+    @State private var showDiningHours = false
     @State private var editingSemesterGPA: Semester? = nil
+    @State private var isEditingDashboard = false
+    @State private var draggedDashboardWidget: HomeDashboardSection?
+    @State private var dashboardDragOffset: CGSize = .zero
+    @State private var dashboardDropTarget: HomeDashboardSection?
+    @State private var dashboardWidgetFrames: [HomeDashboardSection: CGRect] = [:]
 
     private var groupedBySemester: [String: [EnrolledCourse]] {
         Dictionary(grouping: calendarViewModel.enrolledCourses, by: { $0.semesterCode })
@@ -462,11 +483,7 @@ struct HomeView: View {
                         }
                     }
 
-                    ForEach(calendarViewModel.homeSectionOrder) { section in
-                        if calendarViewModel.isHomeSectionEnabled(section) {
-                            homeDashboardSection(section)
-                        }
-                    }
+                    dashboardWidgetsGrid
 
                     // Your existing per-semester enrollment list
                     ForEach(sortedSemesters) { semester in
@@ -526,23 +543,25 @@ struct HomeView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            Button {
-                                editingSemesterGPA = semester
-                            } label: {
-                                Label(
-                                    calendarViewModel.semesterGPAOverride(for: semCode) == nil ? "Set Semester GPA" : "Edit Semester GPA",
-                                    systemImage: "slider.horizontal.3"
-                                )
-                                .foregroundStyle(calendarViewModel.themeColor)
-                            }
                         } header: {
                             HStack {
                                 Text(semesterName)
                                 Spacer()
                                 let termGPA = calendarViewModel.gpa(for: semCode)
-                                Text("GPA \(GPACalculator.format(termGPA))")
-                                    .foregroundStyle(.secondary)
-                                    .font(.subheadline)
+                                Button {
+                                    editingSemesterGPA = semester
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "slider.horizontal.3")
+                                            .font(.caption.weight(.semibold))
+                                        Text("GPA \(GPACalculator.format(termGPA))")
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .foregroundStyle(calendarViewModel.themeColor)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Edit \(semesterName) GPA")
                             }
                         }
                     }
@@ -556,6 +575,19 @@ struct HomeView: View {
             }
             .navigationTitle("RPI Central")
             .tint(calendarViewModel.themeColor)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(isEditingDashboard ? "Done" : "Edit") {
+                        withAnimation(.snappy(duration: 0.24)) {
+                            isEditingDashboard.toggle()
+                            if !isEditingDashboard {
+                                resetDashboardDrag()
+                            }
+                        }
+                    }
+                    .accessibilityLabel("Edit dashboard")
+                }
+            }
             .task(id: calendarViewModel.currentSemester.rawValue) {
                 calendarViewModel.ensureTermBoundsLoaded(for: calendarViewModel.currentSemester)
                 normalizeExistingExamTasksIfNeeded()
@@ -640,11 +672,710 @@ struct HomeView: View {
                 }
             }
 
+            .navigationDestination(isPresented: $showShuttleTracker) {
+                ShuttleTrackerFeatureView()
+            }
+
+            .navigationDestination(isPresented: $showDiningHours) {
+                DiningHoursView(themeColor: calendarViewModel.themeColor)
+            }
+
             .sheet(item: $editingSemesterGPA) { semester in
                 NavigationStack {
                     SemesterGPAOverrideEditorView(semester: semester)
                         .environmentObject(calendarViewModel)
                 }
+            }
+        }
+    }
+
+    private struct DashboardWidgetRow: Identifiable {
+        let sections: [HomeDashboardSection]
+        var id: String { sections.map(\.rawValue).joined(separator: "|") }
+    }
+
+    private var dashboardWidgetRows: [DashboardWidgetRow] {
+        let enabled = calendarViewModel.homeSectionOrder.filter(calendarViewModel.isHomeSectionEnabled)
+        var rows: [DashboardWidgetRow] = []
+        var pendingSmall: HomeDashboardSection?
+
+        for section in enabled {
+            let size = calendarViewModel.homeWidgetSize(for: section)
+            if size == .oneByOne {
+                if let firstSmall = pendingSmall {
+                    rows.append(DashboardWidgetRow(sections: [firstSmall, section]))
+                    pendingSmall = nil
+                } else {
+                    pendingSmall = section
+                }
+            } else {
+                if let firstSmall = pendingSmall {
+                    rows.append(DashboardWidgetRow(sections: [firstSmall]))
+                }
+                pendingSmall = nil
+                rows.append(DashboardWidgetRow(sections: [section]))
+            }
+        }
+
+        if let pendingSmall {
+            rows.append(DashboardWidgetRow(sections: [pendingSmall]))
+        }
+        return rows
+    }
+
+    private var dashboardWidgetsGrid: some View {
+        Section {
+            Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 12) {
+                ForEach(dashboardWidgetRows) { row in
+                    GridRow(alignment: .top) {
+                        ForEach(row.sections) { section in
+                            dashboardWidget(section)
+                                .gridCellColumns(calendarViewModel.homeWidgetSize(for: section).columnSpan)
+                        }
+
+                        if row.sections.count == 1,
+                           let section = row.sections.first,
+                           calendarViewModel.homeWidgetSize(for: section) == .oneByOne {
+                            Color.clear
+                                .frame(maxWidth: .infinity, minHeight: 1)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 2)
+            .coordinateSpace(name: "home-dashboard-grid")
+            .onPreferenceChange(HomeDashboardWidgetFramePreferenceKey.self) { frames in
+                dashboardWidgetFrames = frames
+            }
+        } header: {
+            HStack {
+                Text("Dashboard")
+                if isEditingDashboard {
+                    Spacer()
+                    Label("Drag to reorder", systemImage: "hand.draw")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .transition(.opacity)
+                }
+            }
+        }
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private func dashboardWidget(_ section: HomeDashboardSection) -> some View {
+        let size = calendarViewModel.homeWidgetSize(for: section)
+
+        return VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 7) {
+                if isEditingDashboard {
+                    Button {
+                        withAnimation(.snappy(duration: 0.22)) {
+                            calendarViewModel.setHomeSection(section, enabled: false)
+                        }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .red)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Hide \(section.title)")
+                } else {
+                    Image(systemName: section.systemImage)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(calendarViewModel.themeColor)
+                }
+
+                Text(section.widgetTitle)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                Spacer(minLength: 2)
+
+                if isEditingDashboard {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                } else {
+                    Menu {
+                        ForEach(section.supportedWidgetSizes) { candidate in
+                            Button {
+                                calendarViewModel.setHomeWidgetSize(candidate, for: section)
+                            } label: {
+                                if candidate == size {
+                                    Label(candidate.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(candidate.displayName)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            calendarViewModel.setHomeSection(section, enabled: false)
+                        } label: {
+                            Label("Hide widget", systemImage: "eye.slash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, height: 24)
+                    }
+                }
+            }
+
+            dashboardWidgetContent(section, size: size)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .allowsHitTesting(!isEditingDashboard)
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, minHeight: size.height, maxHeight: size.height, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [calendarViewModel.themeColor.opacity(0.075), .clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    dashboardDropTarget == section
+                        ? calendarViewModel.themeColor.opacity(0.85)
+                        : calendarViewModel.themeColor.opacity(isEditingDashboard ? 0.38 : 0.14),
+                    lineWidth: dashboardDropTarget == section ? 2.5 : 1
+                )
+        }
+        .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+        .clipped()
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: HomeDashboardWidgetFramePreferenceKey.self,
+                    value: [section: proxy.frame(in: .named("home-dashboard-grid"))]
+                )
+            }
+        }
+        .offset(draggedDashboardWidget == section ? dashboardDragOffset : .zero)
+        .scaleEffect(
+            draggedDashboardWidget == section
+                ? 1.035
+                : (isEditingDashboard ? 0.985 : 1)
+        )
+        .rotationEffect(.degrees(isEditingDashboard && draggedDashboardWidget != section ? -0.25 : 0))
+        .shadow(
+            color: draggedDashboardWidget == section ? .black.opacity(0.22) : .clear,
+            radius: 16,
+            y: 8
+        )
+        .zIndex(draggedDashboardWidget == section ? 20 : 0)
+        .highPriorityGesture(
+            dashboardDragGesture(for: section),
+            including: isEditingDashboard ? .all : .none
+        )
+        .animation(.snappy(duration: 0.2), value: dashboardDropTarget)
+        .accessibilityHint(isEditingDashboard ? "Drag this widget to a new position" : "")
+    }
+
+    private func dashboardDragGesture(for section: HomeDashboardSection) -> some Gesture {
+        DragGesture(minimumDistance: 3, coordinateSpace: .named("home-dashboard-grid"))
+            .onChanged { value in
+                if draggedDashboardWidget == nil {
+                    draggedDashboardWidget = section
+#if canImport(UIKit)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+#endif
+                }
+                guard draggedDashboardWidget == section else { return }
+
+                dashboardDragOffset = value.translation
+                let nextTarget = dashboardDropTarget(at: value.location, excluding: section)
+                if nextTarget != dashboardDropTarget {
+                    dashboardDropTarget = nextTarget
+#if canImport(UIKit)
+                    if nextTarget != nil {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+#endif
+                }
+            }
+            .onEnded { _ in
+                let target = dashboardDropTarget
+                if let target {
+                    moveDashboardWidget(section, beforeOrAfter: target)
+                }
+                withAnimation(.snappy(duration: 0.25)) {
+                    resetDashboardDrag()
+                }
+            }
+    }
+
+    private func dashboardDropTarget(
+        at location: CGPoint,
+        excluding dragged: HomeDashboardSection
+    ) -> HomeDashboardSection? {
+        let candidates = dashboardWidgetFrames.filter { $0.key != dragged }
+        if let contained = candidates.first(where: { $0.value.insetBy(dx: -8, dy: -8).contains(location) }) {
+            return contained.key
+        }
+
+        return candidates.min { lhs, rhs in
+            squaredDistance(from: location, to: lhs.value) < squaredDistance(from: location, to: rhs.value)
+        }.flatMap { candidate in
+            squaredDistance(from: location, to: candidate.value) <= 180 * 180 ? candidate.key : nil
+        }
+    }
+
+    private func squaredDistance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        let dx = point.x - rect.midX
+        let dy = point.y - rect.midY
+        return dx * dx + dy * dy
+    }
+
+    private func moveDashboardWidget(
+        _ source: HomeDashboardSection,
+        beforeOrAfter target: HomeDashboardSection
+    ) {
+        guard let sourceIndex = calendarViewModel.homeSectionOrder.firstIndex(of: source),
+              let targetIndex = calendarViewModel.homeSectionOrder.firstIndex(of: target),
+              sourceIndex != targetIndex else { return }
+
+        let destination = targetIndex > sourceIndex ? targetIndex + 1 : targetIndex
+        withAnimation(.snappy(duration: 0.28)) {
+            calendarViewModel.moveHomeSections(
+                from: IndexSet(integer: sourceIndex),
+                to: destination
+            )
+        }
+    }
+
+    private func resetDashboardDrag() {
+        draggedDashboardWidget = nil
+        dashboardDragOffset = .zero
+        dashboardDropTarget = nil
+    }
+
+    @ViewBuilder
+    private func dashboardWidgetContent(_ section: HomeDashboardSection, size: HomeDashboardWidgetSize) -> some View {
+        switch section {
+        case .shuttleTracker:
+            Button {
+                showShuttleTracker = true
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Spacer(minLength: 0)
+                    Text("Live campus map")
+                        .font(size == .oneByOne ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                        .lineLimit(2)
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 7, height: 7)
+                        Text("Open tracker")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 2)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(calendarViewModel.themeColor)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+        case .diningHours:
+            Button {
+                showDiningHours = true
+            } label: {
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    let venues = favoriteDiningVenues.isEmpty ? DiningHoursData.venues : favoriteDiningVenues
+                    let limit = size == .twoByTwo ? 5 : (size == .oneByTwo ? 2 : 1)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(venues.prefix(limit)), id: \.id) { venue in
+                            let status = venue.status(at: context.date)
+                            if size == .oneByOne {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    HStack(spacing: 5) {
+                                        Circle()
+                                            .fill(status.isOpen ? Color.green : Color.secondary)
+                                            .frame(width: 7, height: 7)
+                                        Text(status.isOpen ? "Open" : "Closed")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(status.isOpen ? Color.green : Color.secondary)
+                                    }
+                                    Text(venue.name)
+                                        .font(.caption.weight(.semibold))
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(status.detailText)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            } else {
+                                HStack(alignment: .top, spacing: 7) {
+                                    Circle()
+                                        .fill(status.isOpen ? Color.green : Color.secondary)
+                                        .frame(width: 7, height: 7)
+                                        .padding(.top, 4)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(venue.name)
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(size == .twoByTwo ? 2 : 1)
+                                        Text(status.detailText)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+        case .next:
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                nextWidgetContent(size: size, now: context.date)
+            }
+
+        case .upcoming:
+            upcomingWidgetContent(size: size)
+
+        case .mealSwipes:
+            mealSwipesWidgetContent(size: size)
+
+        case .flexDollars:
+            flexDollarsWidgetContent(size: size)
+
+        case .studyTimer:
+            VStack(alignment: .leading, spacing: 5) {
+                Text("\(pomodoroSettings.preset.focusMinutes)m")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(calendarViewModel.themeColor)
+                Text("focus • \(pomodoroSettings.preset.breakMinutes)m break")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button("Start timer") {
+                    showTimer = true
+                }
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .tint(calendarViewModel.themeColor)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func nextWidgetContent(size: HomeDashboardWidgetSize, now: Date) -> some View {
+        let nextClass = nextClassMeeting(after: now)
+        let upcoming = combinedUpcomingItems(days: 30)
+        let classDeadline = nextClass.flatMap { event in
+            upcoming.first { $0.enrollmentID == event.enrollmentID }
+        }
+        let fallbackDeadline = upcoming.first
+
+        VStack(alignment: .leading, spacing: 6) {
+            if let nextClass {
+                Button {
+                    calendarViewModel.setSelectedDate(nextClass.startDate)
+                    NotificationCenter.default.post(name: .openCalendarTab, object: nil)
+                } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text(nextClassCourseLine(nextClass))
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.primary)
+
+                            Text(nextClass.title.replacingOccurrences(of: "★ ", with: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            Spacer(minLength: 0)
+                        }
+
+                        Label(
+                            nextClass.location.isEmpty ? "Room TBA" : nextClass.location,
+                            systemImage: "mappin.circle.fill"
+                        )
+                        .font(size == .twoByTwo ? .title2.weight(.bold) : .title3.weight(.bold))
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                        Text(nextClassTimingText(nextClass, now: now))
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if let deadline = classDeadline ?? (size == .twoByTwo ? fallbackDeadline : nil) {
+                    Divider()
+                    HStack(spacing: 7) {
+                        Image(systemName: deadline.icon)
+                            .foregroundStyle(calendarViewModel.themeColor)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(classDeadline == nil ? "Next deadline" : "Due for this class")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(deadline.title)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                            if size == .twoByTwo {
+                                Text(deadline.subtitle)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 4)
+                        Text(deadline.relativeText)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Divider()
+                    Label("Nothing due soon for this class", systemImage: "checkmark.circle")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Label("No class in the next two weeks", systemImage: "calendar.badge.checkmark")
+                    .font(.subheadline.weight(.semibold))
+                if let fallbackDeadline {
+                    Divider()
+                    HStack {
+                        Text(fallbackDeadline.title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        Spacer()
+                        Text(fallbackDeadline.relativeText)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if size == .twoByTwo {
+                Spacer(minLength: 0)
+                HStack {
+                    Button("Add task") {
+                        editingTask = nil
+                        showTaskEditor = true
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Spacer()
+
+                    Button("View all") {
+                        showAllTasks = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .font(.caption.weight(.semibold))
+                .tint(calendarViewModel.themeColor)
+            }
+        }
+    }
+
+    private func upcomingWidgetContent(size: HomeDashboardWidgetSize) -> some View {
+        let items = Array(combinedUpcomingItems(days: 14).prefix(size == .twoByTwo ? 5 : 2))
+
+        return VStack(alignment: .leading, spacing: 7) {
+            if items.isEmpty {
+                Label("Nothing due soon", systemImage: "checkmark.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(items) { item in
+                    compactUpcomingWidgetRow(item, showSubtitle: size == .twoByTwo)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Button("Add") {
+                    editingTask = nil
+                    showTaskEditor = true
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Button("View all") {
+                    showAllTasks = true
+                }
+                .buttonStyle(.bordered)
+            }
+            .font(.caption.weight(.semibold))
+            .tint(calendarViewModel.themeColor)
+        }
+    }
+
+    @ViewBuilder
+    private func compactUpcomingWidgetRow(_ item: UpcomingItem, showSubtitle: Bool) -> some View {
+        let content = HStack(spacing: 7) {
+            Image(systemName: item.icon)
+                .font(.caption)
+                .foregroundStyle(calendarViewModel.themeColor)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                if showSubtitle {
+                    Text(item.subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 3)
+            Text(item.relativeText)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+        }
+
+        if case .task(let task) = item.source {
+            Button {
+                editingTask = task
+                showTaskEditor = true
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    private func mealSwipesWidgetContent(size: HomeDashboardWidgetSize) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(mealPlanManager.remaining)")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(calendarViewModel.themeColor)
+                Text("remaining")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 2)
+                if size != .oneByOne {
+                    Text("\(mealPlanManager.state.usedThisWeek)/\(mealPlanManager.state.swipesPerWeek) used")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 6) {
+                Button("Use swipe") {
+                    mealPlanManager.logSwipe()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(calendarViewModel.themeColor)
+
+                Button {
+                    mealPlanManager.undoSwipe()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    showMealSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.plain)
+            }
+            .font(.caption.weight(.semibold))
+        }
+        .onAppear {
+            mealPlanManager.refreshIfNeeded()
+        }
+    }
+
+    private func flexDollarsWidgetContent(size: HomeDashboardWidgetSize) -> some View {
+        TimelineView(.periodic(from: .now, by: 3600)) { context in
+            let snapshot = FlexDollarPlanner.snapshot(
+                semester: calendarViewModel.currentSemester,
+                state: flexDollarsManager.state(for: calendarViewModel.currentSemester.rawValue),
+                termBounds: calendarViewModel.termBoundsBySemesterCode[calendarViewModel.currentSemester.rawValue],
+                now: context.date
+            )
+
+            VStack(alignment: .leading, spacing: 5) {
+                if let snapshot {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(snapshot.balanceText)
+                            .font(.title2.weight(.bold))
+                        Spacer(minLength: 4)
+                        if size != .oneByOne {
+                            Text(snapshot.weeklyBudgetText)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+                        }
+                    }
+                    Text(snapshot.detailText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(size == .twoByTwo ? 3 : 1)
+                } else {
+                    Text("Set up your balance")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Track a safe weekly spending pace.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 6) {
+                    Button(snapshot == nil ? "Set up" : "Update") {
+                        if snapshot == nil {
+                            showFlexDollarPlanner = true
+                        } else {
+                            showFlexDollarUpdate = true
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    if snapshot != nil, size != .oneByOne {
+                        Button("Planner") {
+                            showFlexDollarPlanner = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .tint(calendarViewModel.themeColor)
             }
         }
     }
@@ -656,6 +1387,8 @@ struct HomeView: View {
             shuttleTrackerSection
         case .diningHours:
             diningHoursSection
+        case .next:
+            nextSection
         case .upcoming:
             upcomingSection
         case .mealSwipes:
@@ -741,6 +1474,219 @@ struct HomeView: View {
         } header: {
             Text("Campus Dining")
         }
+    }
+
+    private var nextSection: some View {
+        Section {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                adaptiveNextContent(at: context.date)
+            }
+        } header: {
+            Text("Next")
+        }
+    }
+
+    @ViewBuilder
+    private func adaptiveNextContent(at now: Date) -> some View {
+        let nextClass = nextClassMeeting(after: now)
+        let upcoming = combinedUpcomingItems(days: 30)
+        let classDeadline = nextClass.flatMap { event in
+            upcoming.first { $0.enrollmentID == event.enrollmentID }
+        }
+        let fallbackDeadline = upcoming.first { item in
+            guard let classDeadline else { return true }
+            return item.id != classDeadline.id
+        }
+
+        VStack(alignment: .leading, spacing: 12) {
+            if let nextClass {
+                Button {
+                    calendarViewModel.setSelectedDate(nextClass.startDate)
+                    NotificationCenter.default.post(name: .openCalendarTab, object: nil)
+                } label: {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: nextClass.startDate <= now ? "clock.badge.checkmark.fill" : "clock.fill")
+                            .font(.title3)
+                            .foregroundStyle(calendarViewModel.themeColor)
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(nextClass.startDate <= now ? "Happening now" : "Next class")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(calendarViewModel.themeColor)
+
+                            Text(nextClassCourseLine(nextClass))
+                                .font(.headline)
+                                .lineLimit(1)
+
+                            Text(nextClass.title.replacingOccurrences(of: "★ ", with: ""))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            HStack(spacing: 5) {
+                                Text(nextClassTimingText(nextClass, now: now))
+                                if !nextClass.location.isEmpty {
+                                    Text("•")
+                                    Text(nextClass.location)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 4)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 4)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+
+                if let classDeadline {
+                    adaptiveDeadlineRow(classDeadline, label: "Due for this class")
+                } else {
+                    Label("Nothing due in the next 30 days for this class.", systemImage: "checkmark.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if classDeadline == nil, let fallbackDeadline {
+                    Divider()
+                    adaptiveDeadlineRow(fallbackDeadline, label: "Next deadline")
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar.badge.checkmark")
+                        .font(.title3)
+                        .foregroundStyle(calendarViewModel.themeColor)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("No class coming up")
+                            .font(.headline)
+                        Text("There are no scheduled classes in the next two weeks.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let fallbackDeadline {
+                    Divider()
+                    adaptiveDeadlineRow(fallbackDeadline, label: "Next deadline")
+                }
+            }
+
+            HStack {
+                Button {
+                    editingTask = nil
+                    showTaskEditor = true
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Button("View all") {
+                    showAllTasks = true
+                }
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderless)
+            }
+            .tint(calendarViewModel.themeColor)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func adaptiveDeadlineRow(_ item: UpcomingItem, label: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.icon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(calendarViewModel.themeColor)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(calendarViewModel.themeColor)
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(item.relativeText)
+                Text(item.dueText)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func nextClassMeeting(after now: Date) -> ClassEvent? {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: now)
+
+        for dayOffset in 0...14 {
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+            let next = calendarViewModel.events(on: day)
+                .filter { event in
+                    guard event.kind == .classMeeting,
+                          event.endDate > now,
+                          let enrollmentID = event.enrollmentID,
+                          let enrollment = calendarViewModel.enrollment(withID: enrollmentID) else {
+                        return false
+                    }
+                    return enrollment.semesterCode == calendarViewModel.currentSemester.rawValue
+                }
+                .min { $0.startDate < $1.startDate }
+
+            if let next { return next }
+        }
+
+        return nil
+    }
+
+    private func nextClassCourseLine(_ event: ClassEvent) -> String {
+        guard let enrollment = calendarViewModel.enrollment(withID: event.enrollmentID) else {
+            return "Class"
+        }
+        return "\(enrollment.course.subject) \(enrollment.course.number)"
+    }
+
+    private func nextClassTimingText(_ event: ClassEvent, now: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+
+        if event.startDate <= now, event.endDate > now {
+            return "Ends \(timeFormatter.string(from: event.endDate))"
+        }
+
+        let time = timeFormatter.string(from: event.startDate)
+        if calendar.isDateInToday(event.startDate) {
+            return "Today at \(time) • in \(taskRelativeDueText(to: event.startDate, now: now))"
+        }
+        if calendar.isDateInTomorrow(event.startDate) {
+            return "Tomorrow at \(time)"
+        }
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "EEE, MMM d"
+        return "\(dayFormatter.string(from: event.startDate)) at \(time)"
     }
 
     private var upcomingSection: some View {
@@ -1015,6 +1961,16 @@ struct HomeView: View {
         let icon: String
         let source: UpcomingSource
         let isAllDay: Bool
+
+        var enrollmentID: String? {
+            switch source {
+            case .task(let task):
+                return task.enrollmentID
+            case .calendarExam(_, _, let enrollmentID),
+                 .lmsCalendarEvent(_, let enrollmentID):
+                return enrollmentID
+            }
+        }
 
         var dueText: String {
             let df = DateFormatter()
@@ -1683,8 +2639,48 @@ private struct SemesterGPAOverrideEditorView: View {
     @State private var gpa: Double = 0
     @State private var credits: Double = 16
 
+    private var gradedEnrollments: [(grade: LetterGrade, credits: Double)] {
+        calendarViewModel.enrolledCourses
+            .filter { $0.semesterCode == semester.rawValue }
+            .compactMap { enrollment in
+                guard let grade = GPACalculator.resolvedLetter(
+                    enrollmentID: enrollment.id,
+                    fallbackLetter: calendarViewModel.grade(for: enrollment.id)
+                ) else { return nil }
+                return (grade, enrollment.section.credits)
+            }
+    }
+
+    private var gradedCredits: Double {
+        gradedEnrollments.reduce(0) { $0 + $1.credits }
+    }
+
+    private var displayedGPASourceText: String {
+        if let override = calendarViewModel.semesterGPAOverride(for: semester.rawValue) {
+            return "The displayed GPA comes from your saved semester override, weighted as \(override.credits.formatted()) credits in Overall GPA."
+        }
+
+        if !gradedEnrollments.isEmpty {
+            let courseWord = gradedEnrollments.count == 1 ? "course grade" : "course grades"
+            return "The displayed GPA is calculated from \(gradedEnrollments.count) \(courseWord) entered in RPI Central, totaling \(gradedCredits.formatted()) credits."
+        }
+
+        return "No semester GPA is displayed yet because there is no saved override or entered course grade for this term."
+    }
+
     var body: some View {
         Form {
+            Section("Current Display") {
+                LabeledContent("GPA") {
+                    Text(GPACalculator.format(calendarViewModel.gpa(for: semester.rawValue)))
+                        .fontWeight(.semibold)
+                }
+
+                Text(displayedGPASourceText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section(semester.displayName) {
                 HStack {
                     Text("Semester GPA")
@@ -1736,6 +2732,11 @@ private struct SemesterGPAOverrideEditorView: View {
             if let override = calendarViewModel.semesterGPAOverride(for: semester.rawValue) {
                 gpa = override.gpa
                 credits = override.credits
+            } else if let calculatedGPA = calendarViewModel.gpa(for: semester.rawValue) {
+                gpa = calculatedGPA
+                if gradedCredits > 0 {
+                    credits = gradedCredits
+                }
             }
         }
     }

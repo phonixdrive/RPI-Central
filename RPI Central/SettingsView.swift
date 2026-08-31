@@ -8,10 +8,12 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
+    @EnvironmentObject var externalCalendarSyncManager: ExternalCalendarSyncManager
+    @EnvironmentObject var appStateSyncManager: AppStateSyncManager
 
     @AppStorage("shuttle_tracker_refresh_interval_seconds") private var shuttleTrackerRefreshIntervalSeconds = 5
     @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
-    @StateObject private var appStateSyncManager = AppStateSyncManager()
+    @AppStorage("courses_auto_collapse_prerequisites_v1") private var autoCollapseCoursePrerequisites = true
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
     @State private var editMode: EditMode = .inactive
@@ -56,7 +58,7 @@ struct SettingsView: View {
 
                     Section(
                         header: Text("Home Dashboard"),
-                        footer: Text("Tap Edit, then drag with the handle on the right to reorder your Home blocks.")
+                        footer: Text("Choose each widget's size here or from its ••• menu on Home. Sizes are rows × columns: 1×1 is small, 1×2 is wide, and 2×2 is large. Tap Edit to reorder.")
                     ) {
                         ForEach(calendarViewModel.homeSectionOrder) { section in
                             HStack(spacing: 12) {
@@ -68,6 +70,25 @@ struct SettingsView: View {
                                     )
                                 )
                                 .toggleStyle(.switch)
+
+                                Menu {
+                                    ForEach(section.supportedWidgetSizes) { size in
+                                        Button {
+                                            calendarViewModel.setHomeWidgetSize(size, for: section)
+                                        } label: {
+                                            if calendarViewModel.homeWidgetSize(for: section) == size {
+                                                Label(size.displayName, systemImage: "checkmark")
+                                            } else {
+                                                Text(size.displayName)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Text(calendarViewModel.homeWidgetSize(for: section).displayName)
+                                        .font(.caption.weight(.semibold))
+                                        .frame(minWidth: 34)
+                                }
+                                .disabled(!calendarViewModel.isHomeSectionEnabled(section))
 
                                 Image(systemName: "line.3.horizontal")
                                     .font(.body.weight(.semibold))
@@ -82,6 +103,7 @@ struct SettingsView: View {
                     // PREREQS
                     Section(header: Text("Courses")) {
                         Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
+                        Toggle("Auto-collapse prerequisites", isOn: $autoCollapseCoursePrerequisites)
                         Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -131,8 +153,17 @@ struct SettingsView: View {
 
                     Section(
                         header: Text("Phone and Web Sync"),
-                        footer: Text("Use Save This Phone after making changes on this iPhone. Use Get Latest Saved Copy after making changes on your laptop or web. Recovery backups are your safety copies if you ever want to roll something back.")
+                        footer: Text("RPI Central creates a cloud recovery backup automatically about once a week while you are signed in. Manual save and restore controls remain available here.")
                     ) {
+                        LabeledContent("Automatic backups", value: "Weekly")
+
+                        if let lastBackup = appStateSyncManager.lastWeeklyBackupAt {
+                            LabeledContent(
+                                "Last automatic backup",
+                                value: lastBackup.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        }
+
                         HStack {
                             Text("Latest saved copy")
                             Spacer()
@@ -235,6 +266,90 @@ struct SettingsView: View {
 
                         if let syncStatus = calendarViewModel.lmsCalendarSyncStatus, !syncStatus.isEmpty {
                             Text(syncStatus)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Section(
+                        header: Text("Google & Outlook Calendars"),
+                        footer: Text("RPI Central mirrors events from calendars already connected to Apple Calendar. Add Google or Outlook under iPhone Settings › Apps › Calendar › Calendar Accounts, then choose calendars here.")
+                    ) {
+                        if externalCalendarSyncManager.needsPermission {
+                            Button {
+                                Task {
+                                    await externalCalendarSyncManager.requestAccess()
+                                }
+                            } label: {
+                                Label("Allow calendar access", systemImage: "calendar.badge.plus")
+                            }
+
+                            if externalCalendarSyncManager.authorizationStatus == .denied {
+                                Link(
+                                    "Open iPhone Settings",
+                                    destination: URL(string: UIApplication.openSettingsURLString)!
+                                )
+                            }
+                        } else {
+                            Toggle("Auto sync", isOn: $externalCalendarSyncManager.autoSyncEnabled)
+
+                            if externalCalendarSyncManager.availableCalendars.isEmpty {
+                                Text("No calendars are available yet.")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(externalCalendarSyncManager.availableCalendars) { calendar in
+                                    Toggle(
+                                        isOn: Binding(
+                                            get: { externalCalendarSyncManager.isSelected(calendar.id) },
+                                            set: { isSelected in
+                                                externalCalendarSyncManager.setSelected(
+                                                    isSelected,
+                                                    calendarID: calendar.id
+                                                )
+                                                Task {
+                                                    await externalCalendarSyncManager.sync(into: calendarViewModel)
+                                                }
+                                            }
+                                        )
+                                    ) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(calendar.title)
+                                            Text("\(calendar.accountName) • \(calendar.accountType)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Button {
+                                Task {
+                                    await externalCalendarSyncManager.sync(into: calendarViewModel)
+                                }
+                            } label: {
+                                HStack {
+                                    if externalCalendarSyncManager.isSyncing {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                    Text(externalCalendarSyncManager.isSyncing ? "Syncing…" : "Sync selected calendars")
+                                }
+                            }
+                            .disabled(
+                                externalCalendarSyncManager.isSyncing ||
+                                externalCalendarSyncManager.selectedCalendarIDs.isEmpty
+                            )
+
+                            if let lastSync = externalCalendarSyncManager.lastSyncAt {
+                                LabeledContent(
+                                    "Last synced",
+                                    value: lastSync.formatted(date: .abbreviated, time: .shortened)
+                                )
+                            }
+                        }
+
+                        if let status = externalCalendarSyncManager.statusText {
+                            Text(status)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -348,6 +463,8 @@ struct SettingsView: View {
 
     private func backupTitle(_ backup: PhoneWebCloudBackupSummary) -> String {
         switch backup.label {
+        case "Weekly Automatic Backup":
+            return "Weekly Automatic Backup"
         case "Manual backup", "Recovery backup", "Before Recovery Backup (Current iPhone)":
             return "Before Recovery Backup (Current iPhone)"
         case "Before push • local phone state", "This phone before saving", "Phone before save", "Before Save This Phone: this phone", "Before Save (Current iPhone)":
@@ -366,6 +483,9 @@ struct SettingsView: View {
     }
 
     private func backupSourceText(_ source: String) -> String {
+        if source == "ios-weekly" {
+            return "Saved automatically from your iPhone"
+        }
         if source == "ios-manual" {
             return "Saved from your current iPhone"
         }

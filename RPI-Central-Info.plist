@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>RPI Central uses calendar access to mirror events from selected Google, Outlook, and other calendars into your RPI Central calendar.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

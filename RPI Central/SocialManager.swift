@@ -13,13 +13,80 @@ import FirebaseAuth
 import FirebaseFirestore
 #endif
 
+enum GroupChatUnreadPolicy {
+    static func hasUnread(
+        latestMessageID: String?,
+        latestMessageDate: Date?,
+        latestSenderID: String?,
+        viewerID: String,
+        readMessageID: String?,
+        readMessageDate: Date?
+    ) -> Bool {
+        hasUnread(
+            latestMessageID: latestMessageID,
+            latestMessageDate: latestMessageDate,
+            latestSenderID: latestSenderID,
+            viewerID: viewerID,
+            readMessageID: readMessageID,
+            readMessageDate: readMessageDate,
+            latestThreadVersionWasAcknowledged: false
+        )
+    }
+
+    static func hasUnread(
+        latestMessageID: String?,
+        latestMessageDate: Date?,
+        latestSenderID: String?,
+        viewerID: String,
+        readMessageID: String?,
+        readMessageDate: Date?,
+        latestThreadVersionWasAcknowledged: Bool
+    ) -> Bool {
+        // A thread without an actual last sender has no messages. Messages sent by
+        // the viewer are also already read by definition.
+        guard let latestSenderID, latestSenderID != viewerID else { return false }
+        guard !latestThreadVersionWasAcknowledged else { return false }
+
+        guard let readMessageDate else { return true }
+
+        if let latestMessageID, latestMessageID == readMessageID {
+            return false
+        }
+
+        if let latestMessageDate {
+            if latestMessageDate > readMessageDate { return true }
+            if latestMessageDate < readMessageDate { return false }
+
+            // IDs disambiguate distinct messages created during the same second.
+            // Stale IDs are handled by the local acknowledged-version ledger.
+            if let latestMessageID, let readMessageID {
+                return latestMessageID != readMessageID
+            }
+            return false
+        }
+
+        // Malformed legacy timestamps can still use message identity safely.
+        if let latestMessageID {
+            return latestMessageID != readMessageID
+        }
+        return false
+    }
+}
+
 @MainActor
 final class SocialManager: ObservableObject {
     static let defaultChatPushRelayBaseURL = "https://rpi-central-web.onrender.com"
 
     private struct GroupChatThreadState {
         let updatedAt: String
+        let latestMessageID: String?
         let lastSenderID: String?
+    }
+
+    private struct StoredGroupChatReadReceipt: Codable, Equatable {
+        let messageID: String?
+        let messageAt: String
+        var acknowledgedThreadVersions: [String]? = nil
     }
 
     @Published private(set) var currentUser: SocialUser? {
@@ -41,6 +108,7 @@ final class SocialManager: ObservableObject {
     @Published private(set) var searchResults: [SocialSearchResult] = []
     @Published private(set) var quickAddSuggestions: [SocialSearchResult] = []
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
+    @Published private var friendScheduleCacheByFriendID: [String: FriendScheduleResponse] = [:]
     @Published private(set) var activeGroupChatID: String?
     @Published private var groupChatThreadStates: [String: GroupChatThreadState] = [:]
     @Published var isLoading: Bool = false
@@ -55,13 +123,16 @@ final class SocialManager: ObservableObject {
     private let socialFeedNotificationsEnabledKey = "settings_social_feed_notifications_enabled_v1"
     private let socialGroupNotificationsEnabledKey = "settings_social_group_notifications_enabled_v1"
     private let mutedGroupChatIDsKey = "social.muted_group_chat_ids_v1"
-    private let groupChatLastSeenKey = "social.group_chat_last_seen_v1"
+    private let groupChatReadReceiptsKey = "social.group_chat_read_receipts_v2"
+    private let legacyGroupChatLastSeenKey = "social.group_chat_last_seen_v1"
+    private let legacyGroupChatLastSeenMessageIDKey = "social.group_chat_last_seen_message_ids_v1"
     private let chatPushRelayBaseURLKey = "chat_push_relay_base_url_v1"
     private var pushTokenObserver: NSObjectProtocol? = nil
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
     private var listenerRegistrations: [ListenerRegistration] = []
     private var activeListenerUserID: String?
+    private var realtimeMemberGroupChatIDs: Set<String> = []
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
     private var permissionRecoveryInFlight = false
 #endif
@@ -111,6 +182,70 @@ final class SocialManager: ObservableObject {
         isModeratorIdentity(currentUser)
     }
 
+    func canDeleteGroupChatMessage(_ message: SocialGroupChatMessage) -> Bool {
+        currentUser?.id == message.userID || canModerateSocialContent
+    }
+
+    func moderationState(for userID: String) async -> SocialModerationState {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            return try await loadModerationState(for: userID)
+        } catch {
+            return SocialModerationState(isBanned: false, mutedUntil: nil)
+        }
+#else
+        return SocialModerationState(isBanned: false, mutedUntil: nil)
+#endif
+    }
+
+    @discardableResult
+    func setUserBanned(_ banned: Bool, userID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canModerateSocialContent else {
+                throw SocialError.api("You do not have moderation access.")
+            }
+
+            try await updateData([
+                "socialBanned": banned
+            ], at: firestore.collection("users").document(userID))
+            statusMessage = banned ? "User banned from social." : "User unbanned."
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
+    @discardableResult
+    func setUserMuted(until: Date?, userID: String) async -> Bool {
+        var didSucceed = false
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canModerateSocialContent else {
+                throw SocialError.api("You do not have moderation access.")
+            }
+
+            let value: Any = until.map { Timestamp(date: $0) } ?? NSNull()
+            try await updateData([
+                "socialMutedUntil": value
+            ], at: firestore.collection("users").document(userID))
+
+            if let until {
+                statusMessage = "User muted until \(DateFormatter.localizedString(from: until, dateStyle: .medium, timeStyle: .short))."
+            } else {
+                statusMessage = "User unmuted."
+            }
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+        return didSucceed
+    }
+
     var campusWideChatReference: SocialGroupChatReference? {
         guard let currentUser else { return nil }
         return SocialGroupChatReference(
@@ -157,6 +292,7 @@ final class SocialManager: ObservableObject {
         quickAddSuggestions = []
         groupChatThreadStates = [:]
         loadedFriendSchedule = nil
+        friendScheduleCacheByFriendID = [:]
         activeGroupChatID = nil
         statusMessage = nil
     }
@@ -235,39 +371,85 @@ final class SocialManager: ObservableObject {
     func setActiveGroupChat(id: String?) {
         activeGroupChatID = id
         NotificationManager.setActiveSocialContextID(id)
+        if let id {
+            acknowledgeGroupChatThreadState(threadID: id)
+        }
     }
 
-    func markGroupChatSeen(_ reference: SocialGroupChatReference, latestMessageAt: String? = nil) {
-        let threadUpdatedAt = groupChatThreadStates[reference.id]?.updatedAt
-        let seenValue: String
-        if let latestMessageAt,
-           let latestDate = isoDate(latestMessageAt),
-           let threadUpdatedAt,
-           let threadDate = isoDate(threadUpdatedAt) {
-            seenValue = threadDate > latestDate ? threadUpdatedAt : latestMessageAt
-        } else {
-            seenValue = latestMessageAt ?? threadUpdatedAt ?? nowISO()
+    func markGroupChatSeen(
+        _ reference: SocialGroupChatReference,
+        latestMessageID: String? = nil,
+        latestMessageAt: String? = nil
+    ) {
+        guard let viewerID = currentUser?.id,
+              let latestMessageID,
+              !latestMessageID.isEmpty,
+              let latestMessageAt,
+              let latestDate = isoDate(latestMessageAt) else {
+            // Never clear an unread badge when loading returned no messages.
+            return
         }
-        var stored = groupChatLastSeenValues
-        stored[reference.id] = seenValue
-        UserDefaults.standard.set(stored, forKey: groupChatLastSeenKey)
+
+        let key = groupChatReadReceiptKey(userID: viewerID, threadID: reference.id)
+        let existing = groupChatReadReceipt(storageKey: key, legacyThreadID: reference.id)
+        var acknowledgedVersions = existing?.acknowledgedThreadVersions ?? []
+        if let threadState = groupChatThreadStates[reference.id],
+           let version = groupChatThreadVersionKey(for: threadState) {
+            acknowledgedVersions = appendingAcknowledgedThreadVersion(
+                version,
+                to: acknowledgedVersions
+            )
+        }
+        let actualMessageVersion = groupChatThreadVersionKey(
+            latestMessageID: latestMessageID,
+            updatedAt: latestMessageAt
+        )
+        acknowledgedVersions = appendingAcknowledgedThreadVersion(
+            actualMessageVersion,
+            to: acknowledgedVersions
+        )
+
+        let shouldKeepExistingCursor = existing
+            .flatMap { isoDate($0.messageAt) }
+            .map { $0 > latestDate } ?? false
+        let receipt = StoredGroupChatReadReceipt(
+            messageID: shouldKeepExistingCursor ? existing?.messageID : latestMessageID,
+            messageAt: shouldKeepExistingCursor ? (existing?.messageAt ?? latestMessageAt) : latestMessageAt,
+            acknowledgedThreadVersions: acknowledgedVersions
+        )
+
+        var receipts = groupChatReadReceipts
+        guard receipts[key] != receipt else { return }
+        receipts[key] = receipt
+        persistGroupChatReadReceipts(receipts)
         objectWillChange.send()
     }
 
     func hasUnreadMessages(in reference: SocialGroupChatReference) -> Bool {
         guard let viewer = currentUser,
               let threadState = groupChatThreadStates[reference.id],
-              threadState.lastSenderID != viewer.id,
-              let updatedAt = isoDate(threadState.updatedAt) else {
+              let lastSenderID = threadState.lastSenderID else {
             return false
         }
 
-        guard let lastSeenRaw = groupChatLastSeenValues[reference.id],
-              let lastSeen = isoDate(lastSeenRaw) else {
-            return true
-        }
-
-        return updatedAt > lastSeen
+        let key = groupChatReadReceiptKey(userID: viewer.id, threadID: reference.id)
+        let receipt = groupChatReadReceipt(
+            storageKey: key,
+            legacyThreadID: reference.id
+        )
+        let threadVersion = groupChatThreadVersionKey(for: threadState)
+        let latestThreadVersionWasAcknowledged = threadVersion.map {
+            receipt?.acknowledgedThreadVersions?.contains($0) == true
+        } ?? false
+        return GroupChatUnreadPolicy.hasUnread(
+            latestMessageID: threadState.latestMessageID,
+            latestMessageDate: isoDate(threadState.updatedAt),
+            latestSenderID: lastSenderID,
+            viewerID: viewer.id,
+            readMessageID: receipt?.messageID,
+            readMessageDate: receipt.flatMap { isoDate($0.messageAt) },
+            latestThreadVersionWasAcknowledged: latestThreadVersionWasAcknowledged
+        )
     }
 
     func isChatMuted(_ reference: SocialGroupChatReference) -> Bool {
@@ -617,6 +799,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanUseSocial()
             let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalizedName.isEmpty else {
                 throw SocialError.api("Group name is required.")
@@ -710,6 +893,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanUseSocial()
             guard !incomingMemberIDs.isEmpty else { throw SocialError.api("Pick at least one person to add.") }
 
             let groups = try await loadFriendGroups(ownerID: viewer.id)
@@ -823,6 +1007,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard !trimmedBody.isEmpty else {
                 throw SocialError.api("Comment cannot be empty.")
             }
@@ -957,6 +1142,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard community.memberIDs.contains(viewer.id) else {
                 throw SocialError.api("You are not part of that class group.")
             }
@@ -1055,6 +1241,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard reference.memberIDs.contains(viewer.id) else {
                 throw SocialError.api("You are not part of that group.")
             }
@@ -1185,6 +1372,23 @@ final class SocialManager: ObservableObject {
         )
     }
 
+    func directMessageReference(with friend: SocialFriend) -> SocialGroupChatReference? {
+        guard let currentUser, currentUser.id != friend.id else { return nil }
+        let memberIDs = [currentUser.id, friend.id].sorted()
+        let stableMembers = memberIDs
+            .map { "\($0.utf8.count)-\($0)" }
+            .joined(separator: "_")
+
+        return SocialGroupChatReference(
+            id: "directMessage_\(stableMembers)",
+            title: friend.displayName,
+            subtitle: "@\(friend.username)",
+            memberDisplayNames: [currentUser.displayName, friend.displayName],
+            memberIDs: memberIDs,
+            sourceKind: .directMessage
+        )
+    }
+
     func chatReference(for community: SocialCourseCommunity) -> SocialGroupChatReference {
         let friendNames = Dictionary(uniqueKeysWithValues: (overview?.friends ?? []).map { ($0.id, $0.displayName) })
         let memberDisplayNames = community.memberIDs.compactMap { memberID -> String? in
@@ -1282,6 +1486,7 @@ final class SocialManager: ObservableObject {
         await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             guard !trimmedBody.isEmpty else {
                 throw SocialError.api("Message cannot be empty.")
             }
@@ -1304,6 +1509,7 @@ final class SocialManager: ObservableObject {
             try await setData(groupChatMessageData(message), at: threadRef.collection("messages").document(message.id))
             try await updateData([
                 "updatedAt": message.createdAt,
+                "lastMessageID": message.id,
                 "lastSenderID": viewer.id,
                 "memberIDs": reference.memberIDs,
                 "title": reference.title,
@@ -1313,7 +1519,13 @@ final class SocialManager: ObservableObject {
 
             groupChatThreadStates[reference.id] = GroupChatThreadState(
                 updatedAt: message.createdAt,
+                latestMessageID: message.id,
                 lastSenderID: viewer.id
+            )
+            markGroupChatSeen(
+                reference,
+                latestMessageID: message.id,
+                latestMessageAt: message.createdAt
             )
 
             if reference.sourceKind != .campusGroup {
@@ -1326,14 +1538,67 @@ final class SocialManager: ObservableObject {
                     try await sendSocialAlert(
                         to: reference.memberIDs,
                         type: "groupMessage",
-                        title: reference.title,
-                        body: "\(viewer.displayName): \(trimmedBody)",
+                        title: reference.sourceKind == .directMessage ? viewer.displayName : reference.title,
+                        body: reference.sourceKind == .directMessage
+                            ? trimmedBody
+                            : "\(viewer.displayName): \(trimmedBody)",
                         eventDate: nil,
                         contextID: reference.id
                     )
                 }
             }
 
+            didSucceed = true
+#else
+            throw SocialError.firebaseNotLinked
+#endif
+        }
+
+        return didSucceed
+    }
+
+    @discardableResult
+    func deleteGroupChatMessage(_ message: SocialGroupChatMessage, in reference: SocialGroupChatReference) async -> Bool {
+        var didSucceed = false
+
+        await runOperation(showSpinner: false) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            guard canDeleteGroupChatMessage(message) else {
+                throw SocialError.api("You cannot delete that message.")
+            }
+
+            let threadRef = firestore.collection("groupChats").document(reference.id)
+            let messagesRef = threadRef.collection("messages")
+            try await deleteDocument(messagesRef.document(message.id))
+
+            let latestSnapshot = try await getDocuments(
+                messagesRef
+                    .order(by: "createdAt", descending: true)
+                    .limit(to: 1)
+            )
+
+            if let latestDocument = latestSnapshot.documents.first,
+               let latestMessage = makeGroupChatMessage(from: latestDocument) {
+                try await updateData([
+                    "updatedAt": latestMessage.createdAt,
+                    "lastMessageID": latestMessage.id,
+                    "lastSenderID": latestMessage.userID,
+                ], at: threadRef)
+                groupChatThreadStates[reference.id] = GroupChatThreadState(
+                    updatedAt: latestMessage.createdAt,
+                    latestMessageID: latestMessage.id,
+                    lastSenderID: latestMessage.userID
+                )
+            } else {
+                try await updateData([
+                    "updatedAt": nowISO(),
+                    "lastMessageID": NSNull(),
+                    "lastSenderID": NSNull(),
+                ], at: threadRef)
+                groupChatThreadStates.removeValue(forKey: reference.id)
+            }
+
+            statusMessage = "Message removed."
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
@@ -1362,7 +1627,9 @@ final class SocialManager: ObservableObject {
                 threadID: reference.id,
                 messageID: message.id,
                 messageBody: message.body,
-                threadTitle: reference.title
+                threadTitle: reference.sourceKind == .directMessage
+                    ? message.displayName
+                    : reference.title
             )
         )
 
@@ -1417,6 +1684,7 @@ final class SocialManager: ObservableObject {
         await runOperation {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+            try await assertCurrentUserCanPostSocialContent()
             let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1610,6 +1878,7 @@ final class SocialManager: ObservableObject {
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
             let friendshipRef = firestore.collection("friendships").document(canonicalFriendshipID(viewer.id, friendID))
             try await deleteDocument(friendshipRef)
+            friendScheduleCacheByFriendID.removeValue(forKey: friendID)
             try await refreshOverviewInternal()
             statusMessage = "Friend removed."
 #else
@@ -1768,28 +2037,91 @@ final class SocialManager: ObservableObject {
         }
     }
 
-    func loadFriendSchedule(friendID: String) async {
+    func cachedFriendSchedule(for friend: SocialFriend) -> FriendScheduleResponse? {
+        guard let cached = friendScheduleCacheByFriendID[friend.id],
+              cached.owner.lastScheduleAt == friend.lastScheduleAt else {
+            return nil
+        }
+        return cached
+    }
+
+    func preloadFriendSchedulesForActivity() async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewer = currentUser else { return }
+        let friends = overview?.friends ?? []
+
+        for friend in friends where friend.canViewSchedule && friend.shareSchedule {
+            guard !Task.isCancelled else { return }
+            guard cachedFriendSchedule(for: friend) == nil else { continue }
+
+            do {
+                let owner = SocialUser(
+                    id: friend.id,
+                    username: friend.username,
+                    displayName: friend.displayName,
+                    email: friend.email,
+                    isGuest: friend.isGuest,
+                    shareSchedule: friend.shareSchedule,
+                    shareLocation: friend.shareLocation,
+                    createdAt: friend.createdAt,
+                    lastScheduleAt: friend.lastScheduleAt,
+                    sharedCourseKeys: friend.sharedCourseKeys,
+                    sharedSectionKeys: friend.sharedSectionKeys
+                )
+                let schedule = try await loadScheduleSnapshot(ownerID: friend.id, viewerID: viewer.id)
+                friendScheduleCacheByFriendID[friend.id] = FriendScheduleResponse(
+                    owner: owner,
+                    schedule: schedule
+                )
+            } catch {
+                // Activity is supplementary; a friend's full schedule still has its own retry UI.
+                continue
+            }
+        }
+#endif
+    }
+
+    @discardableResult
+    func loadFriendSchedule(friendID: String) async -> FriendScheduleResponse? {
         loadedFriendSchedule = nil
-        await runOperation {
+        await runOperation(showSpinner: false) {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
-            guard try await friendshipExists(viewer.id, friendID) else {
+            guard let friend = overview?.friends.first(where: { $0.id == friendID }) else {
                 throw SocialError.api("You are not friends with that user.")
             }
-
-            guard let owner = try await fetchUser(id: friendID) else {
-                throw SocialError.api("That user was not found.")
-            }
-            guard owner.shareSchedule else {
+            guard friend.canViewSchedule, friend.shareSchedule else {
                 throw SocialError.api("That user is not sharing their schedule.")
             }
 
+            if let cached = cachedFriendSchedule(for: friend) {
+                loadedFriendSchedule = cached
+                return
+            }
+
+            let owner = SocialUser(
+                id: friend.id,
+                username: friend.username,
+                displayName: friend.displayName,
+                email: friend.email,
+                isGuest: friend.isGuest,
+                shareSchedule: friend.shareSchedule,
+                shareLocation: friend.shareLocation,
+                createdAt: friend.createdAt,
+                lastScheduleAt: friend.lastScheduleAt,
+                sharedCourseKeys: friend.sharedCourseKeys,
+                sharedSectionKeys: friend.sharedSectionKeys
+            )
+
             let schedule = try await loadScheduleSnapshot(ownerID: friendID, viewerID: viewer.id)
-            loadedFriendSchedule = FriendScheduleResponse(owner: owner, schedule: schedule)
+            let response = FriendScheduleResponse(owner: owner, schedule: schedule)
+            friendScheduleCacheByFriendID[friendID] = response
+            loadedFriendSchedule = response
 #else
             throw SocialError.firebaseNotLinked
 #endif
         }
+        return loadedFriendSchedule
     }
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -1991,6 +2323,16 @@ final class SocialManager: ObservableObject {
                 .addSnapshotListener { [weak self] _, error in
                     self?.handleRealtimeEvent(error: error)
                 },
+            firestore.collection("groupChats")
+                .whereField("memberIDs", arrayContains: userID)
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleGroupChatThreadsListener(snapshot: snapshot, error: error)
+                },
+            firestore.collection("groupChats")
+                .document(campusWideGroupThreadID)
+                .addSnapshotListener { [weak self] snapshot, error in
+                    self?.handleCampusWideChatThreadListener(snapshot: snapshot, error: error)
+                },
             firestore.collection("users")
                 .document(userID)
                 .collection("calendarShares")
@@ -2009,7 +2351,55 @@ final class SocialManager: ObservableObject {
     private func detachRealtimeListeners() {
         listenerRegistrations.forEach { $0.remove() }
         listenerRegistrations = []
+        realtimeMemberGroupChatIDs = []
         activeListenerUserID = nil
+    }
+
+    private func handleGroupChatThreadsListener(snapshot: QuerySnapshot?, error: Error?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error {
+                if !self.isPermissionDenied(error) {
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+
+            let documents = snapshot?.documents ?? []
+            let incomingIDs = Set(documents.map(\.documentID))
+            for removedID in self.realtimeMemberGroupChatIDs.subtracting(incomingIDs)
+                where removedID != self.campusWideGroupThreadID {
+                self.groupChatThreadStates.removeValue(forKey: removedID)
+            }
+            self.realtimeMemberGroupChatIDs = incomingIDs
+
+            for document in documents {
+                if let state = self.makeGroupChatThreadState(from: document.data()) {
+                    self.groupChatThreadStates[document.documentID] = state
+                } else {
+                    self.groupChatThreadStates.removeValue(forKey: document.documentID)
+                }
+            }
+        }
+    }
+
+    private func handleCampusWideChatThreadListener(snapshot: DocumentSnapshot?, error: Error?) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error {
+                if !self.isPermissionDenied(error) {
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+
+            if let data = snapshot?.data(),
+               let state = self.makeGroupChatThreadState(from: data) {
+                self.groupChatThreadStates[self.campusWideGroupThreadID] = state
+            } else {
+                self.groupChatThreadStates.removeValue(forKey: self.campusWideGroupThreadID)
+            }
+        }
     }
 
     private func handleRealtimeEvent(error: Error?) {
@@ -2401,16 +2791,14 @@ final class SocialManager: ObservableObject {
         for user in users where user.shareSchedule {
             do {
                 let schedule = try await loadScheduleSnapshot(ownerID: user.id, viewerID: viewerID)
-                if !schedule.items.isEmpty {
-                    counts[user.id] = schedule.items.count
-                    continue
-                }
-                if let legacySnapshot = try await loadUserDocLegacyScheduleSnapshot(ownerID: user.id),
-                   !legacySnapshot.items.isEmpty {
-                    counts[user.id] = legacySnapshot.items.count
-                    continue
-                }
-                counts[user.id] = 0
+                counts[user.id] = schedule.items.count
+
+                // The overview already fetched the complete document to calculate
+                // its preview count, so retain it for an instant calendar open.
+                friendScheduleCacheByFriendID[user.id] = FriendScheduleResponse(
+                    owner: user,
+                    schedule: schedule
+                )
             } catch {
                 // Preview counts are cosmetic. A missing or denied schedule should not break the entire social hub.
                 counts[user.id] = 0
@@ -2523,6 +2911,55 @@ final class SocialManager: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         return username == "neilshrestha20061" || displayName == "phonixdrive"
+    }
+
+    private func assertCurrentUserCanUseSocial() async throws {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+        guard !isModeratorIdentity(viewer) else { return }
+
+        let moderation = try await loadModerationState(for: viewer.id)
+        if moderation.isBanned {
+            throw SocialError.api("Your social access is currently disabled.")
+        }
+#endif
+    }
+
+    private func assertCurrentUserCanPostSocialContent() async throws {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+        guard !isModeratorIdentity(viewer) else { return }
+
+        let moderation = try await loadModerationState(for: viewer.id)
+        if moderation.isBanned {
+            throw SocialError.api("Your social access is currently disabled.")
+        }
+        if let mutedUntil = moderation.mutedUntil, mutedUntil > Date() {
+            let formatted = DateFormatter.localizedString(from: mutedUntil, dateStyle: .medium, timeStyle: .short)
+            throw SocialError.api("You are muted until \(formatted).")
+        }
+#endif
+    }
+
+    private func loadModerationState(for userID: String) async throws -> SocialModerationState {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        let snapshot = try await getDocument(firestore.collection("users").document(userID))
+        let data = snapshot.data() ?? [:]
+        let isBanned = data["socialBanned"] as? Bool ?? false
+
+        let mutedUntil: Date?
+        if let timestamp = data["socialMutedUntil"] as? Timestamp {
+            mutedUntil = timestamp.dateValue()
+        } else if let isoString = data["socialMutedUntil"] as? String {
+            mutedUntil = isoDate(isoString)
+        } else {
+            mutedUntil = nil
+        }
+
+        return SocialModerationState(isBanned: isBanned, mutedUntil: mutedUntil)
+#else
+        return SocialModerationState(isBanned: false, mutedUntil: nil)
+#endif
     }
 
     private func normalizedModeratorHandle(_ username: String?) -> String {
@@ -2947,6 +3384,7 @@ final class SocialManager: ObservableObject {
 
     private func sendFriendRequestInternal(to target: SocialUser) async throws {
         guard let viewer = currentUser else { throw SocialError.notAuthenticated }
+        try await assertCurrentUserCanUseSocial()
         guard target.id != viewer.id else { throw SocialError.api("You cannot friend yourself.") }
         guard !(try await friendshipExists(viewer.id, target.id)) else {
             throw SocialError.api("You are already friends.")
@@ -3346,13 +3784,16 @@ final class SocialManager: ObservableObject {
     private func ensureGroupChat(_ reference: SocialGroupChatReference) async throws {
         let ref = firestore.collection("groupChats").document(reference.id)
         do {
-            try await updateData([
+            var metadata: [AnyHashable: Any] = [
                 "title": reference.title,
                 "subtitle": reference.subtitle,
                 "sourceKind": reference.sourceKind.rawValue,
-                "memberIDs": reference.memberIDs,
                 "isCampusWide": reference.sourceKind == .campusGroup,
-            ], at: ref)
+            ]
+            metadata["memberIDs"] = reference.sourceKind == .campusGroup
+                ? FieldValue.arrayUnion(reference.memberIDs)
+                : reference.memberIDs
+            try await updateData(metadata, at: ref)
         } catch {
             if isDocumentMissing(error) {
                 try await setData(groupChatThreadData(reference), at: ref)
@@ -3626,13 +4067,15 @@ final class SocialManager: ObservableObject {
     }
 
     private func loadScheduleSnapshot(ownerID: String, viewerID: String) async throws -> SharedScheduleSnapshot {
-        var friendViewResult: SharedScheduleSnapshot?
         do {
             let friendViewSnapshot = try await getDocument(friendViewReference(ownerID: ownerID, viewerID: viewerID))
             if friendViewSnapshot.exists,
                let data = friendViewSnapshot.data(),
-               data["items"] != nil {
-                friendViewResult = makeScheduleSnapshot(from: data)
+               data["items"] != nil,
+               let currentSnapshot = makeScheduleSnapshot(from: data) {
+                // Per-friend views are the canonical format. Returning immediately
+                // avoids extra legacy document reads on every calendar open.
+                return currentSnapshot
             }
         } catch {
             if !isPermissionDenied(error) {
@@ -3641,16 +4084,15 @@ final class SocialManager: ObservableObject {
         }
 
         let userLegacySnapshot = try await loadUserDocLegacyScheduleSnapshot(ownerID: ownerID)
-        if let merged = mergeScheduleSnapshots(primary: friendViewResult, fallback: userLegacySnapshot),
-           !merged.items.isEmpty {
-            return merged
+        if let userLegacySnapshot, !userLegacySnapshot.items.isEmpty {
+            return userLegacySnapshot
         }
 
         do {
             let legacySnapshot = try await getDocument(firestore.collection("sharedSchedules").document(ownerID))
             let rootSnapshot = makeScheduleSnapshot(from: legacySnapshot.data())
             if let merged = mergeScheduleSnapshots(
-                primary: mergeScheduleSnapshots(primary: friendViewResult, fallback: userLegacySnapshot),
+                primary: userLegacySnapshot,
                 fallback: rootSnapshot
             ) {
                 return merged
@@ -3661,7 +4103,7 @@ final class SocialManager: ObservableObject {
             }
         }
 
-        return friendViewResult ?? userLegacySnapshot ?? SharedScheduleSnapshot(
+        return userLegacySnapshot ?? SharedScheduleSnapshot(
             semesterCode: "",
             generatedAt: nil,
             items: []
@@ -4012,22 +4454,121 @@ final class SocialManager: ObservableObject {
                 .whereField("memberIDs", arrayContains: memberID)
         )
 
-        return Dictionary(uniqueKeysWithValues: snapshot.documents.compactMap { document in
-            let data = document.data()
-            let updatedAt = data["updatedAt"] as? String ?? ""
-            guard !updatedAt.isEmpty else { return nil }
-            return (
-                document.documentID,
-                GroupChatThreadState(
-                    updatedAt: updatedAt,
-                    lastSenderID: emptyToNil(data["lastSenderID"] as? String)
-                )
-            )
+        var states = Dictionary(uniqueKeysWithValues: snapshot.documents.compactMap { document in
+            makeGroupChatThreadState(from: document.data()).map { (document.documentID, $0) }
         })
+
+        let campusSnapshot = try await getDocument(
+            firestore.collection("groupChats").document(campusWideGroupThreadID)
+        )
+        if let data = campusSnapshot.data(),
+           let campusState = makeGroupChatThreadState(from: data) {
+            states[campusWideGroupThreadID] = campusState
+        }
+        return states
     }
 
-    private var groupChatLastSeenValues: [String: String] {
-        UserDefaults.standard.dictionary(forKey: groupChatLastSeenKey) as? [String: String] ?? [:]
+    private func makeGroupChatThreadState(from data: [String: Any]) -> GroupChatThreadState? {
+        let updatedAt = data["updatedAt"] as? String ?? ""
+        guard !updatedAt.isEmpty else { return nil }
+        return GroupChatThreadState(
+            updatedAt: updatedAt,
+            latestMessageID: emptyToNil(data["lastMessageID"] as? String),
+            lastSenderID: emptyToNil(data["lastSenderID"] as? String)
+        )
+    }
+
+    private var groupChatReadReceipts: [String: StoredGroupChatReadReceipt] {
+        guard let data = UserDefaults.standard.data(forKey: groupChatReadReceiptsKey) else {
+            return [:]
+        }
+        return (try? JSONDecoder().decode([String: StoredGroupChatReadReceipt].self, from: data)) ?? [:]
+    }
+
+    private func persistGroupChatReadReceipts(_ receipts: [String: StoredGroupChatReadReceipt]) {
+        guard let data = try? JSONEncoder().encode(receipts) else { return }
+        UserDefaults.standard.set(data, forKey: groupChatReadReceiptsKey)
+    }
+
+    private func groupChatReadReceipt(
+        storageKey: String,
+        legacyThreadID: String
+    ) -> StoredGroupChatReadReceipt? {
+        var receipts = groupChatReadReceipts
+        if let receipt = receipts[storageKey] {
+            return receipt
+        }
+
+        let legacyDates = UserDefaults.standard.dictionary(forKey: legacyGroupChatLastSeenKey) as? [String: String] ?? [:]
+        guard let legacyMessageAt = legacyDates[legacyThreadID],
+              isoDate(legacyMessageAt) != nil else {
+            return nil
+        }
+        let legacyMessageIDs = UserDefaults.standard.dictionary(forKey: legacyGroupChatLastSeenMessageIDKey) as? [String: String] ?? [:]
+        let migrated = StoredGroupChatReadReceipt(
+            messageID: legacyMessageIDs[legacyThreadID],
+            messageAt: legacyMessageAt
+        )
+        receipts[storageKey] = migrated
+        persistGroupChatReadReceipts(receipts)
+        return migrated
+    }
+
+    private func groupChatReadReceiptKey(userID: String, threadID: String) -> String {
+        "\(userID)|\(threadID)"
+    }
+
+    private func acknowledgeGroupChatThreadState(threadID: String) {
+        guard let viewerID = currentUser?.id,
+              let threadState = groupChatThreadStates[threadID],
+              let version = groupChatThreadVersionKey(for: threadState)
+        else {
+            return
+        }
+
+        let key = groupChatReadReceiptKey(userID: viewerID, threadID: threadID)
+        let existing = groupChatReadReceipt(storageKey: key, legacyThreadID: threadID)
+        let acknowledgedVersions = appendingAcknowledgedThreadVersion(
+            version,
+            to: existing?.acknowledgedThreadVersions ?? []
+        )
+        let receipt = StoredGroupChatReadReceipt(
+            messageID: existing?.messageID ?? threadState.latestMessageID,
+            messageAt: existing?.messageAt ?? threadState.updatedAt,
+            acknowledgedThreadVersions: acknowledgedVersions
+        )
+
+        var receipts = groupChatReadReceipts
+        guard receipts[key] != receipt else { return }
+        receipts[key] = receipt
+        persistGroupChatReadReceipts(receipts)
+        objectWillChange.send()
+    }
+
+    private func groupChatThreadVersionKey(for state: GroupChatThreadState) -> String? {
+        groupChatThreadVersionKey(
+            latestMessageID: state.latestMessageID,
+            updatedAt: state.updatedAt
+        )
+    }
+
+    private func groupChatThreadVersionKey(
+        latestMessageID: String?,
+        updatedAt: String
+    ) -> String {
+        if let latestMessageID, !latestMessageID.isEmpty {
+            return "message:\(latestMessageID)"
+        }
+        return "legacy-date:\(updatedAt)"
+    }
+
+    private func appendingAcknowledgedThreadVersion(
+        _ version: String,
+        to existingVersions: [String]
+    ) -> [String] {
+        var updated = existingVersions.filter { $0 != version }
+        updated.append(version)
+        return Array(updated.suffix(64))
     }
 
     private func updateGroupChatThreadState(
@@ -4037,6 +4578,7 @@ final class SocialManager: ObservableObject {
         guard let lastMessage = messages.last else { return }
         groupChatThreadStates[reference.id] = GroupChatThreadState(
             updatedAt: lastMessage.createdAt,
+            latestMessageID: lastMessage.id,
             lastSenderID: lastMessage.userID
         )
     }

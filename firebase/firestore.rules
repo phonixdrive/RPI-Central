@@ -32,6 +32,14 @@ service cloud.firestore {
       return data.sourceKind == "campusGroup" || data.isCampusWide == true;
     }
 
+    function isDirectMessageBetweenFriends(data) {
+      return data.sourceKind == "directMessage" &&
+        data.memberIDs is list &&
+        data.memberIDs.size() == 2 &&
+        request.auth.uid in data.memberIDs &&
+        areFriends(data.memberIDs[0], data.memberIDs[1]);
+    }
+
     function isGroupMessageAlertForSharedChat(targetUserID) {
       return request.resource.data.type == "groupMessage" &&
         request.resource.data.contextID is string &&
@@ -46,7 +54,12 @@ service cloud.firestore {
       allow create: if isSelf(userID);
       allow update: if isSelf(userID) || (
         isModerator() &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly(["feedPosts", "lastFeedPostAt"])
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "feedPosts",
+          "lastFeedPostAt",
+          "socialBanned",
+          "socialMutedUntil"
+        ])
       );
       allow delete: if false;
 
@@ -193,10 +206,16 @@ service cloud.firestore {
       allow create: if signedIn() && (
         request.auth.uid in request.resource.data.memberIDs ||
         isCampusWideChat(request.resource.data)
+      ) && (
+        request.resource.data.sourceKind != "directMessage" ||
+        isDirectMessageBetweenFriends(request.resource.data)
       );
       allow update: if signedIn() && (
         request.auth.uid in request.resource.data.memberIDs ||
         isCampusWideChat(request.resource.data)
+      ) && (
+        request.resource.data.sourceKind != "directMessage" ||
+        isDirectMessageBetweenFriends(request.resource.data)
       );
       allow delete: if false;
 

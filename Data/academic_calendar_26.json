@@ -1,0 +1,220 @@
+{
+  "source": "https://registrar.rpi.edu/academic-calendar",
+  "academicYear": "2026",
+  "generatedAt": "2026-08-27T00:00:00-04:00",
+  "terms": {
+    "fall": {
+      "classesBegin": "2026-08-27",
+      "classesEnd": "2026-12-11"
+    },
+    "spring": {
+      "classesBegin": null,
+      "classesEnd": null
+    }
+  },
+  "events": [
+    {
+      "title": "Last day of Summer Session I and III Classes-Exams should be given in class during the final meeting day",
+      "startDate": "2026-08-14",
+      "endDate": "2026-08-14",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "August 2026 Degree Conferral Date. Final clearance will occur during the first two weeks of September 2026. Diplomas/E-Diplomas to be sent out in late September 2026.",
+      "startDate": "2026-08-22",
+      "endDate": "2026-08-22",
+      "dow": "Sat",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Degree Application for December 2026 opens in SIS",
+      "startDate": "2026-08-24",
+      "endDate": "2026-08-24",
+      "dow": "Mon",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Fall 2026 Classes Begin",
+      "startDate": "2026-08-27",
+      "endDate": "2026-08-27",
+      "dow": "Thu",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Labor Day-no classes. Staff Holiday",
+      "startDate": "2026-09-07",
+      "endDate": "2026-09-07",
+      "dow": "Mon",
+      "tags": { "noClasses": true, "holiday": true, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Follow a Monday Class Schedule today",
+      "startDate": "2026-09-10",
+      "endDate": "2026-09-10",
+      "dow": "Thu",
+      "tags": { "noClasses": false, "holiday": false, "followDay": true, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to add courses, change sections, or to put courses on audit for Fall 2026",
+      "startDate": "2026-09-11",
+      "endDate": "2026-09-11",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Final deadline for completion of I grade expectations related to Spring 2026 courses",
+      "startDate": "2026-09-11",
+      "endDate": "2026-09-11",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to drop a course in Fall 2026 without being issued a W grade",
+      "startDate": "2026-09-11",
+      "endDate": "2026-09-11",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Nomination of Master's Thesis committee forms due to the Office of Graduate Education for December 2026 degree applicants",
+      "startDate": "2026-09-11",
+      "endDate": "2026-09-11",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day to file an online Degree Application via SIS for December 2026 graduation",
+      "startDate": "2026-10-09",
+      "endDate": "2026-10-09",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Late Degree Application (paper) for December 2026 graduation, if you did not apply in SIS, will begin being accepted",
+      "startDate": "2026-10-10",
+      "endDate": "2026-10-10",
+      "dow": "Sat",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Columbus Day/Indigenous Peoples Day-no classes",
+      "startDate": "2026-10-12",
+      "endDate": "2026-10-12",
+      "dow": "Mon",
+      "tags": { "noClasses": true, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Follow a Monday Class Schedule today",
+      "startDate": "2026-10-16",
+      "endDate": "2026-10-16",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": true, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Consultation weeks. Advisement for Spring 2027 registration. Students should consult with their HUB or faculty advisors",
+      "startDate": "2026-10-19",
+      "endDate": "2026-10-30",
+      "dow": null,
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Doctoral dissertations for December 2026 degree applicants, are due to their advisors",
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-23",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day to file a late Degree Application (paper) for December 2026 graduation",
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-23",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Deadline for Master's thesis and Engineering projects, for December 2026 degree applicants, to be turned in to advisors",
+      "startDate": "2026-10-30",
+      "endDate": "2026-10-30",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Pre-registration for the Spring 2027 term opens for currently enrolled students",
+      "startDate": "2026-11-02",
+      "endDate": "2026-11-20",
+      "dow": null,
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day for undergraduate and graduate students to drop a course with a W grade for Fall 2026",
+      "startDate": "2026-11-06",
+      "endDate": "2026-11-06",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Master's thesis due to the Office of Graduate Education for December 2026 degree applicants. Last day for Doctoral candidates who applied for December 2026 graduation, to defend their thesis.",
+      "startDate": "2026-11-09",
+      "endDate": "2026-11-09",
+      "dow": "Mon",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day for undergraduate students to add or remove Pass/No credit designations for Fall 2026",
+      "startDate": "2026-11-13",
+      "endDate": "2026-11-13",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Thanksgiving Break-no classes.",
+      "startDate": "2026-11-23",
+      "endDate": "2026-11-27",
+      "dow": null,
+      "tags": { "noClasses": true, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": true }
+    },
+    {
+      "title": "Deadline for Doctoral dissertations to be submitted to the Office of Graduate Education for December 2026 degree applicants.",
+      "startDate": "2026-11-23",
+      "endDate": "2026-11-23",
+      "dow": "Mon",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Last day of Fall 2026 classes",
+      "startDate": "2026-12-11",
+      "endDate": "2026-12-11",
+      "dow": "Fri",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Reading/Study days. Instructors can schedule no exams nor require any student work expectations on these days.",
+      "startDate": "2026-12-12",
+      "endDate": "2026-12-15",
+      "dow": null,
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": true, "break": false }
+    },
+    {
+      "title": "Final Exams",
+      "startDate": "2026-12-16",
+      "endDate": "2026-12-22",
+      "dow": null,
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": true, "readingDays": false, "break": false }
+    },
+    {
+      "title": "Winter Break-no classes",
+      "startDate": "2026-12-23",
+      "endDate": "2027-01-08",
+      "dow": null,
+      "tags": { "noClasses": true, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": true }
+    },
+    {
+      "title": "December 2026 Degree Conferral Date. Final clearance will occur during the first two weeks of January 2027. Diplomas/E-Diplomas to be sent out in late January 2027",
+      "startDate": "2026-12-31",
+      "endDate": "2026-12-31",
+      "dow": "Thu",
+      "tags": { "noClasses": false, "holiday": false, "followDay": false, "finals": false, "readingDays": false, "break": false }
+    }
+  ]
+}

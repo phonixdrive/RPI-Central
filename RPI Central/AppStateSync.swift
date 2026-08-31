@@ -50,6 +50,7 @@ struct PhoneWebAppSettings: Codable {
     var showCampusWideGroup: Bool
     var homeSectionOrder: [String]
     var hiddenHomeSections: [String]
+    var homeSectionSizes: [String: String]
     var calendarDisplayMode: String
 
     private enum CodingKeys: String, CodingKey {
@@ -70,6 +71,7 @@ struct PhoneWebAppSettings: Codable {
         case showCampusWideGroup
         case homeSectionOrder
         case hiddenHomeSections
+        case homeSectionSizes
         case calendarDisplayMode
     }
 
@@ -91,6 +93,7 @@ struct PhoneWebAppSettings: Codable {
         showCampusWideGroup: Bool,
         homeSectionOrder: [String],
         hiddenHomeSections: [String],
+        homeSectionSizes: [String: String],
         calendarDisplayMode: String
     ) {
         self.themeColor = themeColor
@@ -110,6 +113,7 @@ struct PhoneWebAppSettings: Codable {
         self.showCampusWideGroup = showCampusWideGroup
         self.homeSectionOrder = homeSectionOrder
         self.hiddenHomeSections = hiddenHomeSections
+        self.homeSectionSizes = homeSectionSizes
         self.calendarDisplayMode = calendarDisplayMode
     }
 
@@ -132,6 +136,7 @@ struct PhoneWebAppSettings: Codable {
         showCampusWideGroup = try container.decode(Bool.self, forKey: .showCampusWideGroup)
         homeSectionOrder = try container.decode([String].self, forKey: .homeSectionOrder)
         hiddenHomeSections = try container.decode([String].self, forKey: .hiddenHomeSections)
+        homeSectionSizes = try container.decodeIfPresent([String: String].self, forKey: .homeSectionSizes) ?? [:]
         calendarDisplayMode = try container.decode(String.self, forKey: .calendarDisplayMode)
     }
 }
@@ -606,11 +611,52 @@ final class AppStateSyncManager: ObservableObject {
     @Published private(set) var cloudSyncError: String?
     @Published private(set) var cloudSnapshotUpdatedAt: String?
     @Published private(set) var cloudBackups: [PhoneWebCloudBackupSummary] = []
+    @Published private(set) var lastWeeklyBackupAt: Date?
 
     private let backupSchemaVersion = 1
     private let maxCloudBackups = 18
     private let shuttleRefreshKey = "shuttle_tracker_refresh_interval_seconds"
     private let showCampusWideGroupKey = "social_show_campus_wide_group"
+    private let lastWeeklyBackupAtKey = "app_state_sync.last_weekly_backup_at.v1"
+    private let weeklyBackupInterval: TimeInterval = 7 * 24 * 60 * 60
+
+    init() {
+        lastWeeklyBackupAt = UserDefaults.standard.object(forKey: lastWeeklyBackupAtKey) as? Date
+    }
+
+    func createWeeklyBackupIfNeeded(calendarViewModel: CalendarViewModel) async {
+        guard !cloudSyncBusy else { return }
+        let now = Date()
+        if let lastWeeklyBackupAt,
+           now.timeIntervalSince(lastWeeklyBackupAt) < weeklyBackupInterval {
+            return
+        }
+
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard currentUserIDIfReady() != nil else { return }
+
+        let didSave: Bool = await runAction {
+            let userID = try requireUserID()
+            let appState = buildCurrentAppState(calendarViewModel: calendarViewModel)
+            let timestamp = SyncISO8601.string(from: now)
+            try await createBackupRecord(
+                userID: userID,
+                appState: appState,
+                label: "Weekly Automatic Backup",
+                source: "ios-weekly",
+                appStateUpdatedAt: timestamp
+            )
+            try await refreshAfterMutation(userID: userID)
+            cloudSyncMessage = "Weekly backup saved automatically."
+            return true
+        } ?? false
+
+        if didSave {
+            lastWeeklyBackupAt = now
+            UserDefaults.standard.set(now, forKey: lastWeeklyBackupAtKey)
+        }
+#endif
+    }
 
     func refresh() async {
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)

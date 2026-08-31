@@ -3,7 +3,7 @@ import Foundation
 
 /// Matches your JSON folder names like `semester_data/202501/courses.json`
 enum Semester: String, CaseIterable, Identifiable, Codable {
-    // Planning + current terms
+    // Current + recent terms
     case fall2026   = "202609"
     case summer2026 = "202605"
     case spring2026 = "202601"
@@ -22,13 +22,12 @@ enum Semester: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
-    // CHANGED: labels updated so Spring 2026 is "current term"
     var displayName: String {
         switch self {
-        case .fall2026:   return "Fall 2026 (planning term)"
-        case .summer2026: return "Summer 2026 (planning term)"
-        case .spring2026: return "Spring 2026 (current term)"
-        case .fall2025:   return "Fall 2025 (previous term)"
+        case .fall2026:   return "Fall 2026 (current term)"
+        case .summer2026: return "Summer 2026 (previous term)"
+        case .spring2026: return "Spring 2026"
+        case .fall2025:   return "Fall 2025"
         case .spring2025: return "Spring 2025"
 
         case .fall2024:   return "Fall 2024"
