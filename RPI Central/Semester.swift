@@ -45,4 +45,10 @@ enum Semester: String, CaseIterable, Identifiable, Codable {
     var jsonFileName: String {
         "rpi_courses_\(rawValue)"
     }
+
+    static func academicTerms(startingAt start: Semester) -> [Semester] {
+        allCases
+            .filter { $0.rawValue >= start.rawValue }
+            .sorted { $0.rawValue > $1.rawValue }
+    }
 }

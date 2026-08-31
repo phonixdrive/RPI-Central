@@ -116,6 +116,11 @@ struct CoursesView: View {
                 for: catalog.semester
             )
         }
+        .onChange(of: calendarViewModel.academicHistoryStartSemester) { _, newStart in
+            if catalog.semester.rawValue < newStart.rawValue {
+                catalog.semester = newStart
+            }
+        }
     }
 
     private var termSection: some View {
@@ -128,7 +133,7 @@ struct CoursesView: View {
                 Spacer()
 
                 Picker("", selection: $catalog.semester) {
-                    ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { sem in
+                    ForEach(calendarViewModel.academicSemestersOnOrAfterStart()) { sem in
                         Text(sem.displayName).tag(sem)
                     }
                 }
