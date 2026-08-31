@@ -801,33 +801,12 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 24, height: 24)
                         .accessibilityHidden(true)
+                } else if usesWholeCardTap(section) {
+                    // The actual menu is layered above the full-card button below.
+                    Color.clear
+                        .frame(width: 24, height: 24)
                 } else {
-                    Menu {
-                        ForEach(section.supportedWidgetSizes) { candidate in
-                            Button {
-                                calendarViewModel.setHomeWidgetSize(candidate, for: section)
-                            } label: {
-                                if candidate == size {
-                                    Label(candidate.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(candidate.displayName)
-                                }
-                            }
-                        }
-
-                        Divider()
-
-                        Button(role: .destructive) {
-                            calendarViewModel.setHomeSection(section, enabled: false)
-                        } label: {
-                            Label("Hide widget", systemImage: "eye.slash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
-                    }
+                    dashboardWidgetMenu(section, size: size)
                 }
             }
 
@@ -859,6 +838,26 @@ struct HomeView: View {
                         : calendarViewModel.themeColor.opacity(isEditingDashboard ? 0.38 : 0.14),
                     lineWidth: dashboardDropTarget == section ? 2.5 : 1
                 )
+                .allowsHitTesting(false)
+        }
+        .overlay {
+            if !isEditingDashboard && usesWholeCardTap(section) {
+                Button {
+                    openDashboardWidget(section)
+                } label: {
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open \(section.title)")
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !isEditingDashboard && usesWholeCardTap(section) {
+                dashboardWidgetMenu(section, size: size)
+                    .padding(13)
+            }
         }
         .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
         .clipped()
@@ -889,6 +888,62 @@ struct HomeView: View {
         )
         .animation(.snappy(duration: 0.2), value: dashboardDropTarget)
         .accessibilityHint(isEditingDashboard ? "Drag this widget to a new position" : "")
+    }
+
+    private func usesWholeCardTap(_ section: HomeDashboardSection) -> Bool {
+        switch section {
+        case .shuttleTracker, .diningHours, .studyTimer:
+            return true
+        case .next, .upcoming, .mealSwipes, .flexDollars:
+            return false
+        }
+    }
+
+    private func openDashboardWidget(_ section: HomeDashboardSection) {
+        switch section {
+        case .shuttleTracker:
+            showShuttleTracker = true
+        case .diningHours:
+            showDiningHours = true
+        case .studyTimer:
+            showTimer = true
+        case .next, .upcoming, .mealSwipes, .flexDollars:
+            break
+        }
+    }
+
+    private func dashboardWidgetMenu(
+        _ section: HomeDashboardSection,
+        size: HomeDashboardWidgetSize
+    ) -> some View {
+        Menu {
+            ForEach(section.supportedWidgetSizes) { candidate in
+                Button {
+                    calendarViewModel.setHomeWidgetSize(candidate, for: section)
+                } label: {
+                    if candidate == size {
+                        Label(candidate.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(candidate.displayName)
+                    }
+                }
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                calendarViewModel.setHomeSection(section, enabled: false)
+            } label: {
+                Label("Hide widget", systemImage: "eye.slash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Options for \(section.title)")
     }
 
     private func dashboardDragGesture(for section: HomeDashboardSection) -> some Gesture {
@@ -973,84 +1028,75 @@ struct HomeView: View {
     private func dashboardWidgetContent(_ section: HomeDashboardSection, size: HomeDashboardWidgetSize) -> some View {
         switch section {
         case .shuttleTracker:
-            Button {
-                showShuttleTracker = true
-            } label: {
-                VStack(alignment: .leading, spacing: 6) {
-                    Spacer(minLength: 0)
-                    Text("Live campus map")
-                        .font(size == .oneByOne ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
-                        .lineLimit(2)
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(.green)
-                            .frame(width: 7, height: 7)
-                        Text("Open tracker")
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 2)
-                        Image(systemName: "arrow.up.right")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(calendarViewModel.themeColor)
-                    }
+            VStack(alignment: .leading, spacing: 6) {
+                Spacer(minLength: 0)
+                Text("Live campus map")
+                    .font(size == .oneByOne ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                    .lineLimit(2)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 7, height: 7)
+                    Text("Open tracker")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 2)
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(calendarViewModel.themeColor)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
 
         case .diningHours:
-            Button {
-                showDiningHours = true
-            } label: {
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    let venues = favoriteDiningVenues.isEmpty ? DiningHoursData.venues : favoriteDiningVenues
-                    let limit = size == .twoByTwo ? 5 : (size == .oneByTwo ? 2 : 1)
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(venues.prefix(limit)), id: \.id) { venue in
-                            let status = venue.status(at: context.date)
-                            if size == .oneByOne {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let venues = favoriteDiningVenues.isEmpty ? DiningHoursData.venues : favoriteDiningVenues
+                let limit = size == .twoByTwo ? 5 : (size == .oneByTwo ? 2 : 1)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(venues.prefix(limit)), id: \.id) { venue in
+                        let status = venue.status(at: context.date)
+                        if size == .oneByOne {
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 5) {
+                                    Circle()
+                                        .fill(status.isOpen ? Color.green : Color.secondary)
+                                        .frame(width: 7, height: 7)
+                                    Text(status.isOpen ? "Open" : "Closed")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(status.isOpen ? Color.green : Color.secondary)
+                                }
+                                Text(venue.name)
+                                    .font(.caption.weight(.semibold))
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(status.detailText)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            HStack(alignment: .top, spacing: 7) {
+                                Circle()
+                                    .fill(status.isOpen ? Color.green : Color.secondary)
+                                    .frame(width: 7, height: 7)
+                                    .padding(.top, 4)
                                 VStack(alignment: .leading, spacing: 1) {
-                                    HStack(spacing: 5) {
-                                        Circle()
-                                            .fill(status.isOpen ? Color.green : Color.secondary)
-                                            .frame(width: 7, height: 7)
-                                        Text(status.isOpen ? "Open" : "Closed")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(status.isOpen ? Color.green : Color.secondary)
-                                    }
                                     Text(venue.name)
                                         .font(.caption.weight(.semibold))
-                                        .lineLimit(2)
-                                        .fixedSize(horizontal: false, vertical: true)
+                                        .lineLimit(size == .twoByTwo ? 2 : 1)
                                     Text(status.detailText)
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            } else {
-                                HStack(alignment: .top, spacing: 7) {
-                                    Circle()
-                                        .fill(status.isOpen ? Color.green : Color.secondary)
-                                        .frame(width: 7, height: 7)
-                                        .padding(.top, 4)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(venue.name)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(size == .twoByTwo ? 2 : 1)
-                                        Text(status.detailText)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                    }
                                 }
                             }
                         }
-                        Spacer(minLength: 0)
                     }
+                    Spacer(minLength: 0)
                 }
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
         case .next:
             TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -1076,12 +1122,9 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                Button("Start timer") {
-                    showTimer = true
-                }
-                .font(.caption.weight(.semibold))
-                .buttonStyle(.borderedProminent)
-                .tint(calendarViewModel.themeColor)
+                Label("Start timer", systemImage: "play.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(calendarViewModel.themeColor)
             }
         }
     }
