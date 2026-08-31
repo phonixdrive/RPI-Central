@@ -1476,18 +1476,25 @@
     "description": "This class is taken by professional students from the School of Architecture's Troy campus accepted into the one-semester visiting program at CASE in NYC. The course is structured to integrate visiting students into ongoing research at CASE by forming cohort groups that work directly with in-resident Ph.D. students. Architectural research methods are explored throughout the semester and include; case studies, modeling, simulation, and prototyping of building systems. The course consists of topical lectures, and discussions regarding progress of ongoing research projects.",
     "source": "SIS"
   },
-  "ARCH-4170": {
-    "subj": "ARCH",
-    "crse": "4170",
-    "name": "Environmental Parametrics",
-    "description": "This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multivariable trade-offs.",
-    "source": "SIS"
-  },
   "ARCH-4200": {
     "subj": "ARCH",
     "crse": "4200",
     "name": "Portfolio Development",
     "description": "A graphic portfolio of architectural design work is a living document representing the diversity, competence, and growth throughout an architect's career. Central to this course is the development of professional development skills in preparation for internships and a professional career in architecture, including the All-Institute ARCH AWAY experience. Students will have the ability to conceive, design, and construct a portfolio, using images and text, that integrates work examples exhibiting a diverse range of skills including, design studio, history theory, professional work, technical and environmental courses. Other skills covered include the design of a curriculum vitae tailored to architecture, and the allied design fields. This course provides an overview of how to establish an NCARB record and log AXP (experience credits), formulate a path to licensure including the AXP and the ARE (Architecture Registration Exam) and is coordinated with career development events, lectures, including Blast-off and the SoA career fair and formally introduces students to their NCARB mentor.",
+    "source": "SIS"
+  },
+  "ARCH-4222": {
+    "subj": "ARCH",
+    "crse": "4222",
+    "name": "Systems Prototyping 1",
+    "description": "System Prototyping 1 introduces students to constructing and analyzing complex systems through advanced computation, with applications in architecture, urban systems, the built environment, and other interdependent systems. Students leverage data mining, ML models, and other optimization techniques to uncover system mechanisms, interdependencies, and feedback loops, then translate insights into architectural representations (drawings, diagrams, and computational workflows) and prototype interfaces/models that visualize system dynamics.",
+    "source": "SIS"
+  },
+  "ARCH-4223": {
+    "subj": "ARCH",
+    "crse": "4223",
+    "name": "Systems Prototyping 2",
+    "description": "This seminar introduces the design and prototyping of smart systems for the built environment\u2014including smart cities/building control and IoT\u2014through the lenses of cybernetics and human\u2013building/human\u2013computer interaction (HBI/HCI). Students prototype real\u2011world events as inputs, process data, and design outputs (light, motion, sound, visualization) using Arduino\u2011class microcontrollers and introductory communication protocols. In the second half, students connect physical prototypes to Unity3D for digital\u2011twin/XR workflows and explore photogrammetry/point\u2011cloud and basic computer\u2011vision methods to stage responsive, post\u2011human interaction scenarios.",
     "source": "SIS"
   },
   "ARCH-4260": {
@@ -1518,6 +1525,13 @@
     "description": "This course provides critical technical knowledge and skills for students to critically address environmental building regulations and the practice of health safety and welfare in the design of the built environment. It prepares students with the necessary foundational knowledge to work collaboratively with adjacent expert professionals to foster an integrative design process and places emphasis on developing critical approaches to both active and passive building systems and building enclosures. The course will deliver material through lectures, software tutorials and skill building workshops and requires the students to have a baseline of established knowledge on the subjects. As such, this class cannot be taken without first passing the pre-requisite courses, Construction Systems (CS) and Environmental and Ecological Systems (EES).",
     "source": "SIS"
   },
+  "ARCH-4321": {
+    "subj": "ARCH",
+    "crse": "4321",
+    "name": "Built Ecologies 1",
+    "description": "A seminar course that establishes an understanding and sense of urgency around the impact of building design on climate change. The course introduces fundamental theory and simulation tools for calculating energy flows, passive and active systems, and operational carbon in the built environment, preparing researchers and advanced professionals to analyze and improve their designs using various analytical tools.",
+    "source": "SIS"
+  },
   "ARCH-4325": {
     "subj": "ARCH",
     "crse": "4325",
@@ -1530,6 +1544,27 @@
     "crse": "4330",
     "name": "Structures 2",
     "description": "This course builds on the material presented in ARCH 2330, with the analysis and design of structures comprising steel, concrete, timber, and masonry. The theoretical concepts covered in the introductory course form the conceptual basis for work in Structures 2, with relevant new concepts/techniques covered. Students will explore load transfer in different structural assemblies and consider how seismic and other complex loading can impact architectural considerations. Innovative, non-normative structural systems are investigated and discussed. Design optimization approaches are introduced and explored as avenues to accomplish more optimum design conditions under increasingly strict design constraints. The course approach will involve in class presentations, homework, exams, worked problems, and case studies.",
+    "source": "SIS"
+  },
+  "ARCH-4332": {
+    "subj": "ARCH",
+    "crse": "4332",
+    "name": "Built Ecologies 2",
+    "description": "A seminar course that provides foundational knowledge and practical simulation tools for daylighting analysis and embodied carbon assessment as essential building blocks for designing healthy, high-performance and low carbon buildings.",
+    "source": "SIS"
+  },
+  "ARCH-4333": {
+    "subj": "ARCH",
+    "crse": "4333",
+    "name": "Environmental Parametrics 1",
+    "description": "Environmental Parametrics 1: This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multivariable trade-offs.",
+    "source": "SIS"
+  },
+  "ARCH-4334": {
+    "subj": "ARCH",
+    "crse": "4334",
+    "name": "Environmental Parametrics 2",
+    "description": "Environmental Parametrics 2 explores the integration of parametric modeling and digital fabrication through the lens of the building skin. Students will develop computational design workflows in Rhino/Grasshopper, focusing on how digital logic can be translated into physical reality using technologies such as laser cutting, 3D printing, CNC routing, and vacuum forming. The curriculum emphasizes \"File-to-Factory\" workflows, material agency, and the development of assembly systems. Students will move from abstract geometric studies to the production of a high-fidelity, multi-material facade prototype.",
     "source": "SIS"
   },
   "ARCH-4340": {
@@ -1558,6 +1593,20 @@
     "crse": "4420",
     "name": "Bldg Sciences Vertical Studio",
     "description": "The Building Sciences Vertical Studio is a thematically varied studio that has at its basis the use of design methodology to conceptualize, develop and evaluate a range of design projects within the Building Sciences. The Vertical Studio integrates the use of state-of-the-art and recent innovations in the materials, enclosure design, data collection methods, data visualization technologies, spatial mapping, investigative learning technologies and data storytelling methods using quantifiable metrics of performance, as well as through the translation of perceivable qualitative experience within physical environments.",
+    "source": "SIS"
+  },
+  "ARCH-4444": {
+    "subj": "ARCH",
+    "crse": "4444",
+    "name": "Material Systems 1",
+    "description": "Material Systems 1 examines materials through first principles, material classification, material production, and material impacts. Students develop criteria to make reasoned choices for the implementation of materials in the built environment. The course is organized in four interconnected sections:",
+    "source": "SIS"
+  },
+  "ARCH-4445": {
+    "subj": "ARCH",
+    "crse": "4445",
+    "name": "Material Systems 2",
+    "description": "Operating at the intersection of material science, sustainability and design for the built environment, in Material Systems 2 students interrogate the performance of materials for design goals, analyze their life cycles and produce material prototypes viewing them across scales from material composition to supply chain. The course is organized into three interconnected sections:",
     "source": "SIS"
   },
   "ARCH-4510": {
@@ -1595,18 +1644,18 @@
     "description": "This course covers topics that are essential to developing an effective professional architectural practice, including; professional ethics and conduct, regulations including legal practice structures in New York State, career paths, licensure paths and career opportunities, requirements of AXP and ARE, business practices, including finances, project management, risk, business planning, marketing, business development, office organization and project delivery, leadership and collaboration in diverse multidisciplinary teams, consultants, project management skills and basic services and fees, and key stakeholders in the design process.",
     "source": "SIS"
   },
+  "ARCH-4555": {
+    "subj": "ARCH",
+    "crse": "4555",
+    "name": "Design Programming 2",
+    "description": "Design Programming 2  provides instruction in advanced capabilities of the Rhinocerous 3D and Grasshopper for automating design generation and analysis. Students are introduced to the ways in which geometry and data are managed in this modeling environment, how Python scripting can extend the base capabilities of both the parametric and command based interactions, and how to connect to information sources outside of the modeling environment to Web based resources. The course is structured through weekly lectures, bi-weekly assignments, and a final project in advanced generative modeling chosen by the student. Environmental Parametrics or strong experience in Grasshopper is required, basic familiarity with Python is recommended.",
+    "source": "SIS"
+  },
   "ARCH-4560": {
     "subj": "ARCH",
     "crse": "4560",
     "name": "Materials And Enclosures",
     "description": "In a world of rapid technological change, this course aims to equip future architects with the ability to position, understand, and implement new materials and systems in meaningful ways. The working principles of selected advanced materials and systems are explained and issues of material development, applications, and integration into buildings systems are addressed. Emphasis is also placed on understanding the issues involved when combining and installing new materials or systems into buildings. Students are further introduced to detail development. Sustainability: New materials and systems are explored with the objective of formulating meaningful technological response to critical environmental and societal issues such as resource depletion, environmental degradation, and globalization.",
-    "source": "SIS"
-  },
-  "ARCH-4580": {
-    "subj": "ARCH",
-    "crse": "4580",
-    "name": "Materials Systems & Production",
-    "description": "The goal of Material Systems and Production is threefold: to develop a fundamental understanding of materials through first principles, classification, production, and impacts, to develop models for material properties and testing, and to develop criteria to make reasoned choices for the implementation of materials in the built environment. Students will engage in directed research projects with the intent of opportunistically identifying intrinsic material properties, exploiting production-forming logics, and developing a prototype detail assembly for testing.",
     "source": "SIS"
   },
   "ARCH-4590": {
@@ -2288,6 +2337,13 @@
     "description": "",
     "source": "SIS"
   },
+  "ARCH-6160": {
+    "subj": "ARCH",
+    "crse": "6160",
+    "name": "Research Investigations",
+    "description": "How do we perform research? What is the relationship between research and design? How might they inform each other? How do we form and test hypotheses? What constitutes novelty in a research context? How does science relate to architecture vis-\u00e0-vis research?",
+    "source": "SIS"
+  },
   "ARCH-6210": {
     "subj": "ARCH",
     "crse": "6210",
@@ -2299,6 +2355,20 @@
     "subj": "ARCH",
     "crse": "6220",
     "name": "Graduate Studio II",
+    "description": "",
+    "source": "SIS"
+  },
+  "ARCH-6222": {
+    "subj": "ARCH",
+    "crse": "6222",
+    "name": "Systems Prototyping 1",
+    "description": "System Prototyping 1 introduces students to constructing and analyzing complex systems through advanced computation, with applications in architecture, urban systems, the built environment, and other interdependent systems. Students leverage data mining, ML models, and other optimization techniques to uncover system mechanisms, interdependencies, and feedback loops, then translate insights into architectural representations (drawings, diagrams, and computational workflows) and prototype interfaces/models that visualize system dynamics.",
+    "source": "SIS"
+  },
+  "ARCH-6223": {
+    "subj": "ARCH",
+    "crse": "6223",
+    "name": "Systems Prototyping 2",
     "description": "",
     "source": "SIS"
   },
@@ -2321,6 +2391,20 @@
     "crse": "6330",
     "name": "Built Ecologies 2",
     "description": "In this seminar, students develop and analyze an ecologically sensitive built system related to their thesis topic with particular attention to the architectural, social, and political implications of the work and their inter-relationships. An awareness of the political and economic forces that are instrumental in the development of contemporary built ecologies creates opportunities for innovation in the cultures of making. Course taught in New York City.",
+    "source": "SIS"
+  },
+  "ARCH-6333": {
+    "subj": "ARCH",
+    "crse": "6333",
+    "name": "Environmental Parametrics 1",
+    "description": "This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multivariable trade-offs.",
+    "source": "SIS"
+  },
+  "ARCH-6334": {
+    "subj": "ARCH",
+    "crse": "6334",
+    "name": "Environmental Parametrics 2",
+    "description": "Environmental Parametrics 2: explores the integration of parametric modeling and digital fabrication through the lens of the building skin. Students will develop computational design workflows in Rhino/Grasshopper, focusing on how digital logic can be translated into physical reality using technologies such as laser cutting, 3D printing, CNC routing, and vacuum forming. The curriculum emphasizes \"File-to-Factory\" workflows, material agency, and the development of assembly systems. Students will move from abstract geometric studies to the production of a high-fidelity, multi-material facade prototype.",
     "source": "SIS"
   },
   "ARCH-6340": {
@@ -2351,13 +2435,6 @@
     "description": "",
     "source": "SIS"
   },
-  "ARCH-6380": {
-    "subj": "ARCH",
-    "crse": "6380",
-    "name": "Graduate Environmental Parametrics",
-    "description": "This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multi-variable trade-offs. This course is designed for both graduate and undergraduate students seeking to advance their skills in environmentally-driven design through computational methods. By leveraging the course's resources and instructor's expertise, students develop a deeper understanding of the relationship between design choices and ecological impact.",
-    "source": "SIS"
-  },
   "ARCH-6390": {
     "subj": "ARCH",
     "crse": "6390",
@@ -2379,6 +2456,20 @@
     "description": "",
     "source": "SIS"
   },
+  "ARCH-6444": {
+    "subj": "ARCH",
+    "crse": "6444",
+    "name": "Material Systems 1",
+    "description": "Material Systems 1 examines materials through first principles, material classification, material production, and material impacts. Students develop criteria to make reasoned choices for the implementation of materials in the built environment. The course is organized in four interconnected sections:",
+    "source": "SIS"
+  },
+  "ARCH-6445": {
+    "subj": "ARCH",
+    "crse": "6445",
+    "name": "Material Systems 2",
+    "description": "Operating at the intersection of material science, sustainability and design for the built environment, in Material Systems 2 students interrogate the performance of materials for design goals, analyze their life cycles and produce material prototypes viewing them across scales from material composition to supply chain. The course is organized into three interconnected sections:",
+    "source": "SIS"
+  },
   "ARCH-6510": {
     "subj": "ARCH",
     "crse": "6510",
@@ -2391,6 +2482,13 @@
     "crse": "6520",
     "name": "Interdisciplinary Phd Seminar",
     "description": "This is a seminar course restricted to students in their second year of doctoral study. It provides a critical forum for the discussion of issues from methods to sources confronting the students on the dissertation. This course will form the core of the interdisciplinary experience of the Doctor of Philosophy in Architectural Sciences. It supports the position that advanced work in architecture frequently builds on knowledge from several disciplines, and as such provides a model for encouraging cross disciplinary work in the Institute. It will involve a combination of senior faculty and visitors and regular presentation of dissertation work in progress.",
+    "source": "SIS"
+  },
+  "ARCH-6555": {
+    "subj": "ARCH",
+    "crse": "6555",
+    "name": "Design Programming 2",
+    "description": "Design Programming 2  provides instruction in advanced capabilities of the Rhinocerous 3D and Grasshopper for automating design generation and analysis. Students are introduced to the ways in which geometry and data are managed in this modeling environment, how Python scripting can extend the base capabilities of both the parametric and command based interactions, and how to connect to information sources outside of the modeling environment to Web based resources. The course is structured through weekly lectures, bi-weekly assignments, and a final project in advanced generative modeling chosen by the student. Environmental Parametrics or strong experience in Grasshopper is required, basic familiarity with Python is recommended.",
     "source": "SIS"
   },
   "ARCH-6610": {
@@ -4871,6 +4969,13 @@
     "description": "",
     "source": "SIS"
   },
+  "ASTR-6110": {
+    "subj": "ASTR",
+    "crse": "6110",
+    "name": "Cosmology",
+    "description": "Cosmology is the study of the Universe as a whole. In this course we will try to answer the following questions (among others): What are the contents of the Universe? How has the history of the Universe looked until now? How will the Universe evolve from here? Why is one location in the Universe not more special than another? And why is one direction not more special than another? Students will write a paper based on an advanced topic related to this course, synthesizing information from multiple sources.",
+    "source": "SIS"
+  },
   "ASTR-6250": {
     "subj": "ASTR",
     "crse": "6250",
@@ -6990,6 +7095,13 @@
     "crse": "1009",
     "name": "Consortia Course At Alb. Pharm",
     "description": "",
+    "source": "SIS"
+  },
+  "BMED-1200": {
+    "subj": "BMED",
+    "crse": "1200",
+    "name": "Introduction To Bme",
+    "description": "This course is an introduction to the field of biomedical engineering, the biomedical engineering specializations available at RPI, and the biomedical engineering faculty members at RPI. Students will learn about unmet needs in BME to gain further interest in the field, basic professional writing and presentation practice, the resources they have as BME students at RPI, and the opportunities they have after graduation.",
     "source": "SIS"
   },
   "BMED-1960": {
@@ -10814,6 +10926,13 @@
     "description": "Analysis and design of reinforced concrete structures using ultimate strength methods. Design of beams, columns, slabs, and footings. Development and anchorage of reinforcing bars. Laboratory testing of hardened concrete mechanical properties.",
     "source": "SIS"
   },
+  "CIVL-4090": {
+    "subj": "CIVL",
+    "crse": "4090",
+    "name": "High Performance Concrete",
+    "description": "This course introduces the principles and practices of high-performance concrete in modern civil engineering. Topics include the fundamentals of high-performance concrete, specialty molding and release agents, aggregate types and properties, mix design methodologies, and experimental testing. The course also covers the role of supplementary cementitious materials, chemical admixtures, and fiber reinforcement in enhancing concrete performance. Emphasis is placed on designing with specialty concrete mixes, optimization-based approaches, and sustainability considerations. Students will work on a real-world project focusing on the design of an ultra-lightweight concrete structure from conception through construction. Teamwork, project planning, and management are emphasized, providing students with valuable hands-on experience in structural engineering and professional collaboration.",
+    "source": "SIS"
+  },
   "CIVL-4140": {
     "subj": "CIVL",
     "crse": "4140",
@@ -11477,6 +11596,13 @@
     "crse": "4400",
     "name": "Self Design - The Arch",
     "description": "",
+    "source": "SIS"
+  },
+  "COOP-6010": {
+    "subj": "COOP",
+    "crse": "6010",
+    "name": "Graduate Co-op Edu Assgmt",
+    "description": "An opportunity for a hands on experiential learning experience for graduate students (MEng and/or PhD) in industry and/or research centers.",
     "source": "SIS"
   },
   "COOP-6960": {
@@ -14104,6 +14230,20 @@
     "description": "This class is an introduction to graph processing and mining. Students will learn about research and analytical challenges related to the study of real-world graphs. Course topics may include, but are not limited to: general graph processing techniques, connectivity and centrality algorithms, recommender systems, link prediction, community detection, subgraph mining, graph neural networks, random graph models, random walks, and the interplay between graphs and linear algebra. Course activities include programming assignments, paper presentations, and a semester-long project involving a proposal presentation, update presentation, and final presentation and writeup.",
     "source": "SIS"
   },
+  "CSCI-4290": {
+    "subj": "CSCI",
+    "crse": "4290",
+    "name": "Advanced Operating Systems",
+    "description": "This course provides an in-depth exploration of operating system concepts and mechanisms beyond the introductory level. Students will study the design, implementation, and evaluation of modern operating systems, with a focus on advanced topics such as system calls, CPU scheduling, concurrency, synchronization, memory management, file systems, virtual memory, and device drivers. The course combines theoretical foundations with practical experience, including programming assignments that involve developing and analyzing operating system components. By the end of the course, students will gain a thorough understanding of the principles and challenges in building robust, efficient, and secure operating systems, preparing them for research or careers in systems software development.",
+    "source": "SIS"
+  },
+  "CSCI-4300": {
+    "subj": "CSCI",
+    "crse": "4300",
+    "name": "Advanced Computer Architecture",
+    "description": "This course expands upon topics covered in CSCI 2800.  Specifically, this course covers advanced topics in computer hardware, including processor and memory design, as well as performance evaluation.  The course provides a mix of theoretical and mathematical foundations with hands-on assignments.  This course is appropriate for students interested in computer hardware and high-performance computing, including students exploring career paths in hardware design and analysis.",
+    "source": "SIS"
+  },
   "CSCI-4310": {
     "subj": "CSCI",
     "crse": "4310",
@@ -14272,6 +14412,13 @@
     "description": "We will study theoretical and practical solutions to computational geometry problems found in computer graphics, visualization, vision, robotics, engineering, manufacturing, and geographic information systems.  Topics include convex hulls, half-planes, Voronoi diagrams, Delaunay triangulations, binary space partitions, motion planning, visibility, and meshes. Course activities include programming assignments, written homework with proofs of computational complexity, and a term project with presentation.",
     "source": "SIS"
   },
+  "CSCI-4570": {
+    "subj": "CSCI",
+    "crse": "4570",
+    "name": "Software Verification",
+    "description": "This course will enable students to understand and apply software verification techniques with a particular emphasis on fundamental proof methods. The course will cover proof methods including implication chaining, applied to equational reasoning, sentential logic, and first-order logic. The course will also cover proofs about fundamental data types and algorithms. The course will use the Athena dual computation/deduction language, and the MIT Press book \"Fundamental Proof Methods in Computer Science\" by Konstantine Arkoudas and David Musser. Students will also review current research on software verification on topics of their interest, for example: model checking, symbolic testing, temporal logic, modal logics, formal programming language semantics, proof-carrying code, dependent types, and session types. Contingent on time availability, the course will study proofs at an abstract level for reusability and proofs about concurrent actor programs.",
+    "source": "SIS"
+  },
   "CSCI-4600": {
     "subj": "CSCI",
     "crse": "4600",
@@ -14284,6 +14431,13 @@
     "crse": "4610",
     "name": "Computing & Quantum Computing",
     "description": "A course on computing and quantum computing emphasizing the theory and foundations. The course begins with advanced topics in the theory of computing (Turing Machines, undecidability, complexity and Boolean circuits, NP-completeness). The course then covers the foundations of Quantum Computing addressing the fundamental questions of \u201cWhat is quantum computing and how do we do it?\u201d before moving on to exploring quantum algorithm design by covering standard design techniques as well as the quantum algorithms for gatekeeper problems (quantum search, quantum counting, quantum approximate optimization, quantum machine learning, etc.). Students cannot receive credit for both CSCI 4610 and CSCI 6610.",
+    "source": "SIS"
+  },
+  "CSCI-4620": {
+    "subj": "CSCI",
+    "crse": "4620",
+    "name": "Quantum Computer Organization",
+    "description": "This course introduces quantum computing through the lens of classic CS computer organization and software engineering. The course is guided by the principle that \"you don't really understand something until you can code it\"; every concept covered in class will be reinforced by hands-on implementation. Students will not only study the theoretical foundations of quantum computation but will also build software artifacts that translate theory into practice. Participants will learn how to design and implement the abstractions that connect low-level hardware with high-level applications, forming the essential layers of the quantum computer and its associated software stack. Through a combination of lectures, coding projects, and real-world case studies, students will (a) build a solid understanding of quantum computing theory toward more advanced studies, (b) implement foundational data structures for quantum computing, as well as key quantum algorithms in software, (c) explore workload optimization, compilation, error mitigation, result validation and resource management in quantum systems, and (d) gain experience with modern quantum programming frameworks and hardware backends. By the end of the course, students will have developed the technical skills and practical experience necessary to become the workforce powering the next generation of quantum computing, creating tools, frameworks, and platforms that enable application developers, researchers, and domain experts to fully leverage quantum technologies.",
     "source": "SIS"
   },
   "CSCI-4700": {
@@ -14788,6 +14942,13 @@
     "crse": "6560",
     "name": "Computational Geometry",
     "description": "We will study theoretical and practical solutions to computational geometry problems found in computer graphics, visualization, vision, robotics, engineering, manufacturing, and geographic information systems.  Topics include convex hulls, half-planes, Voronoi diagrams, Delaunay triangulations, binary space partitions, motion planning, visibility, and meshes. Course activities include programming assignments, written homework with proofs of computational complexity, and a term project with presentation.",
+    "source": "SIS"
+  },
+  "CSCI-6570": {
+    "subj": "CSCI",
+    "crse": "6570",
+    "name": "Software Verification",
+    "description": "This course will enable students to understand and apply software verification techniques with a particular emphasis on fundamental proof methods. The course will cover proof methods including implication chaining, applied to equational reasoning, sentential logic, and first-order logic. The course will also cover proofs about fundamental data types and algorithms. The course will use the Athena dual computation/deduction language, and the MIT Press book \"Fundamental Proof Methods in Computer Science\" by Konstantine Arkoudas and David Musser. Students will also review current research on software verification on topics of their interest, for example: model checking, symbolic testing, temporal logic, modal logics, formal programming language semantics, proof-carrying code, dependent types, and session types. Contingent on time availability, the course will study proofs at an abstract level for reusability and proofs about concurrent actor programs.",
     "source": "SIS"
   },
   "CSCI-6610": {
@@ -15663,6 +15824,13 @@
     "crse": "4450",
     "name": "Enhancing Critical Thinking",
     "description": "This course is intended for engineering students interested in improving their critical and creative thinking abilities as they examine the ethical impact of their engineering decisions.  The course facilitates a social and interactive learning environment where the development of core behaviors for deeper conversations are explored through clear communication of problem analysis. Using classic engineering cases, students explore ambiguities, value assumptions, fallacies in reasoning and learn to improve their ability to develop unique ideas, overcome objections, and persuade others in an ethical manner. Students cannot receive credit for both this course and ISYE 4450.",
+    "source": "SIS"
+  },
+  "ENGR-4460": {
+    "subj": "ENGR",
+    "crse": "4460",
+    "name": "Prof Skills For Engr Success",
+    "description": "This course is designed to prepare engineering students for success in professional environments by building essential workplace skills. Students will develop and refine their communication abilities, strengthen professional interactions, and craft effective career planning strategies. Through interactive modules and experiential learning, students will gain confidence in public speaking, enhance written and verbal communication, and master practical tools for navigating the workplace with professionalism and integrity. The course is open to undergraduate and graduate engineering students.",
     "source": "SIS"
   },
   "ENGR-4555": {
@@ -19305,6 +19473,13 @@
     "description": "Linear and non-linear applications of operational amplifiers, with an emphasis on circuit design. Non-ideal operational amplifier behavior, including both static and dynamic characteristics. Amplifier stability and frequency compensation techniques. Operational amplifier-based oscillators. Circuit noise.",
     "source": "SIS"
   },
+  "ECSE-4060": {
+    "subj": "ECSE",
+    "crse": "4060",
+    "name": "Intro Qntm Elec Devices & Apps",
+    "description": "This course bridges quantum mechanics foundations with modern device applications. Topics include wave functions, Schr\u00f6dinger equation solutions, formalism of Hilbert spaces and Hermitian operators, and common approximation methods for realistic systems. Various applications are explored, such as LEDs, quantum dots, and tunneling, with a primary emphasis on transmon and trapped-ion qubits for quantum computing.",
+    "source": "SIS"
+  },
   "ECSE-4080": {
     "subj": "ECSE",
     "crse": "4080",
@@ -19415,6 +19590,13 @@
     "crse": "4440",
     "name": "Control Systems Engineering",
     "description": "Application of linear feedback theory to the design of large-scale, integrated control systems. Derivation of complex mathematical models of physical systems. Synthesis of appropriate control laws to provide stability. Simulation of complex control systems on digital computers.",
+    "source": "SIS"
+  },
+  "ECSE-4450": {
+    "subj": "ECSE",
+    "crse": "4450",
+    "name": "Decision Making Under Uncrtnty",
+    "description": "This course introduces methods for automating the process of decision-making. Starting with the foundations of probabilistic reasoning, this course will cover Markov decision processes, which is a mathematical foundation for a sequential decision-making. Then it will focus on state uncertainty and introduce partially observable Markov decision processes and finally cover multi-agent reasoning.",
     "source": "SIS"
   },
   "ECSE-4480": {
@@ -20052,6 +20234,13 @@
     "crse": "6440",
     "name": "Optimal Control Theory",
     "description": "The concepts, techniques, and tools related to optimal control for dynamical systems. Major topics include calculus of variation, minimum principle, dynamic programming, optimal estimation, and differential games. Both discrete time systems and continuous times are addressed. Particular consideration is given to linear time invariant systems in terms of linear quadratic regulator and Kalman filter.",
+    "source": "SIS"
+  },
+  "ECSE-6450": {
+    "subj": "ECSE",
+    "crse": "6450",
+    "name": "Decision Making Under Uncrtnty",
+    "description": "This course introduces methods for automating the process of decision-making. Starting with the foundations of probabilistic reasoning, this course will cover Markov decision processes, which is a mathematical foundation for a sequential decision-making. Then it will focus on state uncertainty and introduce partially observable Markov decision processes and finally cover multi-agent reasoning.",
     "source": "SIS"
   },
   "ECSE-6460": {
@@ -21237,6 +21426,13 @@
     "description": "Study of hydrologic and geologic and other factors controlling groundwater flow, occurrence, and development. chemistry, and contamination. Groundwater flow theory and aquifer test methods are introduced. Interactions between surface and subsurface hydrologic systems are covered. Applications to design of infiltration, remediation, and dewatering systems. Some field trips are possible.",
     "source": "SIS"
   },
+  "ENVE-4800": {
+    "subj": "ENVE",
+    "crse": "4800",
+    "name": "Environmental Engring Capstone",
+    "description": "The design of processes and systems to protect public and ecosystem health using scientific, technological, and economic principles. Students formulate problems, develop requirements, and evaluate solutions against specifications, constraints, risks, and trade-offs. Students integrate background from previous courses and resources from the technical literature. The role of ethics and codes in professional practice is discussed. In this communication-intensive course, students write engineering proposals and reports, and present work orally.",
+    "source": "SIS"
+  },
   "ENVE-4830": {
     "subj": "ENVE",
     "crse": "4830",
@@ -22110,6 +22306,13 @@
     "crse": "6310",
     "name": "Rhetoric & Form",
     "description": "This class will take an expansive approach to formal analysis of contemporary art. Starting with early modern discussions of aesthetics and \"significant form,\" we will then ask such questions as: What is the difference between aesthetics and semiotics, forms and signs? What are the differences between signs and symbols as well as the various categories of signs (such as icon and index)? How do we tell symbols from allegories? What relevance does literary analysis of tropes (metaphor, irony, etc.) and genres (comedy, tragedy, etc.) have for visual art? What is the relationship between the literary and the visual, and between literacy and orality? And finally, addressing the pervasiveness of digital technologies today, we will discuss how information relates to discourse and knowledge. The course recognizes the value of a wide range of theoretical perspectives and diverse ways of making and talking about art.",
+    "source": "SIS"
+  },
+  "GSAS-6320": {
+    "subj": "GSAS",
+    "crse": "6320",
+    "name": "Ethnographic Methods Cgd",
+    "description": "One distinctive feature of games is that they are played.  While much can be learned by analyzing the texts, images, artifacts, and paratexts of games, if we ignore the humans that design and play the games our understanding will be limited. In this course, we will investigate and practice methods for learning about games from human participants. While methods cannot ultimately be isolated from broader questions of theory and research design, this course focuses primarily on the practical skills required to effectively create, organize, and analyze data created using ethnographic methods.",
     "source": "SIS"
   },
   "GSAS-6400": {
@@ -26725,6 +26928,13 @@
     "description": "A design studio that explores the roles of light in architecture and its application by design. Students conceive, evaluate, and synthesize solutions that contribute to successful lighting and architectural design.",
     "source": "SIS"
   },
+  "LGHT-4325": {
+    "subj": "LGHT",
+    "crse": "4325",
+    "name": "3d Printing For Lighting",
+    "description": "This course provides an introduction to 3D printing for lighting and other light-related applications. The course uses instructional methodologies, including lectures, demonstrations, hands-on laboratory experimentation, reports, individual and group student projects, and presentations, to cover how 3D printing enables the making of light-related products and applications.",
+    "source": "SIS"
+  },
   "LGHT-4760": {
     "subj": "LGHT",
     "crse": "4760",
@@ -26814,6 +27024,13 @@
     "crse": "6230",
     "name": "Advanced Lighting Design",
     "description": "An advanced design studio that explores the roles of light and dark in architecture and their application by design. Students conceive, evaluate, and synthesize projects that contribute to thoughtful, sustainable, research-enhanced illumination in architecture and urban design.",
+    "source": "SIS"
+  },
+  "LGHT-6325": {
+    "subj": "LGHT",
+    "crse": "6325",
+    "name": "3d Printing For Lighting",
+    "description": "This course provides an introduction to 3D printing for lighting and other light-related applications. The course uses instructional methodologies, including lectures, demonstrations, hands-on laboratory experimentation, reports, individual and group student projects, and presentations, to cover how 3D printing enables the making of light-related products and applications.",
     "source": "SIS"
   },
   "LGHT-6750": {
@@ -28298,6 +28515,13 @@
     "crse": "4490",
     "name": "Adv Strat & Promotions",
     "description": "Development of branding strategies to accomplish marketing objectives. The development of media plans and schedules to deliver advertising promotions element in the marketing mix. A student cannot receive credit for both the graduate and undergraduate versions of this course.",
+    "source": "SIS"
+  },
+  "MGMT-4500": {
+    "subj": "MGMT",
+    "crse": "4500",
+    "name": "Financial Comp & Simulation",
+    "description": "The primary objective of this course is to provide the first or second semester financial engineering student with basic quantitative and analytical tools necessary for sound financial decision making, particularly in quantitative finance and risk analytics contexts. The course emphasizes financial computation techniques, whereby students learn standard methodologies to obtain numerical solutions to financial problems. Topics include solving linear and nonlinear systems of equations, optimization, lattices, Monte Carlo simulation, and finite difference methods as applied to common financial problems. R is the primary computing language used in this course.",
     "source": "SIS"
   },
   "MGMT-4510": {
@@ -30503,6 +30727,13 @@
     "crse": "2040",
     "name": "Programming For Engineers",
     "description": "Elementary programming concepts, basic data analysis and visualization using the Python programming language for students with little or no prior programming experience. Topics covered include variables, control flow, arrays, plotting, curve fitting and basic numerical simulation, using examples based in materials engineering. Graded Satisfactory / Unsatisfactory",
+    "source": "SIS"
+  },
+  "MTLE-2050": {
+    "subj": "MTLE",
+    "crse": "2050",
+    "name": "Computational Analysis",
+    "description": "Introduction to programming, data analysis, and numerical simulations, along with underlying foundational concepts in linear algebra and multivariable calculus, applied to examples based in materials engineering. Topics include data structures, control flow, plotting, model fitting, matrix inversion, diagonalization, and partial differential equations.",
     "source": "SIS"
   },
   "MTLE-2100": {
@@ -34152,6 +34383,13 @@
     "description": "Review of linear finite element concepts. Nonlinear continuum mechanics of solids: finite strain and stress measures, total and updated Lagrangian approaches, variational methods \u2013 virtual work principle. Non-linear finite element procedures: Incremental solution of nonlinear equations, Newton-Raphson method. Finite elements for elasto-plasticity. Finite elements for hyper-elasticity. Contact of solids using finite elements. Finite elements in dynamics.",
     "source": "SIS"
   },
+  "MANE-6870": {
+    "subj": "MANE",
+    "crse": "6870",
+    "name": "System Identification",
+    "description": "System identification deals with building mathematical models of dynamical systems from observed data. Topics include linear time-invariant and time-varying systems; nonparametric time- and frequency-domain methods; parameter estimation and model validation; Gaussian process regression; supervised and unsupervised learning; hypothesis testing, and Bayesian inference. The course introduces transformer architectures for sequential data and time series foundation models, and probabilistic forecasting with uncertainty quantification. Emphasis is placed on practical engineering applications.",
+    "source": "SIS"
+  },
   "MANE-6900": {
     "subj": "MANE",
     "crse": "6900",
@@ -36896,6 +37134,13 @@
     "description": "",
     "source": "SIS"
   },
+  "PHYS-6110": {
+    "subj": "PHYS",
+    "crse": "6110",
+    "name": "Cosmology",
+    "description": "",
+    "source": "SIS"
+  },
   "PHYS-6210": {
     "subj": "PHYS",
     "crse": "6210",
@@ -37923,6 +38168,34 @@
     "crse": "6969",
     "name": "Topics In Psyc",
     "description": "",
+    "source": "SIS"
+  },
+  "ROBT-1010": {
+    "subj": "ROBT",
+    "crse": "1010",
+    "name": "Introduction To Robotics",
+    "description": "This course introduces the fundamentals of robotics, providing students with a broad understanding of how robots sense, think, and act, and how their mechanical structures support these functions. Topics include the history and applications of robotics, robot subsystems (sensing, computation, actuation), statics and structural analysis of robotic systems, basic kinematics, control principles, perception, and autonomous decision-making.",
+    "source": "SIS"
+  },
+  "ROBT-2010": {
+    "subj": "ROBT",
+    "crse": "2010",
+    "name": "Intro To Robot Programming",
+    "description": "This course provides an introduction to Robot Operating System (ROS), a widely used middleware for robot programming. Students will learn the basic components of ROS, how to utilize and write ROS packages, gain experience utilizing simulation software, and apply the concepts to physical platforms.",
+    "source": "SIS"
+  },
+  "ROBT-4010": {
+    "subj": "ROBT",
+    "crse": "4010",
+    "name": "Manipulator Kinematics & Dynmc",
+    "description": "A survey of the fundamental issues necessary for the design, analysis, control, and implementation of robotic systems. The mathematical description of robot manipulators in terms of kinematics and dynamics. Path following, control, and sensing. Examples of several currently available manipulators.",
+    "source": "SIS"
+  },
+  "ROBT-4020": {
+    "subj": "ROBT",
+    "crse": "4020",
+    "name": "Mobile Robotics & Planning",
+    "description": "This course introduces methods to develop numerical and algorithmic techniques necessary for mobile robots to navigate and coordinate. Topics include mobile robot kinematics and dynamics, control, localization, mapping, path planning, and multi-robot systems.",
     "source": "SIS"
   },
   "STSH-1000": {
@@ -40968,6 +41241,27 @@
     "crse": "6969",
     "name": "Topics In Ihss",
     "description": "",
+    "source": "SIS"
+  },
+  "ARCH-4170": {
+    "subj": "ARCH",
+    "crse": "4170",
+    "name": "Environmental Parametrics",
+    "description": "This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multivariable trade-offs.",
+    "source": "SIS"
+  },
+  "ARCH-4580": {
+    "subj": "ARCH",
+    "crse": "4580",
+    "name": "Materials Systems & Production",
+    "description": "The goal of Material Systems and Production is threefold: to develop a fundamental understanding of materials through first principles, classification, production, and impacts, to develop models for material properties and testing, and to develop criteria to make reasoned choices for the implementation of materials in the built environment. Students will engage in directed research projects with the intent of opportunistically identifying intrinsic material properties, exploiting production-forming logics, and developing a prototype detail assembly for testing.",
+    "source": "SIS"
+  },
+  "ARCH-6380": {
+    "subj": "ARCH",
+    "crse": "6380",
+    "name": "Graduate Environmental Parametrics",
+    "description": "This course is an intensive workshop in parametric modeling with specialized focus on environmental simulation and sustainable design. Students learn tools to navigate the intersection of environmental design and computational workflows by mastering parametric modeling and optimization for sustainability. Students gain proficiency in using parametric applications as both an analytical tool and a generative design device. The course exposes students to feedback loops between environmental analysis and design decision, fostering performance-based design strategies. Students explore the integration of parametric modeling with building energy modeling and bioclimatic analysis. Project based exercises are developed to address ecological design principles and optimize systems for multi-variable trade-offs. This course is designed for both graduate and undergraduate students seeking to advance their skills in environmentally-driven design through computational methods. By leveraging the course's resources and instructor's expertise, students develop a deeper understanding of the relationship between design choices and ecological impact.",
     "source": "SIS"
   },
   "STSO-2400": {

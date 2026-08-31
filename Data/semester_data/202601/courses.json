@@ -31,14 +31,14 @@
             "title": "Arch Exp & Plan Architecture"
           },
           {
-            "act": 548,
+            "act": 550,
             "attribute": "",
             "cap": 1000,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 36631,
             "crse": 1030,
-            "rem": 452,
+            "rem": 450,
             "sec": "02",
             "subj": "ADMN",
             "timeslots": [
@@ -127,14 +127,14 @@
             "title": "Arch Exp & Plan Management"
           },
           {
-            "act": 273,
+            "act": 276,
             "attribute": "",
             "cap": 1000,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 36707,
             "crse": 1030,
-            "rem": 727,
+            "rem": 724,
             "sec": "06",
             "subj": "ADMN",
             "timeslots": [
@@ -450,7 +450,7 @@
                 "days": [
                   "T"
                 ],
-                "instructor": "Jennifer . Beckley",
+                "instructor": "Daryl Kaocherpao Moua",
                 "location": "Russell Sage Laboratory 5101",
                 "timeEnd": 950,
                 "timeStart": 800
@@ -552,7 +552,7 @@
                 "days": [
                   "W"
                 ],
-                "instructor": "Jennifer . Beckley",
+                "instructor": "Zachary T. Rutledge",
                 "location": "Alumni Sports and Rec Center 209",
                 "timeEnd": 1450,
                 "timeStart": 1200
@@ -2994,14 +2994,14 @@
             "title": "Ugrad Independent Study"
           },
           {
-            "act": 10,
+            "act": 11,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 39166,
             "crse": 2940,
-            "rem": 40,
+            "rem": 39,
             "sec": "26",
             "subj": "ARCH",
             "timeslots": [
@@ -3282,14 +3282,14 @@
             "title": "Ugrad Independent Study"
           },
           {
-            "act": 1,
+            "act": 0,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 38151,
             "crse": 2940,
-            "rem": 49,
+            "rem": 50,
             "sec": "38",
             "subj": "ARCH",
             "timeslots": [
@@ -3973,14 +3973,14 @@
             "title": "Architectural Case Studies"
           },
           {
-            "act": 18,
+            "act": 19,
             "attribute": "Data Intensive I",
             "cap": 30,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 36755,
             "crse": 4090,
-            "rem": 12,
+            "rem": 11,
             "sec": "04",
             "subj": "ARCH",
             "timeslots": [
@@ -4068,14 +4068,14 @@
             "title": "Contemporary Design Approaches"
           },
           {
-            "act": 20,
+            "act": 19,
             "attribute": "",
             "cap": 25,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 36693,
             "crse": 4150,
-            "rem": 5,
+            "rem": 6,
             "sec": "02",
             "subj": "ARCH",
             "timeslots": [
@@ -4162,14 +4162,14 @@
         "id": "ARCH-4200",
         "sections": [
           {
-            "act": 18,
+            "act": 16,
             "attribute": "",
             "cap": 35,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 36758,
             "crse": 4200,
-            "rem": 17,
+            "rem": 19,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -4188,14 +4188,14 @@
             "title": "Portfolio Development"
           },
           {
-            "act": 8,
+            "act": 10,
             "attribute": "",
             "cap": 20,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 36759,
             "crse": 4200,
-            "rem": 12,
+            "rem": 10,
             "sec": "02",
             "subj": "ARCH",
             "timeslots": [
@@ -6207,14 +6207,14 @@
             "title": "Ugrad Independent Study"
           },
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 39224,
             "crse": 4940,
-            "rem": 50,
+            "rem": 49,
             "sec": "44",
             "subj": "ARCH",
             "timeslots": [
@@ -6503,14 +6503,14 @@
             "title": "Ugrad Research Project"
           },
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37779,
             "crse": 4941,
-            "rem": 50,
+            "rem": 49,
             "sec": "11",
             "subj": "ARCH",
             "timeslots": [
@@ -7638,14 +7638,14 @@
         "id": "ARCH-6830",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 12,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 35716,
             "crse": 6830,
-            "rem": 9,
+            "rem": 8,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -9604,7 +9604,7 @@
                 "dateEnd": "05/08",
                 "dateStart": "01/12",
                 "days": [],
-                "instructor": "Akina Yura, Christopher James Fisher-Lochhead",
+                "instructor": "Christopher James Fisher-Lochhead, Akina Yura",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -13488,7 +13488,7 @@
                   "T",
                   "F"
                 ],
-                "instructor": "Jeremy Lynch Farrell, Georgi G. Shablovsky",
+                "instructor": "Georgi G. Shablovsky, Jeremy Lynch Farrell",
                 "location": "Darrin Communications Center 337",
                 "timeEnd": 1150,
                 "timeStart": 1000
@@ -14750,14 +14750,14 @@
         "id": "BIOL-4620",
         "sections": [
           {
-            "act": 72,
+            "act": 71,
             "attribute": "",
             "cap": 100,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 35016,
             "crse": 4620,
-            "rem": 28,
+            "rem": 29,
             "sec": "01",
             "subj": "BIOL",
             "timeslots": [
@@ -23676,7 +23676,7 @@
               }
             ],
             "title": "Organic Chemistry Lab II",
-            "xl_rem": 27
+            "xl_rem": 28
           },
           {
             "act": 6,
@@ -23714,7 +23714,7 @@
               }
             ],
             "title": "Organic Chemistry Lab II",
-            "xl_rem": 27
+            "xl_rem": 28
           },
           {
             "act": 18,
@@ -23752,7 +23752,7 @@
               }
             ],
             "title": "Organic Chemistry Lab II",
-            "xl_rem": 27
+            "xl_rem": 28
           },
           {
             "act": 17,
@@ -23790,17 +23790,17 @@
               }
             ],
             "title": "Organic Chemistry Lab II",
-            "xl_rem": 27
+            "xl_rem": 28
           },
           {
-            "act": 14,
+            "act": 13,
             "attribute": "",
             "cap": 20,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 35982,
             "crse": 2240,
-            "rem": 6,
+            "rem": 7,
             "sec": "05",
             "subj": "CHEM",
             "timeslots": [
@@ -23828,7 +23828,7 @@
               }
             ],
             "title": "Organic Chemistry Lab II",
-            "xl_rem": 27
+            "xl_rem": 28
           }
         ],
         "subj": "CHEM",
@@ -23839,14 +23839,14 @@
         "id": "CHEM-2260",
         "sections": [
           {
-            "act": 137,
+            "act": 136,
             "attribute": "",
             "cap": 190,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 35382,
             "crse": 2260,
-            "rem": 53,
+            "rem": 54,
             "sec": "01",
             "subj": "CHEM",
             "timeslots": [
@@ -29305,14 +29305,14 @@
             "title": "Undergraduate Research Project"
           },
           {
-            "act": 0,
+            "act": 2,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 39255,
             "crse": 2941,
-            "rem": 50,
+            "rem": 48,
             "sec": "09",
             "subj": "COGS",
             "timeslots": [
@@ -29717,14 +29717,14 @@
             "title": "Ugrad Independent Study"
           },
           {
-            "act": 8,
+            "act": 9,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 39260,
             "crse": 4940,
-            "rem": 42,
+            "rem": 41,
             "sec": "07",
             "subj": "COGS",
             "timeslots": [
@@ -30328,14 +30328,14 @@
         "id": "COGS-6800",
         "sections": [
           {
-            "act": 15,
+            "act": 14,
             "attribute": "",
             "cap": 80,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 39057,
             "crse": 6800,
-            "rem": 65,
+            "rem": 66,
             "sec": "01",
             "subj": "COGS",
             "timeslots": [
@@ -34780,6 +34780,30 @@
               }
             ],
             "title": "Ugrad Research Project"
+          },
+          {
+            "act": 0,
+            "attribute": "",
+            "cap": 50,
+            "credMax": 4.0,
+            "credMin": 1.0,
+            "crn": 39280,
+            "crse": 2941,
+            "rem": 50,
+            "sec": "05",
+            "subj": "CSCI",
+            "timeslots": [
+              {
+                "dateEnd": "05/08",
+                "dateStart": "01/12",
+                "days": [],
+                "instructor": "Jianxi Gao",
+                "location": "TBA",
+                "timeEnd": -1,
+                "timeStart": -1
+              }
+            ],
+            "title": "Ugrad Research Project"
           }
         ],
         "subj": "CSCI",
@@ -34881,14 +34905,14 @@
         "id": "CSCI-4140",
         "sections": [
           {
-            "act": 14,
+            "act": 13,
             "attribute": "Data Intensive II",
             "cap": 32,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 38423,
             "crse": 4140,
-            "rem": 18,
+            "rem": 19,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -34906,7 +34930,7 @@
               }
             ],
             "title": "Machine Learning & Optimiztn",
-            "xl_rem": 19
+            "xl_rem": 20
           }
         ],
         "subj": "CSCI",
@@ -34953,7 +34977,7 @@
         "sections": [
           {
             "act": 27,
-            "attribute": "Data Intensive II",
+            "attribute": "Communication Intensive, Data Intensive II",
             "cap": 48,
             "credMax": 4.0,
             "credMin": 4.0,
@@ -35123,7 +35147,7 @@
                   "T",
                   "F"
                 ],
-                "instructor": "Boleslaw Szymanski",
+                "instructor": "Boleslaw K Szymanski",
                 "location": "Lally Hall 104",
                 "timeEnd": 1150,
                 "timeStart": 1000
@@ -35141,14 +35165,14 @@
         "id": "CSCI-4260",
         "sections": [
           {
-            "act": 41,
+            "act": 40,
             "attribute": "",
             "cap": 48,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 38417,
             "crse": 4260,
-            "rem": 7,
+            "rem": 8,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -35166,7 +35190,7 @@
               }
             ],
             "title": "Graph Theory",
-            "xl_rem": 8
+            "xl_rem": 9
           }
         ],
         "subj": "CSCI",
@@ -35664,14 +35688,14 @@
         "id": "CSCI-4700",
         "sections": [
           {
-            "act": 190,
+            "act": 191,
             "attribute": "",
             "cap": 256,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 38413,
             "crse": 4700,
-            "rem": 66,
+            "rem": 65,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -36006,14 +36030,14 @@
         "id": "CSCI-4941",
         "sections": [
           {
-            "act": 12,
+            "act": 13,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37628,
             "crse": 4941,
-            "rem": 38,
+            "rem": 37,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -36436,6 +36460,30 @@
               }
             ],
             "title": "Ugrad  Research Project"
+          },
+          {
+            "act": 2,
+            "attribute": "",
+            "cap": 50,
+            "credMax": 4.0,
+            "credMin": 1.0,
+            "crn": 39281,
+            "crse": 4941,
+            "rem": 48,
+            "sec": "19",
+            "subj": "CSCI",
+            "timeslots": [
+              {
+                "dateEnd": "05/08",
+                "dateStart": "01/12",
+                "days": [],
+                "instructor": "Jianxi Gao",
+                "location": "TBA",
+                "timeEnd": -1,
+                "timeStart": -1
+              }
+            ],
+            "title": "Ugrad  Research Project"
           }
         ],
         "subj": "CSCI",
@@ -36543,7 +36591,7 @@
               }
             ],
             "title": "Hardware Security",
-            "xl_rem": -1
+            "xl_rem": 0
           }
         ],
         "subj": "CSCI",
@@ -36698,7 +36746,7 @@
         "sections": [
           {
             "act": 12,
-            "attribute": "",
+            "attribute": "Communication Intensive, Data Intensive II",
             "cap": 12,
             "credMax": 4.0,
             "credMin": 4.0,
@@ -36787,7 +36835,7 @@
                   "T",
                   "F"
                 ],
-                "instructor": "Boleslaw Szymanski",
+                "instructor": "Boleslaw K Szymanski",
                 "location": "Lally Hall 104",
                 "timeEnd": 1150,
                 "timeStart": 1000
@@ -37117,7 +37165,7 @@
               }
             ],
             "title": "Machine Learning & Optimiztn",
-            "xl_rem": 19
+            "xl_rem": 20
           }
         ],
         "subj": "CSCI",
@@ -37200,14 +37248,14 @@
         "id": "CSCI-6964",
         "sections": [
           {
-            "act": 8,
+            "act": 7,
             "attribute": "",
             "cap": 10,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 38797,
             "crse": 6964,
-            "rem": 2,
+            "rem": 3,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -37225,7 +37273,7 @@
               }
             ],
             "title": "Hardware Security",
-            "xl_rem": -1
+            "xl_rem": 0
           }
         ],
         "subj": "CSCI",
@@ -37611,7 +37659,7 @@
                 "dateEnd": "05/08",
                 "dateStart": "01/12",
                 "days": [],
-                "instructor": "Boleslaw Szymanski",
+                "instructor": "Boleslaw K Szymanski",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -38507,7 +38555,7 @@
                 "dateEnd": "05/08",
                 "dateStart": "01/12",
                 "days": [],
-                "instructor": "Boleslaw Szymanski",
+                "instructor": "Boleslaw K Szymanski",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -39067,7 +39115,7 @@
                 "dateEnd": "05/08",
                 "dateStart": "01/12",
                 "days": [],
-                "instructor": "Boleslaw Szymanski",
+                "instructor": "Boleslaw K Szymanski",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -41251,7 +41299,7 @@
                   "M",
                   "R"
                 ],
-                "instructor": "Xun Wang",
+                "instructor": "Rostyslav Korolov, Xun Wang",
                 "location": "Carnegie Building 113",
                 "timeEnd": 920,
                 "timeStart": 800
@@ -41289,7 +41337,7 @@
                   "M",
                   "R"
                 ],
-                "instructor": "Xun Wang",
+                "instructor": "Rostyslav Korolov, Xun Wang",
                 "location": "Darrin Communications Center 337",
                 "timeEnd": 1520,
                 "timeStart": 1400
@@ -41309,14 +41357,14 @@
             "title": "Mod & Analysis Uncertainty"
           },
           {
-            "act": 74,
+            "act": 73,
             "attribute": "Data Intensive I",
             "cap": 75,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 35039,
             "crse": 2600,
-            "rem": 1,
+            "rem": 2,
             "sec": "03",
             "subj": "ENGR",
             "timeslots": [
@@ -42929,14 +42977,14 @@
             "title": "Undergraduate Research Project"
           },
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 38552,
             "crse": 2941,
-            "rem": 50,
+            "rem": 49,
             "sec": "04",
             "subj": "ERTH",
             "timeslots": [
@@ -43222,14 +43270,14 @@
             "title": "Ugrad Independent Study"
           },
           {
-            "act": 2,
+            "act": 3,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37972,
             "crse": 4940,
-            "rem": 48,
+            "rem": 47,
             "sec": "04",
             "subj": "ERTH",
             "timeslots": [
@@ -46637,14 +46685,14 @@
             "title": "Undergraduate Research Project"
           },
           {
-            "act": 12,
+            "act": 11,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37878,
             "crse": 2941,
-            "rem": 38,
+            "rem": 39,
             "sec": "04",
             "subj": "ECSE",
             "timeslots": [
@@ -46789,14 +46837,14 @@
         "id": "ECSE-2960",
         "sections": [
           {
-            "act": 13,
+            "act": 12,
             "attribute": "",
             "cap": 20,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 36566,
             "crse": 2960,
-            "rem": 7,
+            "rem": 8,
             "sec": "01",
             "subj": "ECSE",
             "timeslots": [
@@ -47790,14 +47838,14 @@
             "title": "Undergraduate Research Project"
           },
           {
-            "act": 0,
+            "act": 2,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37722,
             "crse": 4941,
-            "rem": 50,
+            "rem": 48,
             "sec": "04",
             "subj": "ECSE",
             "timeslots": [
@@ -48279,7 +48327,7 @@
               }
             ],
             "title": "Hardware Security",
-            "xl_rem": -1
+            "xl_rem": 0
           }
         ],
         "subj": "ECSE",
@@ -48737,14 +48785,14 @@
         "id": "ECSE-6460",
         "sections": [
           {
-            "act": 11,
+            "act": 10,
             "attribute": "",
             "cap": 20,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 38474,
             "crse": 6460,
-            "rem": 9,
+            "rem": 10,
             "sec": "01",
             "subj": "ECSE",
             "timeslots": [
@@ -49164,7 +49212,7 @@
               }
             ],
             "title": "Hardware Security",
-            "xl_rem": -1
+            "xl_rem": 0
           }
         ],
         "subj": "ECSE",
@@ -52053,7 +52101,7 @@
                 "dateEnd": "05/08",
                 "dateStart": "01/12",
                 "days": [],
-                "instructor": "TBA",
+                "instructor": "Kevin Christopher Rose",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -54078,14 +54126,14 @@
         "id": "ILEA-4400",
         "sections": [
           {
-            "act": 191,
+            "act": 194,
             "attribute": "",
             "cap": 300,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 36711,
             "crse": 4400,
-            "rem": 109,
+            "rem": 106,
             "sec": "01",
             "subj": "ILEA",
             "timeslots": [
@@ -54126,14 +54174,14 @@
             "title": "Coop"
           },
           {
-            "act": 47,
+            "act": 49,
             "attribute": "",
             "cap": 300,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 36713,
             "crse": 4400,
-            "rem": 253,
+            "rem": 251,
             "sec": "03",
             "subj": "ILEA",
             "timeslots": [
@@ -54174,14 +54222,14 @@
             "title": "Civic Engagement"
           },
           {
-            "act": 38,
+            "act": 39,
             "attribute": "",
             "cap": 300,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 36715,
             "crse": 4400,
-            "rem": 262,
+            "rem": 261,
             "sec": "05",
             "subj": "ILEA",
             "timeslots": [
@@ -54222,14 +54270,14 @@
             "title": "Ilea-study Abroad"
           },
           {
-            "act": 11,
+            "act": 12,
             "attribute": "",
             "cap": 300,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 36748,
             "crse": 4400,
-            "rem": 289,
+            "rem": 288,
             "sec": "07",
             "subj": "ILEA",
             "timeslots": [
@@ -59178,7 +59226,7 @@
                   "F"
                 ],
                 "instructor": "Margaret A McDermott",
-                "location": "Greene Building 120",
+                "location": "Russell Sage Laboratory 3303",
                 "timeEnd": 1350,
                 "timeStart": 1200
               }
@@ -59541,7 +59589,7 @@
                   "T",
                   "F"
                 ],
-                "instructor": "Yujie Ruan",
+                "instructor": "Suzanne Dunn, Yujie Ruan",
                 "location": "Low Center for Industrial Inn. 4034",
                 "timeEnd": 1150,
                 "timeStart": 1000
@@ -60674,14 +60722,14 @@
         "id": "MGMT-4940",
         "sections": [
           {
-            "act": 4,
+            "act": 5,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 37662,
             "crse": 4940,
-            "rem": 46,
+            "rem": 45,
             "sec": "01",
             "subj": "MGMT",
             "timeslots": [
@@ -64552,14 +64600,14 @@
             "title": "Dissertation"
           },
           {
-            "act": 3,
+            "act": 2,
             "attribute": "",
             "cap": 10,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 38974,
             "crse": 9990,
-            "rem": 7,
+            "rem": 8,
             "sec": "12",
             "subj": "MTLE",
             "timeslots": [
@@ -66575,17 +66623,17 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 61
+            "xl_rem": 60
           },
           {
             "act": 29,
             "attribute": "Introductory Level Course",
-            "cap": 29,
+            "cap": 28,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 35883,
             "crse": 2010,
-            "rem": 0,
+            "rem": -1,
             "sec": "11",
             "subj": "MATH",
             "timeslots": [
@@ -66625,7 +66673,7 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 61
+            "xl_rem": 60
           },
           {
             "act": 31,
@@ -66962,6 +67010,56 @@
             ],
             "title": "Matrix Algebra",
             "xl_rem": 2
+          },
+          {
+            "act": 1,
+            "attribute": "",
+            "cap": 1,
+            "credMax": 2.0,
+            "credMin": 2.0,
+            "crn": 39278,
+            "crse": 2012,
+            "rem": 0,
+            "sec": "11",
+            "subj": "MATH",
+            "timeslots": [
+              {
+                "dateEnd": "05/08",
+                "dateStart": "03/16",
+                "days": [
+                  "M",
+                  "R"
+                ],
+                "instructor": "Daniel Franklin Stevenson",
+                "location": "Academy Hall AUD",
+                "timeEnd": 1320,
+                "timeStart": 1200
+              },
+              {
+                "dateEnd": "05/08",
+                "dateStart": "03/16",
+                "days": [
+                  "W"
+                ],
+                "instructor": "TBA",
+                "location": "Darrin Communications Center 330",
+                "timeEnd": 1350,
+                "timeStart": 1200
+              },
+              {
+                "dateEnd": "05/08",
+                "dateStart": "03/16",
+                "days": [
+                  "F"
+                ],
+                "instructor": "TBA",
+                "location": "Darrin Communications Center 235",
+                "timeEnd": 850,
+                "timeStart": 800
+              }
+            ],
+            "title": "Matrix Algebra",
+            "xl_rem": 60
           }
         ],
         "subj": "MATH",
@@ -68094,7 +68192,7 @@
               }
             ],
             "title": "Graph Theory",
-            "xl_rem": 8
+            "xl_rem": 9
           }
         ],
         "subj": "MATH",
@@ -77962,14 +78060,14 @@
         "id": "MANE-6900",
         "sections": [
           {
-            "act": 134,
+            "act": 136,
             "attribute": "",
             "cap": 250,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 35265,
             "crse": 6900,
-            "rem": 116,
+            "rem": 114,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -78244,14 +78342,14 @@
         "id": "MANE-6968",
         "sections": [
           {
-            "act": 7,
+            "act": 8,
             "attribute": "",
             "cap": 10,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 38577,
             "crse": 6968,
-            "rem": 3,
+            "rem": 2,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -81652,14 +81750,14 @@
             "title": "Dissertation"
           },
           {
-            "act": 5,
+            "act": 4,
             "attribute": "",
             "cap": 10,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 37215,
             "crse": 9990,
-            "rem": 5,
+            "rem": 6,
             "sec": "82",
             "subj": "MANE",
             "timeslots": [
@@ -82066,14 +82164,14 @@
         "id": "USNA-0020",
         "sections": [
           {
-            "act": 59,
+            "act": 60,
             "attribute": "",
             "cap": 100,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 37192,
             "crse": 20,
-            "rem": 41,
+            "rem": 40,
             "sec": "01",
             "subj": "USNA",
             "timeslots": [
@@ -82100,14 +82198,14 @@
         "id": "USNA-2020",
         "sections": [
           {
-            "act": 29,
+            "act": 30,
             "attribute": "",
             "cap": 30,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 35104,
             "crse": 2020,
-            "rem": 1,
+            "rem": 0,
             "sec": "01",
             "subj": "USNA",
             "timeslots": [
@@ -91634,14 +91732,14 @@
             "title": "Strategic Writing"
           },
           {
-            "act": 19,
+            "act": 18,
             "attribute": "Communication Intensive",
             "cap": 19,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 39074,
             "crse": 2110,
-            "rem": 0,
+            "rem": 1,
             "sec": "04",
             "subj": "WRIT",
             "timeslots": [

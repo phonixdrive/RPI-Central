@@ -136,11 +136,15 @@
     ]
   },
   {
-    "name": "Information Technology and Web Science",
+    "name": "Management",
     "depts": [
       {
-        "code": "ITWS",
-        "name": "Information Technology and Web Science"
+        "code": "BUSN",
+        "name": "Business (H)"
+      },
+      {
+        "code": "MGMT",
+        "name": "Management"
       }
     ]
   },
@@ -190,24 +194,28 @@
     ]
   },
   {
-    "name": "Management",
+    "name": "Uncategorized",
     "depts": [
       {
-        "code": "BUSN",
-        "name": "Business (H)"
+        "code": "COOP",
+        "name": "Co-Operative Education"
       },
       {
-        "code": "MGMT",
-        "name": "Management"
+        "code": "ILEA",
+        "name": "Independent Learning Exper"
+      },
+      {
+        "code": "ROBT",
+        "name": "Robotics"
       }
     ]
   },
   {
-    "name": "Uncategorized",
+    "name": "Information Technology and Web Science",
     "depts": [
       {
-        "code": "ILEA",
-        "name": "Independent Learning Exper"
+        "code": "ITWS",
+        "name": "Information Technology and Web Science"
       }
     ]
   }
