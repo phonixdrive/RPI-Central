@@ -207,9 +207,13 @@ final class CalendarViewModel: ObservableObject {
         let hidden: [String]
         let sizes: [String: String]
         let updatedAt: Date
+        /// Monotonic generation used to resolve partially-written replicas.
+        /// Optional so preferences written by older app versions still decode.
+        let revision: UInt64?
     }
 
     private static let homeDashboardPreferencesKey = "settings_home_dashboard_preferences_v2"
+    private static let homeDashboardPreferencesFilename = "home-dashboard-preferences-v3.json"
 
     private let themeColorKey = "settings_theme_color_v1"
     private let appearanceModeKey = "settings_appearance_mode_v1"
@@ -255,16 +259,25 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    @Published var homeSectionOrder: [HomeDashboardSection] = HomeDashboardSection.allCases {
-        didSet { saveHomeSectionPreferences() }
+    @Published private(set) var homeSectionOrder: [HomeDashboardSection] = HomeDashboardSection.allCases {
+        didSet {
+            guard !suppressHomeDashboardPersistence else { return }
+            saveHomeSectionPreferences()
+        }
     }
 
-    @Published var hiddenHomeSections: Set<HomeDashboardSection> = [] {
-        didSet { saveHomeSectionPreferences() }
+    @Published private(set) var hiddenHomeSections: Set<HomeDashboardSection> = [] {
+        didSet {
+            guard !suppressHomeDashboardPersistence else { return }
+            saveHomeSectionPreferences()
+        }
     }
 
-    @Published var homeSectionSizes: [HomeDashboardSection: HomeDashboardWidgetSize] = [:] {
-        didSet { saveHomeSectionPreferences() }
+    @Published private(set) var homeSectionSizes: [HomeDashboardSection: HomeDashboardWidgetSize] = [:] {
+        didSet {
+            guard !suppressHomeDashboardPersistence else { return }
+            saveHomeSectionPreferences()
+        }
     }
 
     @Published var academicHistoryStartSemester: Semester = .fall2024 {
@@ -432,6 +445,7 @@ final class CalendarViewModel: ObservableObject {
     private var attemptedAcademicYearStarts: Set<Int> = []
     private var attemptedTermBoundsCodes: Set<String> = []
     private var beganBootLoading: Bool = false
+    private var suppressHomeDashboardPersistence = false
 
     private var academicEventKeys: Set<String> = []
 
@@ -558,14 +572,42 @@ final class CalendarViewModel: ObservableObject {
             self.visibleSemester = .fall2026
             UserDefaults.standard.set(Semester.fall2026.rawValue, forKey: visibleSemesterKey)
         }
-        self.homeSectionOrder = Self.loadHomeSectionOrder()
-        self.hiddenHomeSections = Self.loadHiddenHomeSections()
-        self.homeSectionSizes = Self.loadHomeSectionSizes()
+        let dashboardPreferencesURL = Self.homeDashboardPreferencesFileURL()
+        let dashboardSharedDefaults = Self.homeDashboardSharedDefaults()
+        // Read every dashboard field before assigning any of them. These
+        // Published properties autosave in didSet; assigning the order first
+        // used to write the still-default empty hidden/sizes values back to
+        // disk, so the following loads saw "show everything" on every launch.
+        let loadedHomeSectionOrder = Self.loadHomeSectionOrder(
+            replicaDefaults: dashboardSharedDefaults,
+            fileURL: dashboardPreferencesURL
+        )
+        let loadedHiddenHomeSections = Self.loadHiddenHomeSections(
+            replicaDefaults: dashboardSharedDefaults,
+            fileURL: dashboardPreferencesURL
+        )
+        let loadedHomeSectionSizes = Self.loadHomeSectionSizes(
+            replicaDefaults: dashboardSharedDefaults,
+            fileURL: dashboardPreferencesURL
+        )
+        self.suppressHomeDashboardPersistence = true
+        self.homeSectionOrder = loadedHomeSectionOrder
+        self.hiddenHomeSections = loadedHiddenHomeSections
+        self.homeSectionSizes = loadedHomeSectionSizes
+        self.suppressHomeDashboardPersistence = false
         if let raw = UserDefaults.standard.string(forKey: academicHistoryStartSemesterKey),
            let semester = Semester(rawValue: raw) {
             self.academicHistoryStartSemester = semester
         } else {
             self.academicHistoryStartSemester = .fall2024
+        }
+        if self.currentSemester.rawValue < self.academicHistoryStartSemester.rawValue {
+            self.currentSemester = self.academicHistoryStartSemester
+            UserDefaults.standard.set(self.currentSemester.rawValue, forKey: currentSemesterKey)
+        }
+        if self.visibleSemester.rawValue < self.academicHistoryStartSemester.rawValue {
+            self.visibleSemester = self.academicHistoryStartSemester
+            UserDefaults.standard.set(self.visibleSemester.rawValue, forKey: visibleSemesterKey)
         }
         self.semesterGPAOverrides = Self.loadSemesterGPAOverrides()
         self.socialDemoToolsEnabled = UserDefaults.standard.bool(forKey: socialDemoToolsEnabledKey)
@@ -653,8 +695,8 @@ final class CalendarViewModel: ObservableObject {
         updatedOrder.move(fromOffsets: source, toOffset: destination)
         guard updatedOrder != homeSectionOrder else { return }
 
-        // Assigning a fresh value guarantees the Published observer and the
-        // atomic dashboard-preferences write both run before the drag ends.
+        // Assign once so the UI update and durable preference write happen as
+        // one transaction after a dashboard drop, never during drag movement.
         homeSectionOrder = updatedOrder
     }
 
@@ -668,19 +710,58 @@ final class CalendarViewModel: ObservableObject {
         homeSectionSizes[section] = size
     }
 
+    private func replaceHomeDashboardPreferences(
+        order: [HomeDashboardSection],
+        hidden: Set<HomeDashboardSection>,
+        sizes: [HomeDashboardSection: HomeDashboardWidgetSize]
+    ) {
+        suppressHomeDashboardPersistence = true
+        homeSectionOrder = order
+        hiddenHomeSections = hidden
+        homeSectionSizes = sizes
+        suppressHomeDashboardPersistence = false
+        saveHomeSectionPreferences()
+    }
+
     private func saveHomeSectionPreferences() {
         Self.saveHomeDashboardPreferences(
             order: homeSectionOrder,
             hidden: hiddenHomeSections,
-            sizes: homeSectionSizes
+            sizes: homeSectionSizes,
+            replicaDefaults: Self.homeDashboardSharedDefaults(),
+            fileURL: Self.homeDashboardPreferencesFileURL()
         )
+    }
+
+    /// Flushes dashboard preferences when the app leaves the foreground. Normal
+    /// edits are saved immediately; this provides an additional lifecycle-safe
+    /// write for force-quit and debugger-stop workflows.
+    @discardableResult
+    func persistHomeDashboardPreferences() -> Bool {
+        saveHomeSectionPreferences()
+        let replicaDefaults = Self.homeDashboardSharedDefaults()
+        let fileURL = Self.homeDashboardPreferencesFileURL()
+        return Self.loadHomeSectionOrder(
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        ) == homeSectionOrder
+            && Self.loadHiddenHomeSections(
+                replicaDefaults: replicaDefaults,
+                fileURL: fileURL
+            ) == hiddenHomeSections
+            && Self.loadHomeSectionSizes(
+                replicaDefaults: replicaDefaults,
+                fileURL: fileURL
+            ) == homeSectionSizes
     }
 
     static func saveHomeDashboardPreferences(
         order: [HomeDashboardSection],
         hidden: Set<HomeDashboardSection>,
         sizes: [HomeDashboardSection: HomeDashboardWidgetSize],
-        to defaults: UserDefaults = .standard
+        to defaults: UserDefaults = .standard,
+        replicaDefaults: UserDefaults? = nil,
+        fileURL: URL? = nil
     ) {
         let rawOrder = order.map(\.rawValue)
         defaults.set(rawOrder, forKey: "settings_home_section_order_v1")
@@ -691,14 +772,49 @@ final class CalendarViewModel: ObservableObject {
         let rawSizes = Dictionary(uniqueKeysWithValues: sizes.map { ($0.key.rawValue, $0.value.rawValue) })
         defaults.set(rawSizes, forKey: "settings_home_section_sizes_v1")
 
+        let previousRevision = homeDashboardPreferenceCandidates(
+            from: defaults,
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        )
+        .compactMap(\.revision)
+        .max() ?? 0
+        let nextRevision = previousRevision == UInt64.max ? UInt64.max : previousRevision + 1
+
         let snapshot = StoredHomeDashboardPreferences(
             order: rawOrder,
             hidden: rawHidden.sorted(),
             sizes: rawSizes,
-            updatedAt: Date()
+            updatedAt: Date(),
+            revision: nextRevision
         )
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: Self.homeDashboardPreferencesKey)
+            // UserDefaults normally flushes asynchronously. Synchronizing here
+            // avoids losing a just-finished drag when Xcode stops the process.
+            defaults.synchronize()
+
+            if let replicaDefaults {
+                replicaDefaults.set(rawOrder, forKey: "settings_home_section_order_v1")
+                replicaDefaults.set(rawHidden, forKey: "settings_hidden_home_sections_v1")
+                replicaDefaults.set(rawSizes, forKey: "settings_home_section_sizes_v1")
+                replicaDefaults.set(data, forKey: Self.homeDashboardPreferencesKey)
+                replicaDefaults.synchronize()
+            }
+
+            if let fileURL {
+                do {
+                    try FileManager.default.createDirectory(
+                        at: fileURL.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try data.write(to: fileURL, options: .atomic)
+                } catch {
+#if DEBUG
+                    print("Could not persist Home dashboard preferences:", error)
+#endif
+                }
+            }
         }
     }
 
@@ -707,9 +823,18 @@ final class CalendarViewModel: ObservableObject {
         UserDefaults.standard.set(data, forKey: semesterGPAOverridesKey)
     }
 
-    static func loadHomeSectionOrder(from defaults: UserDefaults = .standard) -> [HomeDashboardSection] {
-        let rawOrder = loadStoredHomeDashboardPreferences(from: defaults)?.order
+    static func loadHomeSectionOrder(
+        from defaults: UserDefaults = .standard,
+        replicaDefaults: UserDefaults? = nil,
+        fileURL: URL? = nil
+    ) -> [HomeDashboardSection] {
+        let rawOrder = loadStoredHomeDashboardPreferences(
+            from: defaults,
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        )?.order
             ?? defaults.stringArray(forKey: "settings_home_section_order_v1")
+            ?? replicaDefaults?.stringArray(forKey: "settings_home_section_order_v1")
             ?? []
         let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
         guard !saved.isEmpty else { return HomeDashboardSection.allCases }
@@ -732,16 +857,34 @@ final class CalendarViewModel: ObservableObject {
         return merged
     }
 
-    static func loadHiddenHomeSections(from defaults: UserDefaults = .standard) -> Set<HomeDashboardSection> {
-        let rawHidden = loadStoredHomeDashboardPreferences(from: defaults)?.hidden
+    static func loadHiddenHomeSections(
+        from defaults: UserDefaults = .standard,
+        replicaDefaults: UserDefaults? = nil,
+        fileURL: URL? = nil
+    ) -> Set<HomeDashboardSection> {
+        let rawHidden = loadStoredHomeDashboardPreferences(
+            from: defaults,
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        )?.hidden
             ?? defaults.stringArray(forKey: "settings_hidden_home_sections_v1")
+            ?? replicaDefaults?.stringArray(forKey: "settings_hidden_home_sections_v1")
             ?? []
         return Set(rawHidden.compactMap(HomeDashboardSection.init(rawValue:)))
     }
 
-    static func loadHomeSectionSizes(from defaults: UserDefaults = .standard) -> [HomeDashboardSection: HomeDashboardWidgetSize] {
-        let rawSizes = loadStoredHomeDashboardPreferences(from: defaults)?.sizes
+    static func loadHomeSectionSizes(
+        from defaults: UserDefaults = .standard,
+        replicaDefaults: UserDefaults? = nil,
+        fileURL: URL? = nil
+    ) -> [HomeDashboardSection: HomeDashboardWidgetSize] {
+        let rawSizes = loadStoredHomeDashboardPreferences(
+            from: defaults,
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        )?.sizes
             ?? defaults.dictionary(forKey: "settings_home_section_sizes_v1") as? [String: String]
+            ?? replicaDefaults?.dictionary(forKey: "settings_home_section_sizes_v1") as? [String: String]
             ?? [:]
         return Dictionary(uniqueKeysWithValues: rawSizes.compactMap { key, value in
             guard let section = HomeDashboardSection(rawValue: key),
@@ -753,11 +896,71 @@ final class CalendarViewModel: ObservableObject {
         })
     }
 
-    private static func loadStoredHomeDashboardPreferences(from defaults: UserDefaults) -> StoredHomeDashboardPreferences? {
-        guard let data = defaults.data(forKey: homeDashboardPreferencesKey) else {
+    private static func loadStoredHomeDashboardPreferences(
+        from defaults: UserDefaults,
+        replicaDefaults: UserDefaults?,
+        fileURL: URL?
+    ) -> StoredHomeDashboardPreferences? {
+        let candidates = homeDashboardPreferenceCandidates(
+            from: defaults,
+            replicaDefaults: replicaDefaults,
+            fileURL: fileURL
+        )
+
+        return candidates.max { lhs, rhs in
+            switch (lhs.revision, rhs.revision) {
+            case let (left?, right?) where left != right:
+                return left < right
+            case (nil, .some):
+                return true
+            case (.some, nil):
+                return false
+            default:
+                return lhs.updatedAt < rhs.updatedAt
+            }
+        }
+    }
+
+    private static func homeDashboardPreferenceCandidates(
+        from defaults: UserDefaults,
+        replicaDefaults: UserDefaults?,
+        fileURL: URL?
+    ) -> [StoredHomeDashboardPreferences] {
+        var candidates: [StoredHomeDashboardPreferences] = []
+
+        if let data = defaults.data(forKey: homeDashboardPreferencesKey),
+           let decoded = try? JSONDecoder().decode(StoredHomeDashboardPreferences.self, from: data) {
+            candidates.append(decoded)
+        }
+
+        if let data = replicaDefaults?.data(forKey: homeDashboardPreferencesKey),
+           let decoded = try? JSONDecoder().decode(StoredHomeDashboardPreferences.self, from: data) {
+            candidates.append(decoded)
+        }
+
+        if let fileURL,
+           let data = try? Data(contentsOf: fileURL),
+           let decoded = try? JSONDecoder().decode(StoredHomeDashboardPreferences.self, from: data) {
+            candidates.append(decoded)
+        }
+
+        return candidates
+    }
+
+    private static func homeDashboardSharedDefaults() -> UserDefaults? {
+        UserDefaults(suiteName: RPICentralWidgetShared.appGroup)
+    }
+
+    private static func homeDashboardPreferencesFileURL() -> URL? {
+        guard let applicationSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
             return nil
         }
-        return try? JSONDecoder().decode(StoredHomeDashboardPreferences.self, from: data)
+        return applicationSupport
+            .appendingPathComponent("RPI-Central", isDirectory: true)
+            .appendingPathComponent(homeDashboardPreferencesFilename, isDirectory: false)
     }
 
     private static func loadSemesterGPAOverrides() -> [String: SemesterGPAOverride] {
@@ -768,14 +971,24 @@ final class CalendarViewModel: ObservableObject {
         return decoded
     }
 
-    func displayedAcademicSemesters() -> [Semester] {
-        let startCode = academicHistoryStartSemester.rawValue
-        let currentCode = visibleSemester.rawValue
+    func academicSemestersOnOrAfterStart() -> [Semester] {
+        Semester.academicTerms(startingAt: academicHistoryStartSemester)
+    }
 
-        let semesters = Semester.allCases.filter { semester in
-            semester.rawValue >= startCode && semester.rawValue <= currentCode
+    func displayedAcademicSemesters() -> [Semester] {
+        academicSemestersOnOrAfterStart()
+            .filter { $0.rawValue <= visibleSemester.rawValue }
+    }
+
+    func enforceAcademicHistoryBounds() {
+        let earliest = academicHistoryStartSemester
+        if currentSemester.rawValue < earliest.rawValue {
+            changeSemester(to: earliest)
         }
-        return semesters.sorted { $0.rawValue > $1.rawValue }
+        if visibleSemester.rawValue < earliest.rawValue {
+            changeVisibleSemester(to: earliest)
+        }
+        refreshSemesterWindow(anchorPreferred: nil)
     }
 
     func semesterGPAOverride(for semesterCode: String) -> SemesterGPAOverride? {
@@ -1265,6 +1478,9 @@ final class CalendarViewModel: ObservableObject {
         includedSemesters.formUnion(
             enrolledCourses.compactMap { Semester(rawValue: $0.semesterCode) }
         )
+        includedSemesters = includedSemesters.filter {
+            $0.rawValue >= academicHistoryStartSemester.rawValue
+        }
 
         let window = includedSemesters.sorted { $0.rawValue < $1.rawValue }
         semesterWindow = window
@@ -2333,15 +2549,20 @@ final class CalendarViewModel: ObservableObject {
     }
 
     func overallGPA() -> Double? {
-        let overriddenSemesterCodes = Set(semesterGPAOverrides.keys)
+        let earliestSemesterCode = academicHistoryStartSemester.rawValue
+        let visibleOverrides = semesterGPAOverrides.filter { semesterCode, _ in
+            semesterCode >= earliestSemesterCode
+        }
+        let overriddenSemesterCodes = Set(visibleOverrides.keys)
 
         let courseEntries = enrolledCourses.compactMap { e -> (points: Double, credits: Double)? in
+            guard e.semesterCode >= earliestSemesterCode else { return nil }
             guard !overriddenSemesterCodes.contains(e.semesterCode) else { return nil }
             guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)) else { return nil }
             return (g.points, e.section.credits)
         }
 
-        let overrideEntries = semesterGPAOverrides.values.filter { $0.credits > 0 }
+        let overrideEntries = visibleOverrides.values.filter { $0.credits > 0 }
 
         let totalOverridePoints = overrideEntries.reduce(0.0) { $0 + ($1.gpa * $1.credits) }
         let totalOverrideCredits = overrideEntries.reduce(0.0) { $0 + $1.credits }
@@ -3182,6 +3403,12 @@ final class CalendarViewModel: ObservableObject {
             if let historySemester = Semester(rawValue: snapshot.settings.academicHistoryStartSemester) {
                 academicHistoryStartSemester = historySemester
             }
+            if currentSemester.rawValue < academicHistoryStartSemester.rawValue {
+                currentSemester = academicHistoryStartSemester
+            }
+            if visibleSemester.rawValue < academicHistoryStartSemester.rawValue {
+                visibleSemester = academicHistoryStartSemester
+            }
 
             enforcePrerequisites = snapshot.settings.enforcePrerequisites
             lmsCalendarFeedURL = snapshot.settings.lmsCalendarFeedURL
@@ -3213,16 +3440,24 @@ final class CalendarViewModel: ObservableObject {
                     mergedOrder.append(section)
                 }
             }
-            homeSectionOrder = mergedOrder
-            hiddenHomeSections = Set(snapshot.settings.hiddenHomeSections.compactMap(HomeDashboardSection.init(rawValue:)))
-            homeSectionSizes = Dictionary(uniqueKeysWithValues: snapshot.settings.homeSectionSizes.compactMap { key, value in
-                guard let section = HomeDashboardSection(rawValue: key),
-                      let size = HomeDashboardWidgetSize(rawValue: value),
-                      section.supportedWidgetSizes.contains(size) else {
-                    return nil
+            let restoredHiddenSections = Set(
+                snapshot.settings.hiddenHomeSections.compactMap(HomeDashboardSection.init(rawValue:))
+            )
+            let restoredSectionSizes: [HomeDashboardSection: HomeDashboardWidgetSize] = Dictionary(
+                uniqueKeysWithValues: snapshot.settings.homeSectionSizes.compactMap { key, value in
+                    guard let section = HomeDashboardSection(rawValue: key),
+                          let size = HomeDashboardWidgetSize(rawValue: value),
+                          section.supportedWidgetSizes.contains(size) else {
+                        return nil
+                    }
+                    return (section, size)
                 }
-                return (section, size)
-            })
+            )
+            replaceHomeDashboardPreferences(
+                order: mergedOrder,
+                hidden: restoredHiddenSections,
+                sizes: restoredSectionSizes
+            )
 
             enrolledCourses = snapshot.enrollments.compactMap(\.enrolledCourseValue)
             personalEvents = snapshot.personalEvents.compactMap(\.storedEventValue)
