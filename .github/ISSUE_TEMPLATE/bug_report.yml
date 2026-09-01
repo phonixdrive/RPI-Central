@@ -1,0 +1,50 @@
+name: Bug report
+description: Report reproducible incorrect behavior in RPI Central.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please remove names, messages, tokens, and other private information before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: App version/build
+      placeholder: "2.4 (15)"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device and iOS version
+      placeholder: "iPhone 16, iOS 18.6"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the screen, semester, course, or chat type when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. Observe …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Do not include credentials, private messages, or personal calendar data.

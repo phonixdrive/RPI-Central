@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a focused improvement for RPI Central.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Student problem
+      description: What task or pain point should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Home dashboard
+        - Calendar
+        - Courses and registration
+        - Social and chat
+        - Campus utilities
+        - Notifications
+        - Sync and backup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy or permission considerations
+      description: Note whether the idea involves location, calendars, messages, notifications, or cloud data.
