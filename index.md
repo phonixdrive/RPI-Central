@@ -1,12 +1,3 @@
----
-title: Home
----
+# RPI Central website
 
-# RPI Central
-
-Welcome to my RCOS Project! This is a solo development build.
-- [About Page](about.md)   <!-- internal link to second page -->
-- [External Link](https://new.rcos.io/projects/rpi-central/?semester=202508)  <!-- outside page -->
-
-![Proposal](/rpiproposal.jpg)
-
+The current GitHub Pages site is maintained in [`docs/`](docs/). Open the [project website](https://phonixdrive.github.io/RPI-Central/) or return to the [repository README](readme.md).

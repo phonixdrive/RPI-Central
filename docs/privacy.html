@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Privacy overview for RPI Central."><title>Privacy · RPI Central</title><link rel="icon" href="assets/app-icon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/styles.css"></head>
+<body>
+  <nav class="site-nav"><div class="nav-inner"><a class="brand" href="index.html"><img src="assets/app-icon.svg" alt=""><span>RPI Central</span></a><div class="nav-links"><a href="index.html">Home</a><a aria-current="page" href="privacy.html">Privacy</a><a href="support.html">Support</a><a class="button" href="https://github.com/phonixdrive/RPI-Central">GitHub</a></div></div></nav>
+  <main class="container prose"><span class="eyebrow">Privacy overview</span><h1>Your data should serve you.</h1><p>This page describes the current open-source development build. It is a project overview, not a substitute for an App Store privacy label or a formal legal policy.</p>
+    <h2>Data kept on the device</h2><p>Course selections, personal events, grades, notes, GPA overrides, tasks, dashboard settings, meal-plan state, Flex Dollars planning, study-timer preferences, and imported calendar state are primarily stored locally.</p>
+    <h2>Calendar access</h2><p>RPI Central requests calendar permission only when you choose calendar import or sync features. Google and Outlook calendar access is mediated by accounts configured in Apple Calendar through EventKit.</p>
+    <h2>Firebase and social features</h2><p>When you sign in or use Social, Firebase may store profile information, friendships, requests, group membership, messages, shared schedules, device notification tokens, and cloud backup snapshots. Access is restricted by Firestore security rules maintained in the repository.</p>
+    <h2>Schedule sharing</h2><p>Schedule sharing is optional and intended for accepted friends. The app can show a friend’s current calendar activity only when that friend has enabled sharing.</p>
+    <h2>Location</h2><p>The shuttle map displays shuttle information. Live person-location sharing is not implemented. The app should not be represented as tracking students.</p>
+    <h2>Retention and deletion</h2><p>Local data can be removed by clearing app entries or deleting the app. Cloud data and backups require authenticated deletion support in the relevant Firebase environment. Do not use production personal data in development environments.</p>
+    <h2>Questions</h2><p>For a privacy concern, use the project’s <a href="support.html">support guidance</a>. Report security vulnerabilities privately through <a href="https://github.com/phonixdrive/RPI-Central/security/advisories/new">GitHub Security Advisories</a>.</p>
+  </main>
+  <footer><div class="container footer-inner"><span>Unofficial student project.</span><a href="index.html">Back home</a></div></footer>
+</body></html>
