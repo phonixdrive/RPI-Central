@@ -1,102 +1,61 @@
-# Web and iPhone Sync Guide
+# Phone and Web Sync Guide
 
-The web app now supports manual sync with backups.
+RPI Central uses a local-first data model. The iPhone keeps working from its on-device stores, while signed-in users can explicitly save that state to Firebase and restore it on another supported client.
 
-Cloud locations:
+## User controls
+
+Open **Settings → Phone & Web Sync** in the iOS app to:
+
+- **Save This Phone** — upload the current phone state as the latest shared snapshot.
+- **Update This Phone** — replace local state with the latest saved snapshot.
+- **Create recovery backup** — save a named point-in-time copy without replacing the latest snapshot.
+- **Restore** — replace the phone and shared snapshot with a selected recovery backup.
+- **Delete** — remove an unneeded recovery backup.
+
+RPI Central also creates a recovery backup about once every seven days while the user is signed in. It does not silently pull cloud state over newer local work.
+
+## Safety behavior
+
+Before a save, update, or restore can replace data, the sync manager preserves the relevant current phone and/or cloud state as recovery backups. After a cloud snapshot is applied, the app refreshes its local stores and social course/schedule data.
+
+Dashboard layout is included in the shared settings snapshot. It is also saved immediately on device in both `UserDefaults` and an atomic Application Support file, so a force-quit does not normally discard a completed drag or resize.
+
+## Firebase layout
+
+The latest shared snapshot is stored on the signed-in user document:
 
 - `users/{uid}.webAppState`
 - `users/{uid}.webAppStateUpdatedAt`
 - `users/{uid}.webAppStateVersion`
 - `users/{uid}.webAppStateSource`
+
+Recovery snapshots are stored under:
+
 - `users/{uid}/appBackups/{backupID}`
 
-What is inside `webAppState`:
+The current snapshot includes calendar settings, dashboard layout, enrolled courses, personal events, grades, notes, meeting and exam overrides, prerequisite assumptions, tasks, GPA overrides, meal-plan state, Flex Dollars state, and study-timer preferences.
 
-- calendar and personal events
-- enrolled courses
-- grades and grade breakdown data
-- semester GPA overrides
-- notes
-- meeting overrides and exam dates
-- prerequisite assumptions
-- tasks
-- meal plan state
-- flex dollar state
-- pomodoro preset
-- settings that the web app stores in `AppState`
+## Firestore rules
 
-What the web app can do now:
-
-- pull cloud state into the browser
-- push browser state to the cloud
-- create backup snapshots before pull, push, restore, and import
-- restore older cloud backups
-- download a portable JSON backup file
-- import a portable JSON backup file
-
-Important safety behavior:
-
-- sync is manual on the web right now
-- the web app does not silently overwrite local or cloud state
-
-Why the iPhone app still needs changes:
-
-The iPhone app currently keeps most of this data in local `UserDefaults`, not in Firestore. That means the web app cannot see the phone's existing calendar, GPA, tasks, or prerequisite state until the iPhone app also reads and writes the shared sync payload.
-
-Main iPhone files to update:
-
-- `RPI Central-reference/RPI Central/CalenderViewModel.swift`
-  - app settings and semester GPA overrides
-  - enrolled courses
-  - grades and notes
-  - personal events
-  - meeting overrides
-  - exam dates
-  - prerequisite assumptions
-  - hidden LMS and calendar state
-- `RPI Central-reference/RPI Central/GPACalculator.swift`
-  - `GradeBreakdownStore` is still local-only
-- `RPI Central-reference/RPI Central/HomeView.swift`
-  - `TasksManager`
-  - `MealPlanManager`
-  - `PomodoroPresetManager`
-- `RPI Central-reference/RPI Central/FlexDollars.swift`
-  - flex balance state is still local-only
-
-Recommended iPhone plan:
-
-1. Keep local saves exactly as they are.
-2. Add a sync service that builds one combined app-state payload from those local stores.
-3. Use the existing Firebase session in `SocialManager.swift` to read and write `users/{uid}.webAppState`.
-4. Before pull, push, or restore, save a backup document in `users/{uid}/appBackups/{backupID}`.
-5. Add manual buttons in the iPhone settings screen for pull, push, backup, and restore so behavior matches the web app.
-
-Recommended restore order on iPhone:
-
-1. Save a backup of current local state.
-2. Pull the selected cloud snapshot or backup.
-3. Write the imported values back into the existing local stores.
-4. Refresh the relevant view models.
-
-Portable backup file shape:
-
-```json
-{
-  "schemaVersion": 1,
-  "exportedAt": "ISO-8601 date",
-  "source": "web-portable-export",
-  "label": "Web backup",
-  "appStateUpdatedAt": "ISO-8601 date",
-  "appState": {}
-}
-```
-
-Firebase rules:
-
-You also need the `appBackups` rule added under `users/{userID}` and then deployed to Firebase:
+The repository rules should permit users to access only their own backup documents:
 
 ```txt
 match /appBackups/{backupID} {
   allow read, create, update, delete: if isSelf(userID);
 }
 ```
+
+Deploy rule changes from an authenticated Firebase CLI session:
+
+```sh
+firebase deploy --only firestore:rules
+```
+
+Never commit service-account keys, access tokens, or `GoogleService-Info.plist`.
+
+## Troubleshooting
+
+- Confirm the app is signed into the expected Firebase account.
+- Refresh the sync screen to reload the latest snapshot and recovery-backup list.
+- If a restore was unintended, select the automatically created “Before Restore” backup.
+- If cloud controls are unavailable, confirm the build includes Firebase Auth and Firestore and that the Apple app has a valid Firebase configuration.

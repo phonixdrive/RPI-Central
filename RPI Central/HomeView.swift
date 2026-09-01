@@ -395,6 +395,51 @@ private struct HomeDashboardWidgetFramePreferenceKey: PreferenceKey {
     }
 }
 
+/// Keeps the rapidly-changing drag translation inside one card. Updating this
+/// GestureState does not invalidate the large HomeView and all of its widgets.
+private struct HomeDashboardCardDragModifier: ViewModifier {
+    let isEnabled: Bool
+    let onChanged: (CGPoint) -> Void
+    let onFinished: () -> Void
+
+    @GestureState private var translation: CGSize = .zero
+    @GestureState private var isActive = false
+
+    func body(content: Content) -> some View {
+        content
+            .offset(isEnabled ? translation : .zero)
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 3, coordinateSpace: .named("home-dashboard-grid"))
+                    .updating($translation) { value, translation, _ in
+                        translation = value.translation
+                    }
+                    .updating($isActive) { _, isActive, _ in
+                        isActive = true
+                    }
+                    .onChanged { value in
+                        onChanged(value.location)
+                    }
+                    .onEnded { _ in
+                        // Normal finger lifts take this direct path. The
+                        // GestureState reset below remains the cancellation
+                        // fallback when List takes over the gesture.
+                        onFinished()
+                    },
+                including: isEnabled ? .all : .none
+            )
+            .onChange(of: isActive) { wasActive, isActive in
+                if wasActive && !isActive {
+                    onFinished()
+                }
+            }
+    }
+}
+
+private struct DashboardLayoutSaveAlert: Identifiable {
+    let id = UUID()
+    let verified: Bool
+}
+
 // MARK: - HomeView
 
 struct HomeView: View {
@@ -418,8 +463,9 @@ struct HomeView: View {
     @State private var showDiningHours = false
     @State private var editingSemesterGPA: Semester? = nil
     @State private var isEditingDashboard = false
+    @State private var dashboardLayoutSaveVerified: Bool?
+    @State private var dashboardLayoutSaveAlert: DashboardLayoutSaveAlert?
     @State private var draggedDashboardWidget: HomeDashboardSection?
-    @State private var dashboardDragOffset: CGSize = .zero
     @State private var dashboardDropTarget: HomeDashboardSection?
     @State private var dashboardWidgetFrames: [HomeDashboardSection: CGRect] = [:]
 
@@ -572,21 +618,58 @@ struct HomeView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
+                // Dashboard editing is independent from SwiftUI List editing.
+                // Course removal remains available through swipe-to-delete,
+                // without showing redundant delete-minus controls.
+                .environment(\.editMode, .constant(.inactive))
             }
             .navigationTitle("RPI Central")
             .tint(calendarViewModel.themeColor)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if isEditingDashboard {
+                        Button {
+                            verifyDashboardLayoutSave()
+                        } label: {
+                            Label("Save Layout", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityLabel("Save dashboard layout")
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(isEditingDashboard ? "Done" : "Edit") {
-                        withAnimation(.snappy(duration: 0.24)) {
-                            isEditingDashboard.toggle()
-                            if !isEditingDashboard {
+                        if isEditingDashboard {
+                            let verified = calendarViewModel.persistHomeDashboardPreferences()
+                            withAnimation(.snappy(duration: 0.24)) {
+                                dashboardLayoutSaveVerified = verified
+                                guard verified else { return }
+                                isEditingDashboard = false
                                 resetDashboardDrag()
+                            }
+                            if !verified {
+                                dashboardLayoutSaveAlert = DashboardLayoutSaveAlert(verified: false)
+                            }
+                        } else {
+                            dashboardLayoutSaveVerified = nil
+                            withAnimation(.snappy(duration: 0.24)) {
+                                isEditingDashboard = true
                             }
                         }
                     }
                     .accessibilityLabel("Edit dashboard")
                 }
+            }
+            .alert(item: $dashboardLayoutSaveAlert) { result in
+                Alert(
+                    title: Text(result.verified ? "Layout Saved" : "Layout Save Failed"),
+                    message: Text(
+                        result.verified
+                            ? "Your widget order and sizes were written and verified."
+                            : "RPI Central could not read the saved layout back. Your current layout is still on screen; try Save Layout again."
+                    ),
+                    dismissButton: .default(Text("OK"))
+                )
             }
             .task(id: calendarViewModel.currentSemester.rawValue) {
                 calendarViewModel.ensureTermBoundsLoaded(for: calendarViewModel.currentSemester)
@@ -746,17 +829,31 @@ struct HomeView: View {
             .padding(.vertical, 2)
             .coordinateSpace(name: "home-dashboard-grid")
             .onPreferenceChange(HomeDashboardWidgetFramePreferenceKey.self) { frames in
-                dashboardWidgetFrames = frames
+                // A card's visual offset must not rewrite every stored frame
+                // while it moves. Keep the pre-drag layout as the hit-test map.
+                if draggedDashboardWidget == nil {
+                    dashboardWidgetFrames = frames
+                }
             }
         } header: {
             HStack {
                 Text("Dashboard")
                 if isEditingDashboard {
                     Spacer()
-                    Label("Drag to reorder", systemImage: "hand.draw")
+                    if let saveVerified = dashboardLayoutSaveVerified {
+                        Label(
+                            saveVerified ? "Layout saved" : "Save failed",
+                            systemImage: saveVerified ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        )
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(calendarViewModel.themeColor)
-                        .transition(.opacity)
+                        .foregroundStyle(saveVerified ? .green : .red)
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Label("Drag to reorder", systemImage: "hand.draw")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(calendarViewModel.themeColor)
+                            .transition(.opacity)
+                    }
                 }
             }
         }
@@ -869,24 +966,26 @@ struct HomeView: View {
                 )
             }
         }
-        .offset(draggedDashboardWidget == section ? dashboardDragOffset : .zero)
         .scaleEffect(
             draggedDashboardWidget == section
-                ? 1.035
-                : (isEditingDashboard ? 0.985 : 1)
-        )
-        .rotationEffect(.degrees(isEditingDashboard && draggedDashboardWidget != section ? -0.25 : 0))
-        .shadow(
-            color: draggedDashboardWidget == section ? .black.opacity(0.22) : .clear,
-            radius: 16,
-            y: 8
+                ? 1.015
+                : (isEditingDashboard ? 0.99 : 1)
         )
         .zIndex(draggedDashboardWidget == section ? 20 : 0)
-        .highPriorityGesture(
-            dashboardDragGesture(for: section),
-            including: isEditingDashboard ? .all : .none
+        .modifier(
+            HomeDashboardCardDragModifier(
+                isEnabled: isEditingDashboard,
+                onChanged: { location in
+                    updateDashboardDrag(section, location: location)
+                },
+                onFinished: {
+                    if draggedDashboardWidget == section {
+                        finishDashboardDrag()
+                    }
+                }
+            )
         )
-        .animation(.snappy(duration: 0.2), value: dashboardDropTarget)
+        .accessibilityIdentifier("home-dashboard-\(section.rawValue)")
         .accessibilityHint(isEditingDashboard ? "Drag this widget to a new position" : "")
     }
 
@@ -946,37 +1045,24 @@ struct HomeView: View {
         .accessibilityLabel("Options for \(section.title)")
     }
 
-    private func dashboardDragGesture(for section: HomeDashboardSection) -> some Gesture {
-        DragGesture(minimumDistance: 3, coordinateSpace: .named("home-dashboard-grid"))
-            .onChanged { value in
-                if draggedDashboardWidget == nil {
-                    draggedDashboardWidget = section
+    private func updateDashboardDrag(_ section: HomeDashboardSection, location: CGPoint) {
+        if draggedDashboardWidget == nil {
+            draggedDashboardWidget = section
 #if canImport(UIKit)
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 #endif
-                }
-                guard draggedDashboardWidget == section else { return }
+        }
+        guard draggedDashboardWidget == section else { return }
 
-                dashboardDragOffset = value.translation
-                let nextTarget = dashboardDropTarget(at: value.location, excluding: section)
-                if nextTarget != dashboardDropTarget {
-                    dashboardDropTarget = nextTarget
+        let nextTarget = dashboardDropTarget(at: location, excluding: section)
+        if nextTarget != dashboardDropTarget {
+            dashboardDropTarget = nextTarget
 #if canImport(UIKit)
-                    if nextTarget != nil {
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
+            if nextTarget != nil {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
 #endif
-                }
-            }
-            .onEnded { _ in
-                let target = dashboardDropTarget
-                if let target {
-                    moveDashboardWidget(section, beforeOrAfter: target)
-                }
-                withAnimation(.snappy(duration: 0.25)) {
-                    resetDashboardDrag()
-                }
-            }
+        }
     }
 
     private func dashboardDropTarget(
@@ -1020,8 +1106,32 @@ struct HomeView: View {
 
     private func resetDashboardDrag() {
         draggedDashboardWidget = nil
-        dashboardDragOffset = .zero
         dashboardDropTarget = nil
+    }
+
+    private func verifyDashboardLayoutSave() {
+        let verified = calendarViewModel.persistHomeDashboardPreferences()
+        withAnimation(.snappy(duration: 0.22)) {
+            dashboardLayoutSaveVerified = verified
+        }
+        dashboardLayoutSaveAlert = DashboardLayoutSaveAlert(verified: verified)
+#if canImport(UIKit)
+        UINotificationFeedbackGenerator().notificationOccurred(verified ? .success : .error)
+#endif
+    }
+
+    private func finishDashboardDrag() {
+        guard let source = draggedDashboardWidget else { return }
+        let target = dashboardDropTarget
+        if let target {
+            moveDashboardWidget(source, beforeOrAfter: target)
+            // Reordering already auto-saves. Clear the previous confirmation
+            // until Save Layout performs an explicit read-back verification.
+            dashboardLayoutSaveVerified = nil
+        }
+        withAnimation(.snappy(duration: 0.25)) {
+            resetDashboardDrag()
+        }
     }
 
     @ViewBuilder

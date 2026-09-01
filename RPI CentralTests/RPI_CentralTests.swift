@@ -128,6 +128,16 @@ struct RPI_CentralTests {
         #expect(CalendarViewModel.loadHomeSectionSizes(from: defaults) == sizes)
     }
 
+    @Test func academicHistoryStartHidesEveryEarlierSemester() {
+        let visible = Semester.academicTerms(startingAt: .fall2024)
+
+        #expect(visible.contains(.fall2024))
+        #expect(visible.contains(.spring2025))
+        #expect(!visible.contains(.spring2024))
+        #expect(!visible.contains(.fall2023))
+        #expect(!visible.contains(.fall2022))
+    }
+
     @Test func groupChatUnreadPolicyUsesOneMonotonicReadCursor() throws {
         let oldDate = Date(timeIntervalSince1970: 100)
         let newDate = Date(timeIntervalSince1970: 200)

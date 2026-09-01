@@ -1717,7 +1717,10 @@ struct SocialHubView: View {
     private var availableClassGroupSemesterCodes: [String] {
         let groupCodes = socialManager.courseCommunities.compactMap(\.semesterCode)
         let enrollmentCodes = calendarViewModel.enrolledCourses.map(\.semesterCode)
-        return Array(Set(groupCodes + enrollmentCodes)).sorted(by: >)
+        let earliestSemesterCode = calendarViewModel.academicHistoryStartSemester.rawValue
+        return Array(Set(groupCodes + enrollmentCodes))
+            .filter { $0 >= earliestSemesterCode }
+            .sorted(by: >)
     }
 
     private func classGroupFilterTitle(for filter: ClassGroupFilter) -> String {
@@ -1738,6 +1741,21 @@ struct SocialHubView: View {
     }
 
     private func filteredClassGroups(from groups: [SocialCourseCommunity]) -> [SocialCourseCommunity] {
+        let earliestSemesterCode = calendarViewModel.academicHistoryStartSemester.rawValue
+        let visibleEnrollmentCourseTokens = Set(
+            calendarViewModel.enrolledCourses
+                .filter { $0.semesterCode >= earliestSemesterCode }
+                .map { classGroupCourseToken(subject: $0.course.subject, number: $0.course.number) }
+        )
+        let visibleGroups = groups.filter { group in
+            if group.kind == .section {
+                return group.semesterCode.map { $0 >= earliestSemesterCode } ?? false
+            }
+            return visibleEnrollmentCourseTokens.contains(
+                classGroupCourseToken(subject: group.courseSubject, number: group.courseNumber)
+            )
+        }
+
         let semesterCode: String?
         switch classGroupFilter {
         case .currentOverall, .currentAll:
@@ -1757,7 +1775,7 @@ struct SocialHubView: View {
         }
 
         guard let semesterCode else {
-            return groups
+            return visibleGroups
                 .filter { group in
                     group.kind == .course || showsSectionGroups
                 }
@@ -1770,7 +1788,7 @@ struct SocialHubView: View {
                 .map { classGroupCourseToken(subject: $0.course.subject, number: $0.course.number) }
         )
 
-        return groups.filter { group in
+        return visibleGroups.filter { group in
             if group.kind == .section {
                 return showsSectionGroups && group.semesterCode == semesterCode
             }

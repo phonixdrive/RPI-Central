@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="RPI Central is an unofficial iOS campus companion for courses, calendars, deadlines, utilities, and friends at Rensselaer Polytechnic Institute.">
+  <meta name="theme-color" content="#0b0d14">
+  <title>RPI Central — Your semester, in one place</title>
+  <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <nav class="site-nav" aria-label="Primary navigation">
+    <div class="nav-inner">
+      <a class="brand" href="index.html"><img src="assets/app-icon.svg" alt=""><span>RPI Central</span></a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+        <a class="button" href="https://github.com/phonixdrive/RPI-Central">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <section class="container hero">
+      <div>
+        <span class="eyebrow">Fall 2026 ready · Unofficial student project</span>
+        <h1>Your semester, in one place.</h1>
+        <p class="lead">Courses, rooms, deadlines, academic dates, campus utilities, and friends—organized around the way an RPI semester actually works.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/phonixdrive/RPI-Central">View source on GitHub</a>
+          <a class="button" href="support.html">Get support</a>
+        </div>
+      </div>
+      <div class="phone-card" aria-label="Illustration of the RPI Central Home dashboard">
+        <div class="phone-screen">
+          <div class="mini-status"><span>RPI Central</span><span>Fall 2026</span></div>
+          <div class="next-card"><span class="muted">NEXT · 18 MIN</span><strong>CSCI 2300 · Data Structures</strong><div class="room">DCC 318</div><span class="muted">Assignment 2 due tonight</span></div>
+          <div class="mini-grid"><div><strong>Shuttle</strong><br>Live campus map</div><div><strong>Dining</strong><br>Commons open</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="container section">
+      <div class="section-heading"><span class="eyebrow">Designed for campus life</span><h2>Useful between every class.</h2><p>RPI Central brings planning and daily campus tools into a consistent, customizable SwiftUI experience.</p></div>
+      <div class="feature-grid">
+        <article class="card"><div class="icon">01</div><h3>Term-aware calendar</h3><p>Official academic dates, class schedules, personal events, external calendars, and persistent day/week/month layouts.</p></article>
+        <article class="card"><div class="icon">02</div><h3>Course planning</h3><p>Search bundled catalogs, inspect sections and prerequisites, and keep current-term room and instructor details refreshed.</p></article>
+        <article class="card"><div class="icon">03</div><h3>Adaptive Home</h3><p>Reorder persistent dashboard cards and choose compact, wide, or large layouts for the information you use most.</p></article>
+        <article class="card"><div class="icon">04</div><h3>Deadlines and reminders</h3><p>See what is next, connect work to classes, and schedule local notifications without blocking the interface while data loads.</p></article>
+        <article class="card"><div class="icon">05</div><h3>Campus utilities</h3><p>Check shuttle positions, dining hours, meal swipes, Flex Dollars pacing, and a focused study timer.</p></article>
+        <article class="card"><div class="icon">06</div><h3>Friends and classes</h3><p>Direct messages, groups, class communities, friend schedules, and privacy-controlled current calendar activity.</p></article>
+      </div>
+    </section>
+
+    <section class="container section split">
+      <div class="callout"><div class="stat">One schedule</div><h2>Phone, web, and external calendars.</h2><p class="muted">Import authorized Google and Outlook calendars through EventKit, maintain local-first app data, and create weekly recovery backups when signed in.</p></div>
+      <div class="callout"><div class="stat">Your control</div><h2>Privacy before presence.</h2><p class="muted">Schedule sharing is opt-in and friend-gated. Live person-location sharing is not implemented, and private credentials stay outside the repository.</p><a class="button" href="privacy.html">Read the privacy overview</a></div>
+    </section>
+
+    <section class="container section">
+      <div class="callout"><h2>Built in the open.</h2><p class="lead">RPI Central is an active student project. Explore the code, report a reproducible issue, or propose a focused improvement.</p><div class="hero-actions"><a class="button primary" href="https://github.com/phonixdrive/RPI-Central/issues">Open issues</a><a class="button" href="https://github.com/phonixdrive/RPI-Central/blob/main/CONTRIBUTING.md">Contributing guide</a></div></div>
+    </section>
+  </main>
+
+  <footer><div class="container footer-inner"><span>RPI Central is not affiliated with Rensselaer Polytechnic Institute.</span><span><a href="privacy.html">Privacy</a> · <a href="support.html">Support</a> · <a href="changelog.html">Changelog</a></span></div></footer>
+</body>
+</html>

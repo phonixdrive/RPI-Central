@@ -16,7 +16,6 @@ struct SettingsView: View {
     @AppStorage("courses_auto_collapse_prerequisites_v1") private var autoCollapseCoursePrerequisites = true
     @State private var selectedTheme: AppThemeColor = .blue
     @State private var selectedAppearance: AppAppearanceMode = .dark
-    @State private var editMode: EditMode = .inactive
     @State private var isSyncingLMSCalendar = false
     @State private var showingRecoveryBackups = false
 
@@ -58,7 +57,7 @@ struct SettingsView: View {
 
                     Section(
                         header: Text("Home Dashboard"),
-                        footer: Text("Choose each widget's size here or from its ••• menu on Home. Sizes are rows × columns: 1×1 is small, 1×2 is wide, and 2×2 is large. Tap Edit to reorder.")
+                        footer: Text("Choose visibility and size here. To reorder, tap Edit on Home and drag the widget cards themselves. Sizes are rows × columns: 1×1 is small, 1×2 is wide, and 2×2 is large.")
                     ) {
                         ForEach(calendarViewModel.homeSectionOrder) { section in
                             HStack(spacing: 12) {
@@ -89,14 +88,7 @@ struct SettingsView: View {
                                         .frame(minWidth: 34)
                                 }
                                 .disabled(!calendarViewModel.isHomeSectionEnabled(section))
-
-                                Image(systemName: "line.3.horizontal")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.secondary)
                             }
-                        }
-                        .onMove { source, destination in
-                            calendarViewModel.moveHomeSections(from: source, to: destination)
                         }
                     }
 
@@ -120,7 +112,7 @@ struct SettingsView: View {
                                 set: { calendarViewModel.changeSemester(to: $0) }
                             )
                         ) {
-                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                            ForEach(calendarViewModel.academicSemestersOnOrAfterStart()) { semester in
                                 Text(semester.displayName).tag(semester)
                             }
                         }
@@ -137,7 +129,7 @@ struct SettingsView: View {
                                 set: { calendarViewModel.changeVisibleSemester(to: $0) }
                             )
                         ) {
-                            ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                            ForEach(calendarViewModel.academicSemestersOnOrAfterStart()) { semester in
                                 Text(semester.displayName).tag(semester)
                             }
                         }
@@ -418,12 +410,6 @@ struct SettingsView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Settings")
-            .environment(\.editMode, $editMode)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    EditButton()
-                }
-            }
         }
         .onAppear {
             selectedTheme = AppThemeColor.from(color: calendarViewModel.themeColor)
@@ -434,6 +420,9 @@ struct SettingsView: View {
         }
         .onChange(of: selectedAppearance) {
             calendarViewModel.appearanceMode = selectedAppearance
+        }
+        .onChange(of: calendarViewModel.academicHistoryStartSemester) {
+            calendarViewModel.enforceAcademicHistoryBounds()
         }
         .onChange(of: calendarViewModel.socialFeedNotificationsEnabled) {
             Task {

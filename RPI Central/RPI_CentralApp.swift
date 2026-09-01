@@ -41,6 +41,10 @@ struct RPI_CentralApp: App {
                     await appStateSyncManager.createWeeklyBackupIfNeeded(calendarViewModel: calendarViewModel)
                 }
                 .onChange(of: scenePhase) { _, phase in
+                    if phase == .inactive || phase == .background {
+                        calendarViewModel.persistHomeDashboardPreferences()
+                        return
+                    }
                     guard phase == .active else { return }
                     Task {
                         externalCalendarSyncManager.reloadAvailableCalendars()
