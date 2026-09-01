@@ -4,7 +4,7 @@ RPI Central is an unofficial iOS campus companion for Rensselaer Polytechnic Ins
 
 > RPI Central is an independent student project. It is not affiliated with or endorsed by Rensselaer Polytechnic Institute.
 
-[Project website](https://phonixdrive.github.io/RPI-Central/) · [Report a bug](https://github.com/phonixdrive/RPI-Central/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/phonixdrive/RPI-Central/issues/new?template=feature_request.yml)
+[Download on TestFlight](https://testflight.apple.com/join/chA8WKUu) · [Project website](https://phonixdrive.github.io/RPI-Central/) · [Report a bug](https://github.com/phonixdrive/RPI-Central/issues/new?template=bug_report.yml) · [Request a feature](https://github.com/phonixdrive/RPI-Central/issues/new?template=feature_request.yml)
 
 ## Highlights
 

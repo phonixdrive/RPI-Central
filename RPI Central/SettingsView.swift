@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct SettingsView: View {
+    private static let testFlightURL = URL(string: "https://testflight.apple.com/join/chA8WKUu")!
+
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
     @EnvironmentObject var externalCalendarSyncManager: ExternalCalendarSyncManager
@@ -52,6 +54,23 @@ struct SettingsView: View {
                                 }
                                 .tag(theme)
                             }
+                        }
+                    }
+
+                    Section(
+                        header: Text("TestFlight"),
+                        footer: Text("Share the public TestFlight invite with friends who want to help test RPI Central.")
+                    ) {
+                        Link(destination: Self.testFlightURL) {
+                            Label("Download RPI Central", systemImage: "arrow.down.app.fill")
+                        }
+
+                        ShareLink(
+                            item: Self.testFlightURL,
+                            subject: Text("Try RPI Central"),
+                            message: Text("Download RPI Central on TestFlight:")
+                        ) {
+                            Label("Share TestFlight invite", systemImage: "square.and.arrow.up")
                         }
                     }
 
