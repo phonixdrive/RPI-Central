@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">RPI Central</title>
+  <defs>
+    <linearGradient id="g" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff574d"/>
+      <stop offset="1" stop-color="#b4142c"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="29" fill="url(#g)"/>
+  <rect x="25" y="31" width="78" height="72" rx="14" fill="#fff" fill-opacity=".96"/>
+  <path d="M25 52h78" stroke="#b4142c" stroke-width="9"/>
+  <path d="M45 22v20M83 22v20" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M45 69h38M45 84h26" stroke="#b4142c" stroke-width="8" stroke-linecap="round"/>
+</svg>
