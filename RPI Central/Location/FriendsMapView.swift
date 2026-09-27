@@ -388,3 +388,368 @@ struct FriendMapPin: View {
     }
 }
 
+struct FriendGroupPin: View {
+    let group: FriendMapGroup
+
+    var body: some View {
+        VStack(spacing: 3) {
+            HStack(spacing: -10) {
+                ForEach(group.members.prefix(3)) { member in
+                    ZStack {
+                        Circle().fill(FriendAvatarStyle.color(for: member.id).gradient)
+                        Text(FriendAvatarStyle.initials(for: member.presence.friend.displayName))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 32, height: 32)
+                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                }
+
+                if group.members.count > 3 {
+                    Text("+\(group.members.count - 3)")
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .padding(.leading, 16)
+                        .padding(.trailing, 6)
+                }
+            }
+            .padding(4)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+
+            Text(group.title)
+                .font(.caption2.weight(.bold))
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.regularMaterial, in: Capsule())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(group.members.count) friends: " + group.members.map(\.presence.friend.displayName).joined(separator: ", "))
+        .accessibilityHint("Shows who is here")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: - Rows
+
+struct FriendPresenceRow: View {
+    let presence: FriendPresence
+    let distanceText: String?
+    let isSelected: Bool
+    let accent: Color
+    let now: Date
+    let onFocus: () -> Void
+    let onMessage: () -> Void
+    let onViewSchedule: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle().fill(FriendAvatarStyle.color(for: presence.friend.id).gradient)
+                Text(FriendAvatarStyle.initials(for: presence.friend.displayName))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 42, height: 42)
+            .overlay(alignment: .bottomTrailing) {
+                if presence.freshness == .live {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 11, height: 11)
+                        .overlay(Circle().stroke(Color(.secondarySystemBackground), lineWidth: 2))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(presence.friend.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(freshnessText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(presence.freshness == .live ? Color.green : Color.secondary)
+                }
+
+                Text(presence.headline)
+                    .font(.subheadline)
+                    .lineLimit(2)
+
+                if let detail = presence.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if let distanceText, presence.isOnMap {
+                    Label(distanceText, systemImage: "figure.walk")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Menu {
+                if presence.isOnMap {
+                    Button {
+                        onFocus()
+                    } label: {
+                        Label("Show on map", systemImage: "scope")
+                    }
+                    Button {
+                        openDirections()
+                    } label: {
+                        Label("Walking directions", systemImage: "figure.walk")
+                    }
+                }
+                Button {
+                    onMessage()
+                } label: {
+                    Label("Message", systemImage: "message")
+                }
+                if let onViewSchedule {
+                    Button {
+                        onViewSchedule()
+                    } label: {
+                        Label("View schedule", systemImage: "calendar")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Actions for \(presence.friend.displayName)")
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(isSelected ? accent.opacity(0.14) : Color(.secondarySystemBackground))
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if presence.isOnMap { onFocus() }
+        }
+    }
+
+    private var freshnessText: String {
+        switch presence.freshness {
+        case .live:
+            return presence.updatedAt.map { RelativeTimeText.since($0, now: now) } ?? "Live"
+        case .stale:
+            return presence.updatedAt.map { RelativeTimeText.since($0, now: now) } ?? "Earlier"
+        case .scheduled:
+            return "Schedule"
+        }
+    }
+
+    private func openDirections() {
+        guard let coordinate = presence.coordinate else { return }
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = presence.building?.name ?? presence.friend.displayName
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+    }
+}
+
+// MARK: - Social tab section
+
+struct FriendsMapSection: View {
+    let onMessage: (SocialFriend) -> Void
+    let onViewSchedule: (SocialFriend) -> Void
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @EnvironmentObject private var locationManager: LocationSharingManager
+
+    @State private var cameraPosition: MapCameraPosition = .region(CampusDirectory.campusRegion)
+    @State private var selectedFriendID: String?
+    @State private var showSharingSettings = false
+    @State private var showFullScreenMap = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let snapshot = FriendsMapSnapshot(
+                socialManager: socialManager,
+                locationManager: locationManager,
+                now: context.date
+            )
+
+            VStack(spacing: 16) {
+                mapCard(snapshot)
+                LocationSharingStatusCard(showSettings: $showSharingSettings, now: context.date)
+                friendsCard(snapshot, now: context.date)
+            }
+        }
+        .onAppear {
+            locationManager.beginObservingFriends()
+            locationManager.beginShowingOwnLocation()
+        }
+        .onDisappear {
+            locationManager.endObservingFriends()
+            locationManager.endShowingOwnLocation()
+        }
+        .task(id: socialManager.overview?.friends.map(\.id).joined(separator: "|") ?? "") {
+            await socialManager.preloadFriendSchedulesForActivity()
+        }
+        .sheet(isPresented: $showSharingSettings) {
+            LocationSharingSettingsView()
+                .environmentObject(socialManager)
+                .environmentObject(locationManager)
+                .environmentObject(calendarViewModel)
+        }
+        .fullScreenCover(isPresented: $showFullScreenMap) {
+            FriendsMapFullScreen(
+                onMessage: { friend in
+                    showFullScreenMap = false
+                    onMessage(friend)
+                },
+                onViewSchedule: { friend in
+                    showFullScreenMap = false
+                    onViewSchedule(friend)
+                }
+            )
+            .environmentObject(socialManager)
+            .environmentObject(locationManager)
+            .environmentObject(calendarViewModel)
+        }
+    }
+
+    private func mapCard(_ snapshot: FriendsMapSnapshot) -> some View {
+        let selected = snapshot.presences.first { $0.id == selectedFriendID }
+        let liveCount = snapshot.presences.filter { $0.freshness == .live }.count
+
+        return SocialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label("Friends Map", systemImage: "map.fill")
+                        .font(.headline)
+                    Spacer()
+                    Text(liveCount == 1 ? "1 friend live" : "\(liveCount) friends live")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color.green.opacity(liveCount > 0 ? 0.16 : 0.06)))
+                        .foregroundStyle(liveCount > 0 ? Color.green : Color.secondary)
+                }
+
+                FriendsMapCanvas(
+                    pins: snapshot.pins,
+                    highlightedBuilding: selected?.building,
+                    accent: calendarViewModel.themeColor,
+                    showsUserLocation: locationManager.isAuthorized,
+                    position: $cameraPosition,
+                    selectedFriendID: $selectedFriendID
+                )
+                .frame(height: 340)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    HStack(spacing: 8) {
+                        mapButton("arrow.up.left.and.arrow.down.right", label: "Expand map") {
+                            showFullScreenMap = true
+                        }
+                        mapButton("building.columns", label: "Show all of campus") {
+                            withAnimation(.snappy) {
+                                selectedFriendID = nil
+                                cameraPosition = .region(CampusDirectory.campusRegion)
+                            }
+                        }
+                    }
+                    .padding(10)
+                }
+
+                if let selected {
+                    FriendPresenceRow(
+                        presence: selected,
+                        distanceText: DistanceText.between(locationManager.lastLocation, selected.coordinate),
+                        isSelected: true,
+                        accent: calendarViewModel.themeColor,
+                        now: Date(),
+                        onFocus: { focus(on: selected) },
+                        onMessage: { onMessage(selected.friend) },
+                        onViewSchedule: selected.friend.canViewSchedule ? { onViewSchedule(selected.friend) } : nil
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                Text("Dashed rings show where a friend's class is, from their shared schedule. \(CampusDirectory.shared.attribution)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .onChange(of: selectedFriendID) { _, newValue in
+            guard let newValue, let presence = snapshot.presences.first(where: { $0.id == newValue }) else { return }
+            focus(on: presence)
+        }
+    }
+
+    private func friendsCard(_ snapshot: FriendsMapSnapshot, now: Date) -> some View {
+        SocialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Where friends are", systemImage: "person.2.wave.2.fill")
+                    .font(.headline)
+
+                if snapshot.presences.isEmpty {
+                    Text(
+                        (socialManager.overview?.friends.isEmpty ?? true)
+                            ? "Add friends to see who's around campus."
+                            : "No friends are sharing right now. Friends who share their location, or whose schedule shows a class, appear here."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(snapshot.presences) { presence in
+                            FriendPresenceRow(
+                                presence: presence,
+                                distanceText: DistanceText.between(locationManager.lastLocation, presence.coordinate),
+                                isSelected: presence.id == selectedFriendID,
+                                accent: calendarViewModel.themeColor,
+                                now: now,
+                                onFocus: {
+                                    withAnimation(.snappy) { selectedFriendID = presence.id }
+                                },
+                                onMessage: { onMessage(presence.friend) },
+                                onViewSchedule: presence.friend.canViewSchedule ? { onViewSchedule(presence.friend) } : nil
+                            )
+                        }
+                    }
+                }
+
+                if snapshot.hiddenFriendCount > 0 {
+                    Text(
+                        snapshot.hiddenFriendCount == 1
+                            ? "1 friend isn't sharing a location or class right now."
+                            : "\(snapshot.hiddenFriendCount) friends aren't sharing a location or class right now."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func focus(on presence: FriendPresence) {
+        guard let coordinate = presence.coordinate else { return }
+        withAnimation(.snappy(duration: 0.4)) {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coordinate,
+                latitudinalMeters: 320,
+                longitudinalMeters: 320
+            ))
+        }
+    }
+
+    private func mapButton(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 36, height: 36)
+                .background(.regularMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
