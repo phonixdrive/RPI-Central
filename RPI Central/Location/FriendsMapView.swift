@@ -190,3 +190,201 @@ enum FriendMapLayout {
     }
 }
 
+enum FriendAvatarStyle {
+    /// A stable color per friend so the same person looks the same everywhere.
+    static func color(for id: String) -> Color {
+        let hash = SocialHashing.fnv1a64Hex(Data(id.utf8))
+        let value = UInt64(hash.prefix(8), radix: 16) ?? 0
+        return Color(hue: Double(value % 360) / 360, saturation: 0.62, brightness: 0.82)
+    }
+
+    static func initials(for name: String) -> String {
+        let parts = name.split(whereSeparator: \.isWhitespace).prefix(2)
+        let letters = parts.compactMap(\.first).map { String($0).uppercased() }.joined()
+        return letters.isEmpty ? "?" : letters
+    }
+
+    static func firstName(for name: String) -> String {
+        name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
+    }
+}
+
+enum DistanceText {
+    private static let formatter: MeasurementFormatter = {
+        let formatter = MeasurementFormatter()
+        formatter.unitOptions = .naturalScale
+        formatter.unitStyle = .short
+        formatter.numberFormatter.maximumFractionDigits = 1
+        return formatter
+    }()
+
+    static func between(_ origin: CLLocation?, _ coordinate: CLLocationCoordinate2D?) -> String? {
+        guard let origin, let coordinate else { return nil }
+        let meters = origin.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+        guard meters.isFinite else { return nil }
+        if meters < 40 { return "Nearby" }
+        return formatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
+    }
+}
+
+// MARK: - Map
+
+struct FriendsMapCanvas: View {
+    let pins: [FriendMapPinModel]
+    let highlightedBuilding: CampusBuilding?
+    let accent: Color
+    let showsUserLocation: Bool
+    @Binding var position: MapCameraPosition
+    @Binding var selectedFriendID: String?
+    @State private var metersPerPoint: Double?
+    @State private var listedGroup: FriendMapGroup?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let items = FriendMapLayout.items(
+                for: pins,
+                metersPerPoint: metersPerPoint ?? FriendMapLayout.metersPerPoint(
+                    in: position.region ?? CampusDirectory.campusRegion,
+                    width: proxy.size.width
+                ),
+                selectedFriendID: selectedFriendID
+            )
+
+            Map(position: $position) {
+                if showsUserLocation {
+                    UserAnnotation()
+                }
+
+                if let highlightedBuilding {
+                    ForEach(Array(highlightedBuilding.polygons.enumerated()), id: \.offset) { _, ring in
+                        MapPolygon(coordinates: ring)
+                            .foregroundStyle(accent.opacity(0.18))
+                            .stroke(accent, lineWidth: 2)
+                    }
+                }
+
+                ForEach(items) { item in
+                    switch item {
+                    case .friend(let pin, let showsName):
+                        Annotation(pin.presence.friend.displayName, coordinate: pin.coordinate, anchor: .bottom) {
+                            FriendMapPin(presence: pin.presence, isSelected: selectedFriendID == pin.id, showsName: showsName)
+                                .onTapGesture {
+                                    withAnimation(.snappy(duration: 0.25)) {
+                                        selectedFriendID = selectedFriendID == pin.id ? nil : pin.id
+                                    }
+                                }
+                        }
+                        .annotationTitles(.hidden)
+                    case .group(let group):
+                        Annotation(group.title, coordinate: group.coordinate, anchor: .bottom) {
+                            FriendGroupPin(group: group)
+                                .onTapGesture { open(group) }
+                        }
+                        .annotationTitles(.hidden)
+                    }
+                }
+            }
+            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .mapControls {
+                MapUserLocationButton()
+                MapCompass()
+            }
+            .onMapCameraChange(frequency: .onEnd) { context in
+                let value = FriendMapLayout.metersPerPoint(in: context.region, width: proxy.size.width)
+                withAnimation(.snappy(duration: 0.3)) {
+                    metersPerPoint = value
+                }
+            }
+        }
+        .confirmationDialog(
+            listedGroup.map { "\($0.members.count) friends here" } ?? "",
+            isPresented: Binding(
+                get: { listedGroup != nil },
+                set: { if !$0 { listedGroup = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: listedGroup
+        ) { group in
+            ForEach(group.members) { member in
+                Button(member.presence.friend.displayName) {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        selectedFriendID = member.id
+                    }
+                }
+            }
+        }
+    }
+
+    private func open(_ group: FriendMapGroup) {
+        // Zooming can't separate a crowd inside one building; list it instead.
+        guard group.radius > 40 else {
+            listedGroup = group
+            return
+        }
+        let span = max(group.radius * 3, 150)
+        withAnimation(.snappy(duration: 0.4)) {
+            position = .region(MKCoordinateRegion(
+                center: group.coordinate,
+                latitudinalMeters: span,
+                longitudinalMeters: span
+            ))
+        }
+    }
+}
+
+struct FriendMapPin: View {
+    let presence: FriendPresence
+    let isSelected: Bool
+    var showsName = true
+
+    var body: some View {
+        let color = FriendAvatarStyle.color(for: presence.friend.id)
+        let size: CGFloat = isSelected ? 46 : 38
+
+        VStack(spacing: 3) {
+            ZStack {
+                Circle().fill(color.gradient)
+                Text(FriendAvatarStyle.initials(for: presence.friend.displayName))
+                    .font(.system(size: isSelected ? 16 : 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: size, height: size)
+            .overlay {
+                Circle().strokeBorder(.white, lineWidth: 2.5)
+            }
+            .overlay {
+                if presence.freshness == .scheduled {
+                    // Dashed ring: position comes from their schedule, not GPS.
+                    Circle()
+                        .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
+                        .foregroundStyle(color)
+                        .padding(-5)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if presence.freshness == .live {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 11, height: 11)
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+                }
+            }
+            .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+            .opacity(presence.freshness == .stale ? 0.6 : 1)
+
+            if showsName {
+                Text(FriendAvatarStyle.firstName(for: presence.friend.displayName))
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.regularMaterial, in: Capsule())
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: isSelected)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(presence.friend.displayName), \(presence.headline)")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
