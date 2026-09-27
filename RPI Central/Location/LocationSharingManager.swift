@@ -475,3 +475,262 @@ final class LocationSharingManager: NSObject, ObservableObject {
         } catch {
             errorMessage = "Couldn't update your shared location: \(error.localizedDescription)"
         }
+#endif
+    }
+
+    private func deletePublishedLocation(userID: String) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                Firestore.firestore().collection("locationShares").document(userID).delete { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
+            lastPublishedLocation = nil
+            lastPublishedPlaceID = nil
+            lastPublishedViewerIDs = nil
+            lastPublishedAt = nil
+        } catch {
+            errorMessage = "Couldn't stop sharing: \(error.localizedDescription)"
+        }
+#endif
+    }
+
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+    private func setDocument(_ data: [String: Any], at reference: DocumentReference) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            reference.setData(data) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    private func updateViewerIDs(_ viewerIDs: [String], userID: String) async {
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                Firestore.firestore().collection("locationShares").document(userID)
+                    .updateData(["viewerIDs": viewerIDs]) { error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
+                    }
+            }
+            lastPublishedViewerIDs = viewerIDs
+        } catch {
+            // No document yet; the next fix publishes one with these viewers.
+        }
+    }
+#endif
+
+    // MARK: - Friends
+
+    private func handleSignedInUserChange(_ userID: String?) {
+        guard userID != signedInUserID else { return }
+        signedInUserID = userID
+        settings = Self.loadSettings(for: userID)
+        knownFriendIDs = nil
+        lastPublishedLocation = nil
+        lastPublishedPlaceID = nil
+        lastPublishedViewerIDs = nil
+        lastPublishedAt = nil
+        detachFriendListener(clearLocations: true)
+        attachFriendListenerIfNeeded()
+        refreshLocationServices()
+    }
+
+    private func handleFriendListChange(_ friendIDs: [String]) {
+        knownFriendIDs = friendIDs
+        if let userID = signedInUserID {
+            UserDefaults.standard.set(settings.viewerIDs(friendIDs: friendIDs), forKey: Self.viewerIDsKeyPrefix + userID)
+        }
+
+        // Drop locations of people who are no longer friends.
+        let allowed = Set(friendIDs)
+        friendLocations = friendLocations.filter { allowed.contains($0.key) }
+
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard isSharingActive, let userID = signedInUserID else { return }
+        let viewerIDs = currentViewerIDs()
+        guard lastPublishedViewerIDs != nil, viewerIDs != lastPublishedViewerIDs else { return }
+        Task { await updateViewerIDs(viewerIDs, userID: userID) }
+#endif
+    }
+
+    /// Friend IDs allowed to read this user's location. Background launches
+    /// may not have loaded friends yet, so the last computed list is kept.
+    private func currentViewerIDs() -> [String] {
+        if let knownFriendIDs {
+            return settings.viewerIDs(friendIDs: knownFriendIDs)
+        }
+        guard let userID = signedInUserID else { return [] }
+        let stored = UserDefaults.standard.stringArray(forKey: Self.viewerIDsKeyPrefix + userID) ?? []
+        return settings.viewerIDs(friendIDs: stored)
+    }
+
+    private func attachFriendListenerIfNeeded() {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard friendObserverCount > 0, let userID = signedInUserID else { return }
+        guard friendListener == nil || friendListenerUserID != userID else { return }
+
+        friendListener?.remove()
+        friendListenerUserID = userID
+        friendListener = Firestore.firestore()
+            .collection("locationShares")
+            .whereField("viewerIDs", arrayContains: userID)
+            .addSnapshotListener { [weak self] snapshot, error in
+                Task { @MainActor [weak self] in
+                    self?.handleFriendSnapshot(snapshot, error: error)
+                }
+            }
+#endif
+    }
+
+    private func detachFriendListener(clearLocations: Bool) {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        friendListener?.remove()
+        friendListener = nil
+        friendListenerUserID = nil
+#endif
+        if clearLocations {
+            friendLocations = [:]
+        }
+    }
+
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+    private func handleFriendSnapshot(_ snapshot: QuerySnapshot?, error: Error?) {
+        if let error {
+            #if DEBUG
+            print("⚠️ Friend location listener failed:", error)
+            #endif
+            return
+        }
+
+        let now = Date()
+        let allowedFriendIDs = knownFriendIDs.map(Set.init)
+        var locations: [String: SharedFriendLocation] = [:]
+        for document in snapshot?.documents ?? [] {
+            guard allowedFriendIDs?.contains(document.documentID) ?? true,
+                  let location = SharedFriendLocation(id: document.documentID, data: document.data()),
+                  location.isVisible(at: now) else { continue }
+            locations[document.documentID] = location
+        }
+        friendLocations = locations
+    }
+#endif
+
+    // MARK: - Persistence
+
+    private static var firebaseUserID: String? {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        return Auth.auth().currentUser?.uid
+#else
+        return nil
+#endif
+    }
+
+    private static func loadSettings(for userID: String?) -> LocationSharingSettings {
+        guard let userID,
+              let data = UserDefaults.standard.data(forKey: settingsKeyPrefix + userID),
+              let decoded = try? JSONDecoder().decode(LocationSharingSettings.self, from: data) else {
+            return LocationSharingSettings()
+        }
+        return decoded
+    }
+
+    private func saveSettings() {
+        guard let userID = signedInUserID,
+              let data = try? JSONEncoder().encode(settings) else { return }
+        UserDefaults.standard.set(data, forKey: Self.settingsKeyPrefix + userID)
+    }
+
+    // MARK: - Background execution
+
+#if canImport(UIKit)
+    private func beginBackgroundTask() -> UIBackgroundTaskIdentifier {
+        UIApplication.shared.beginBackgroundTask(withName: "Publish shared location")
+    }
+
+    private func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier) {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+    }
+#else
+    private func beginBackgroundTask() -> Int { 0 }
+    private func endBackgroundTask(_ identifier: Int) {}
+#endif
+
+    fileprivate func handleAuthorizationChange() {
+        authorizationStatus = locationManager.authorizationStatus
+        hasFullAccuracy = locationManager.accuracyAuthorization == .fullAccuracy
+
+        if isAuthorizationDenied, settings.isEnabled {
+            errorMessage = "Location access was turned off, so sharing stopped."
+            Task { await setSharingEnabled(false) }
+            return
+        }
+        refreshLocationServices()
+        if isSharingActive, isAuthorized, lastPublishedLocation == nil {
+            locationManager.requestLocation()
+        }
+    }
+
+    fileprivate func handleRegionEvent() {
+        guard isSharingActive, settings.shareInBackground else { return }
+        locationManager.requestLocation()
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+
+extension LocationSharingManager: CLLocationManagerDelegate {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in
+            self.handle(location: location, trigger: self.isAppActive ? .foreground : .background)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+        let timestamp = visit.departureDate == .distantFuture ? visit.arrivalDate : visit.departureDate
+        let location = CLLocation(
+            coordinate: visit.coordinate,
+            altitude: 0,
+            horizontalAccuracy: visit.horizontalAccuracy,
+            verticalAccuracy: -1,
+            timestamp: min(timestamp, Date())
+        )
+        Task { @MainActor in
+            self.handle(location: location, trigger: .visit)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        Task { @MainActor in self.handleRegionEvent() }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        Task { @MainActor in self.handleRegionEvent() }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // `locationUnknown` is transient; iOS keeps trying.
+        guard (error as? CLError)?.code != .locationUnknown else { return }
+        #if DEBUG
+        print("⚠️ Location error:", error)
+        #endif
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor in self.handleAuthorizationChange() }
+    }
+}
