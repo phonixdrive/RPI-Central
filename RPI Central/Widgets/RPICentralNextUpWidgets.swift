@@ -165,36 +165,17 @@ private func subtitleLine(timeText: String, location: String) -> String {
     location.isEmpty ? timeText : "\(timeText) • \(location)"
 }
 
-/// ✅ Filter out Fall 2025 classes (and similar tokens) WITHOUT touching dots/month logic.
-/// This only affects the "Today" list, not your month snapshot markers.
-private func filterOutFall2025(_ events: [WidgetDayEvent]) -> [WidgetDayEvent] {
-    let blockedTokens: [String] = [
-        "202509",       // Fall 2025 QuACS term code
-        "fall2025",     // common
-        "fall 2025"     // common
-    ]
-
-    return events.filter { ev in
-        let key = ev.id.lowercased()
-        for token in blockedTokens {
-            if key.contains(token) { return false }
-        }
-        return true
-    }
-}
-
 /// ✅ "Today’s events" (not "upcoming after now")
 private func todaysEvents(from all: [WidgetDayEvent], now: Date, max: Int) -> [WidgetDayEvent] {
     let cal = Calendar.current
+    let today = cal.startOfDay(for: now)
 
-    // ✅ remove Fall 2025 first (doesn't affect dots/month)
-    let cleaned = filterOutFall2025(all)
-
-    let allDay = cleaned
+    // Multi-day all-day events (breaks, finals) count on every day they cover.
+    let allDay = all
         .filter { $0.isAllDay }
-        .filter { cal.isDate($0.startDate, inSameDayAs: now) || cal.isDate($0.endDate, inSameDayAs: now) }
+        .filter { cal.startOfDay(for: $0.startDate) <= today && today <= cal.startOfDay(for: $0.endDate) }
 
-    let timed = cleaned
+    let timed = all
         .filter { !$0.isAllDay }
         .filter { cal.isDate($0.startDate, inSameDayAs: now) }
         .sorted { $0.startDate < $1.startDate }
