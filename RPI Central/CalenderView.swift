@@ -732,10 +732,7 @@ struct TimelineCalendarView: View {
     }
 
     private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
+        socialManager.requestScheduleSync()
     }
 
     private func eventChip(_ event: ClassEvent) -> some View {
@@ -927,10 +924,7 @@ struct MonthWithScheduleView: View {
     }
 
     private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
+        socialManager.requestScheduleSync()
     }
 }
 
@@ -1270,10 +1264,7 @@ struct ClassEventDetailView: View {
     }
 
     private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
+        socialManager.requestScheduleSync()
     }
 }
 
@@ -1350,10 +1341,7 @@ struct AllDayEventsListView: View {
     }
 
     private func syncSharedScheduleIfNeeded() {
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        Task {
-            await socialManager.syncSchedule(from: viewModel)
-        }
+        socialManager.requestScheduleSync()
     }
 }
 
