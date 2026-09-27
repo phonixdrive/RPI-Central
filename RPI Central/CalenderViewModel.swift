@@ -2058,40 +2058,58 @@ final class CalendarViewModel: ObservableObject {
         sharedFriendIDs: [String] = [],
         sharedGroupIDs: [String] = []
     ) -> StoredPersonalEvent {
-        let start = merge(date: date, time: startTime)
-        let end = merge(date: date, time: endTime)
-
-        let bg = lightPalette[2]
-        let accent = darkPalette[2]
-        let record = StoredPersonalEvent(
-            id: UUID(),
+        addEvents(
             title: title,
             location: location,
-            startDate: start,
-            endDate: end,
+            dates: [date],
+            startTime: startTime,
+            endTime: endTime,
             seriesID: seriesID,
             shareMode: shareMode,
-            sharedFriendIDs: sharedFriendIDs.sorted(),
-            sharedGroupIDs: sharedGroupIDs.sorted()
-        )
+            sharedFriendIDs: sharedFriendIDs,
+            sharedGroupIDs: sharedGroupIDs
+        )[0]
+    }
 
-        let new = ClassEvent(
-            title: record.title,
-            location: record.location,
-            startDate: record.startDate,
-            endDate: record.endDate,
-            backgroundColor: bg,
-            accentColor: accent,
-            enrollmentID: nil,
-            seriesID: record.seriesID,
-            persistentID: record.id,
-            isAllDay: record.isAllDay ?? false,
-            kind: .personal
-        )
-        personalEvents.append(record)
+    /// Adds one occurrence per date in a single save, so a repeating event
+    /// does not rewrite storage and reschedule notifications once per copy.
+    @discardableResult
+    func addEvents(
+        title: String,
+        location: String,
+        dates: [Date],
+        startTime: Date,
+        endTime: Date,
+        seriesID: UUID? = nil,
+        shareMode: PersonalEventShareMode = .none,
+        sharedFriendIDs: [String] = [],
+        sharedGroupIDs: [String] = []
+    ) -> [StoredPersonalEvent] {
+        guard !dates.isEmpty else { return [] }
+
+        let records = dates.map { date -> StoredPersonalEvent in
+            let start = merge(date: date, time: startTime)
+            var end = merge(date: date, time: endTime)
+            if end <= start {
+                end = calendar.date(byAdding: .hour, value: 1, to: start) ?? start
+            }
+            return StoredPersonalEvent(
+                id: UUID(),
+                title: title,
+                location: location,
+                startDate: start,
+                endDate: end,
+                seriesID: seriesID,
+                shareMode: shareMode,
+                sharedFriendIDs: sharedFriendIDs.sorted(),
+                sharedGroupIDs: sharedGroupIDs.sorted()
+            )
+        }
+
+        personalEvents.append(contentsOf: records)
         savePersonalEvents()
-        events.append(new)
-        return record
+        events.append(contentsOf: records.map(makePersonalEvent(from:)))
+        return records
     }
 
     func hideAllDayEvent(_ event: ClassEvent) {
@@ -2243,11 +2261,14 @@ final class CalendarViewModel: ObservableObject {
         from catalogCourses: [Course],
         for semester: Semester
     ) -> [EnrolledCourse] {
-        let coursesByID = Dictionary(catalogCourses.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let coursesByID = Dictionary(
+            catalogCourses.map { (canonicalCourseID($0.id), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         return enrollments.map { enrollment in
             guard enrollment.semesterCode == semester.rawValue,
-                  let currentCourse = coursesByID[enrollment.course.id]
+                  let currentCourse = coursesByID[canonicalCourseID(enrollment.course.id)]
             else {
                 return enrollment
             }
@@ -2316,7 +2337,9 @@ final class CalendarViewModel: ObservableObject {
                     self.refreshCurrentSemesterEnrollmentDetails(from: catalogCourses, for: semester)
                 }
             } catch {
+                #if DEBUG
                 print("Could not refresh saved \(semester.displayName) course details:", error)
+                #endif
                 await MainActor.run { [weak self] in
                     _ = self?.refreshingEnrollmentSemesterCodes.remove(semesterCode)
                 }
@@ -2353,23 +2376,27 @@ final class CalendarViewModel: ObservableObject {
 
     private func enrollmentID(for course: Course, section: CourseSection) -> String {
         let crnText = section.crn.map(String.init) ?? "NA"
-        return "\(course.subject)-\(course.number)-\(crnText)"
+        return "\(course.id)-\(crnText)"
     }
 
     func isEnrolled(for course: Course, section: CourseSection, semester: Semester? = nil) -> Bool {
         let id = enrollmentID(for: course, section: section)
         if let semester {
-            return enrolledCourses.contains { $0.id == id && $0.semesterCode == semester.rawValue }
+            return enrolledCourses.contains {
+                Self.sameEnrollmentIdentity($0.id, id) && $0.semesterCode == semester.rawValue
+            }
         }
-        return enrolledCourses.contains { $0.id == id }
+        return enrolledCourses.contains { Self.sameEnrollmentIdentity($0.id, id) }
     }
 
     func enrollment(for course: Course, section: CourseSection, semester: Semester? = nil) -> EnrolledCourse? {
         let id = enrollmentID(for: course, section: section)
         if let semester {
-            return enrolledCourses.first { $0.id == id && $0.semesterCode == semester.rawValue }
+            return enrolledCourses.first {
+                Self.sameEnrollmentIdentity($0.id, id) && $0.semesterCode == semester.rawValue
+            }
         }
-        return enrolledCourses.first { $0.id == id }
+        return enrolledCourses.first { Self.sameEnrollmentIdentity($0.id, id) }
     }
 
     // MARK: - QuACS-style color assignment
@@ -2385,7 +2412,9 @@ final class CalendarViewModel: ObservableObject {
         for idx in updated.indices {
             guard updated[idx].kind == .classMeeting else { continue }
             guard let id = updated[idx].enrollmentID else { continue }
-            guard let enrollIndex = enrolledCourses.firstIndex(where: { $0.id == id }) else { continue }
+            guard let enrollIndex = enrolledCourses.firstIndex(where: {
+                Self.sameEnrollmentIdentity($0.id, id) && $0.semesterCode == updated[idx].semesterCode
+            }) ?? enrolledCourses.firstIndex(where: { Self.sameEnrollmentIdentity($0.id, id) }) else { continue }
 
             let (bg, accent) = colorsForEnrollmentIndex(enrollIndex, total: enrolledCourses.count)
             updated[idx].backgroundColor = bg
@@ -2464,31 +2493,32 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Prereqs (unchanged)
 
-    private func courseKey(_ course: Course) -> String { "\(course.subject)-\(course.number)" }
+    private func courseKey(_ course: Course) -> String { course.id }
 
     func formattedCourseID(_ courseID: String) -> String {
         courseID.replacingOccurrences(of: "-", with: " ")
     }
 
     func courseTitle(for courseID: String) -> String? {
+        let canonicalID = canonicalCourseID(courseID)
         if let enrolledTitle = enrolledCourses.first(where: {
-            "\($0.course.subject)-\($0.course.number)" == courseID
+            $0.course.id == canonicalID
         })?.course.title,
            !enrolledTitle.isEmpty {
             return enrolledTitle
         }
 
-        if let cached = cachedBundledCourseTitlesByID[courseID] {
+        if let cached = cachedBundledCourseTitlesByID[canonicalID] {
             return cached
         }
 
         loadBundledCourseTitlesIfNeeded()
-        return cachedBundledCourseTitlesByID[courseID]
+        return cachedBundledCourseTitlesByID[canonicalID]
     }
 
     func enrollment(withID enrollmentID: String?) -> EnrolledCourse? {
         guard let enrollmentID else { return nil }
-        return enrolledCourses.first { $0.id == enrollmentID }
+        return enrolledCourses.first { Self.sameEnrollmentIdentity($0.id, enrollmentID) }
     }
 
     func prerequisiteStatus(for prereqID: String, course: Course) -> PrerequisiteStatus {
@@ -2570,7 +2600,7 @@ final class CalendarViewModel: ObservableObject {
     }
 
     private func completedCourseIDs() -> Set<String> {
-        var completed: Set<String> = Set(enrolledCourses.map { "\($0.course.subject)-\($0.course.number)" })
+        var completed = Set(enrolledCourses.map(\.course.id))
         completed.formUnion(Set(assumedBy.keys))
         return completed
     }
@@ -2637,7 +2667,9 @@ final class CalendarViewModel: ObservableObject {
         let targetSemester = semester ?? currentSemester
         let semesterCode = targetSemester.rawValue
         let id = enrollmentID(for: course, section: section)
-        if enrolledCourses.contains(where: { $0.id == id && $0.semesterCode == semesterCode }) { return }
+        if enrolledCourses.contains(where: {
+            Self.sameEnrollmentIdentity($0.id, id) && $0.semesterCode == semesterCode
+        }) { return }
 
         ensureTermBoundsLoaded(for: targetSemester)
         if section.isRegistrationClosed { return }
@@ -2676,6 +2708,7 @@ final class CalendarViewModel: ObservableObject {
                         meeting: meeting,
                         date: classDate,
                         enrollmentID: id,
+                        semesterCode: semesterCode,
                         meetingKey: key
                     )
                 }
@@ -2690,14 +2723,31 @@ final class CalendarViewModel: ObservableObject {
 
     func removeEnrollment(_ enrollment: EnrolledCourse) {
         withWidgetPublishingSuppressed {
-            clearGrade(for: enrollment.id)
+            let matchingIDs = enrolledCourses
+                .filter {
+                    Self.sameEnrollmentIdentity($0.id, enrollment.id) &&
+                    $0.semesterCode == enrollment.semesterCode
+                }
+                .map(\.id)
+            for id in matchingIDs {
+                clearGrade(for: id)
+                notesByEnrollmentID.removeValue(forKey: id)
+            }
+            saveNotes()
 
-            enrolledCourses.removeAll { $0.id == enrollment.id }
-            events.removeAll { $0.enrollmentID == enrollment.id }
+            enrolledCourses.removeAll {
+                Self.sameEnrollmentIdentity($0.id, enrollment.id) &&
+                $0.semesterCode == enrollment.semesterCode
+            }
+            events.removeAll { event in
+                guard let eventEnrollmentID = event.enrollmentID else { return false }
+                return Self.sameEnrollmentIdentity(eventEnrollmentID, enrollment.id) &&
+                    (event.semesterCode == nil || event.semesterCode == enrollment.semesterCode)
+            }
             recolorAllEvents()
             saveEnrollment()
 
-            let removedCourseID = "\(enrollment.course.subject)-\(enrollment.course.number)"
+            let removedCourseID = enrollment.course.id
             unassumePrereqs(causedBy: removedCourseID)
 
             refreshSemesterWindow(anchorPreferred: nil)
@@ -2738,6 +2788,15 @@ final class CalendarViewModel: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Credits used for GPA weighting: an explicit override from the grade
+    /// breakdown, otherwise the catalog credits for the section.
+    func gpaCredits(for enrollment: EnrolledCourse) -> Double {
+        GPACalculator.effectiveCredits(
+            enrollmentID: enrollment.id,
+            catalogCredits: enrollment.section.credits
+        )
+    }
+
     func gpa(for semesterCode: String) -> Double? {
         if let override = semesterGPAOverride(for: semesterCode) {
             return override.gpa
@@ -2747,7 +2806,7 @@ final class CalendarViewModel: ObservableObject {
             .filter { $0.semesterCode == semesterCode }
             .compactMap { e -> (LetterGrade, Double)? in
                 guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)) else { return nil }
-                return (g, e.section.credits)
+                return (g, gpaCredits(for: e))
             }
         return GPACalculator.weightedGPA(entries)
     }
@@ -2762,8 +2821,9 @@ final class CalendarViewModel: ObservableObject {
         let courseEntries = enrolledCourses.compactMap { e -> (points: Double, credits: Double)? in
             guard e.semesterCode >= earliestSemesterCode else { return nil }
             guard !overriddenSemesterCodes.contains(e.semesterCode) else { return nil }
-            guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)) else { return nil }
-            return (g.points, e.section.credits)
+            guard let g = GPACalculator.resolvedLetter(enrollmentID: e.id, fallbackLetter: grade(for: e.id)),
+                  GPACalculator.countsTowardGPA(g) else { return nil }
+            return (g.points, gpaCredits(for: e))
         }
 
         let overrideEntries = visibleOverrides.values.filter { $0.credits > 0 }
@@ -2952,6 +3012,8 @@ final class CalendarViewModel: ObservableObject {
     func addAcademicEvents(_ academicEvents: [AcademicEvent]) {
         withWidgetPublishingSuppressed {
             for ev in academicEvents {
+                recordClassScheduleChanges(from: ev)
+
                 let key = "\(ev.title)|\(ev.startDate.timeIntervalSince1970)|\(ev.endDate.timeIntervalSince1970)|\(ev.kind.rawValue)"
                 if academicEventKeys.contains(key) { continue }
                 academicEventKeys.insert(key)
@@ -2977,6 +3039,37 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
+    private func recordClassScheduleChanges(from event: AcademicEvent) {
+        guard event.cancelsClasses || event.followsWeekday != nil else { return }
+
+        var day = calendar.startOfDay(for: event.startDate)
+        let lastDay = calendar.startOfDay(for: max(event.startDate, event.endDate))
+        var coveredDays = 0
+        while day <= lastDay && coveredDays < 60 {
+            if event.cancelsClasses {
+                noClassDays.insert(day)
+            }
+            if let weekday = event.followsWeekday {
+                followedWeekdayByDay[day] = weekday
+            }
+            coveredDays += 1
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+    }
+
+    /// Whether a weekly class template meets on `day`, honoring holidays,
+    /// breaks, and "follow a Monday schedule" days. Explicit exam dates still
+    /// show on a no-class day.
+    private func classTemplateMeets(_ template: ClassEvent, on day: Date) -> Bool {
+        let dayStart = calendar.startOfDay(for: day)
+        if noClassDays.contains(dayStart) {
+            guard let key = template.meetingKey, meetingOverride(for: key).type == .exam else { return false }
+        }
+        let scheduleWeekday = followedWeekdayByDay[dayStart] ?? calendar.component(.weekday, from: dayStart)
+        return calendar.component(.weekday, from: template.startDate) == scheduleWeekday
+    }
+
     // MARK: - Event creation helpers
 
     fileprivate func generateSingleWeekEvent(
@@ -2985,6 +3078,7 @@ final class CalendarViewModel: ObservableObject {
         meeting: Meeting,
         date: Date,
         enrollmentID: String,
+        semesterCode: String,
         meetingKey: String           // ✅ NEW
     ) {
         guard
@@ -3022,6 +3116,7 @@ final class CalendarViewModel: ObservableObject {
             backgroundColor: bg,
             accentColor: accent,
             enrollmentID: enrollmentID,
+            semesterCode: semesterCode,
             seriesID: nil,
             isAllDay: false,
             kind: .classMeeting,
@@ -3043,7 +3138,11 @@ final class CalendarViewModel: ObservableObject {
         guard let data = UserDefaults.standard.data(forKey: enrolledStorageKey) else { return }
         let decoder = JSONDecoder()
         if let loaded = try? decoder.decode([EnrolledCourse].self, from: data) {
-            self.enrolledCourses = loaded
+            let deduplicated = Self.deduplicatedEnrollments(loaded)
+            self.enrolledCourses = deduplicated
+            if deduplicated.count != loaded.count {
+                saveEnrollment()
+            }
         }
     }
 
@@ -3131,7 +3230,7 @@ final class CalendarViewModel: ObservableObject {
 
     func storedPersonalEvent(for event: ClassEvent) -> StoredPersonalEvent? {
         guard let persistentID = event.persistentID else { return nil }
-        return personalEvents.first { $0.id == persistentID }
+        return personalEventsByID[persistentID]
     }
 
     func lmsImportedPersonalEvents() -> [StoredPersonalEvent] {
@@ -3284,7 +3383,10 @@ final class CalendarViewModel: ObservableObject {
         groupMembersByID: [String: Set<String>]
     ) -> Bool {
         guard event.kind == .personal else { return true }
-        guard let stored = storedPersonalEvent(for: event) else { return true }
+        // Events without a stored record were shared with us by someone else.
+        // Passing them along would leak one friend's plans to another.
+        guard let persistentID = event.persistentID,
+              let stored = personalEventsByID[persistentID] else { return false }
 
         switch stored.shareMode {
         case .none:
@@ -3328,6 +3430,7 @@ final class CalendarViewModel: ObservableObject {
                             meeting: meeting,
                             date: classDate,
                             enrollmentID: id,
+                            semesterCode: enrollment.semesterCode,
                             meetingKey: key          // ✅ NEW
                         )
                     }
@@ -3663,7 +3766,9 @@ final class CalendarViewModel: ObservableObject {
                 sizes: restoredSectionSizes
             )
 
-            enrolledCourses = snapshot.enrollments.compactMap(\.enrolledCourseValue)
+            enrolledCourses = Self.deduplicatedEnrollments(
+                snapshot.enrollments.compactMap(\.enrolledCourseValue)
+            )
             personalEvents = snapshot.personalEvents.compactMap(\.storedEventValue)
             gradesByEnrollmentID = snapshot.gradesByEnrollmentID
             semesterGPAOverrides = snapshot.semesterGpaOverrides

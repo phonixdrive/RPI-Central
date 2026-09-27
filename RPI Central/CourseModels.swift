@@ -138,7 +138,7 @@ enum Weekday: String, Codable, CaseIterable {
 
 // MARK: - Meeting (one timeslot)
 
-struct Meeting: Codable {
+struct Meeting: Codable, Equatable {
     let days: [Weekday]      // e.g. [.mon, .thu]
     let start: String        // "09:30"
     let end: String          // "10:50"
@@ -147,7 +147,7 @@ struct Meeting: Codable {
 
 // MARK: - Course section (CRN)
 
-struct CourseSection: Codable, Identifiable {
+struct CourseSection: Codable, Identifiable, Equatable {
     var id: String { "\(crn ?? -1)-\(section)" }
 
     let crn: Int?
@@ -279,8 +279,8 @@ struct CourseSection: Codable, Identifiable {
 
 // MARK: - Course
 
-struct Course: Codable, Identifiable {
-    var id: String { subject + "-" + number }
+struct Course: Codable, Identifiable, Equatable {
+    var id: String { canonicalCourseID("\(subject)-\(number)") }
 
     let subject: String      // "CSCI"
     let number: String       // "2300" (stored as String even if JSON had an Int)
