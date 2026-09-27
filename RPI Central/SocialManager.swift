@@ -1497,6 +1497,25 @@ final class SocialManager: ObservableObject {
         )
     }
 
+    /// Finds the chat a notification refers to.
+    func chatReference(forThreadID threadID: String) -> SocialGroupChatReference? {
+        if threadID == campusWideGroupThreadID {
+            return campusWideChatReference
+        }
+        if threadID.hasPrefix("manualGroup_") {
+            let groupID = String(threadID.dropFirst("manualGroup_".count))
+            return friendGroups.first { $0.id == groupID }.flatMap(chatReference(for:))
+        }
+        if threadID.hasPrefix("classGroup_") {
+            let communityID = String(threadID.dropFirst("classGroup_".count))
+            return courseCommunities.first { $0.id == communityID }.map(chatReference(for:))
+        }
+        return (overview?.friends ?? [])
+            .lazy
+            .compactMap(directMessageReference(with:))
+            .first { $0.id == threadID }
+    }
+
     func directMessageReference(with friend: SocialFriend) -> SocialGroupChatReference? {
         guard let currentUser, currentUser.id != friend.id else { return nil }
         let memberIDs = [currentUser.id, friend.id].sorted()
@@ -2004,6 +2023,13 @@ final class SocialManager: ObservableObject {
             let friendshipRef = firestore.collection("friendships").document(canonicalFriendshipID(viewer.id, friendID))
             try await deleteDocument(friendshipRef)
             friendScheduleCacheByFriendID.removeValue(forKey: friendID)
+
+            // Stop sharing with them right away rather than on the next sync.
+            try? await deleteDocument(friendViewReference(ownerID: viewer.id, viewerID: friendID))
+            try? await updateData(
+                ["viewerIDs": FieldValue.arrayRemove([viewer.id])],
+                at: firestore.collection("locationShares").document(friendID)
+            )
             try await refreshOverviewInternal()
             statusMessage = "Friend removed."
 #else
@@ -2038,11 +2064,43 @@ final class SocialManager: ObservableObject {
             )
             currentUser = updated
             try await refreshOverviewInternal()
-            statusMessage = shareSchedule ? "Schedule sharing enabled." : "Schedule sharing disabled."
+            if viewer.shareSchedule != shareSchedule {
+                // Publishes the schedule, or removes every published copy.
+                try await publishSharedSchedule(force: true)
+                statusMessage = shareSchedule ? "Schedule sharing enabled." : "Schedule sharing disabled."
+            }
 #else
             throw SocialError.firebaseNotLinked
 #endif
         }
+    }
+
+    /// Mirrors location sharing on the public profile so friends can tell
+    /// "not sharing" apart from "no recent update".
+    func setShareLocationFlag(_ isSharing: Bool) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewer = currentUser, viewer.shareLocation != isSharing else { return }
+        do {
+            try await updateData(["shareLocation": isSharing], at: firestore.collection("users").document(viewer.id))
+            currentUser = SocialUser(
+                id: viewer.id,
+                username: viewer.username,
+                displayName: viewer.displayName,
+                email: viewer.email,
+                isGuest: viewer.isGuest,
+                shareSchedule: viewer.shareSchedule,
+                shareLocation: isSharing,
+                createdAt: viewer.createdAt,
+                lastScheduleAt: viewer.lastScheduleAt,
+                sharedCourseKeys: viewer.sharedCourseKeys,
+                sharedSectionKeys: viewer.sharedSectionKeys
+            )
+        } catch {
+            #if DEBUG
+            print("⚠️ Could not update shareLocation:", error)
+            #endif
+        }
+#endif
     }
 
     func sharePersonalEvents(_ events: [StoredPersonalEvent]) async {
@@ -2090,76 +2148,81 @@ final class SocialManager: ObservableObject {
         }
     }
 
-    func syncSchedule(from calendarViewModel: CalendarViewModel) async {
-        await runOperation(showSpinner: false) {
-#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
-            guard let viewer = currentUser else { throw SocialError.notAuthenticated }
-            let now = nowISO()
-            let friendshipsSnapshot = try await getDocuments(
-                firestore.collection("friendships").whereField("members", arrayContains: viewer.id)
-            )
-            let friendIDs = friendshipsSnapshot.documents.compactMap { snapshot -> String? in
-                let members = snapshot.data()["members"] as? [String] ?? []
-                return members.first(where: { $0 != viewer.id })
+    /// Registers the calendar that friends see. Any change to it is
+    /// republished a few seconds later, whichever tab is open.
+    func attachScheduleSource(_ calendarViewModel: CalendarViewModel) {
+        guard scheduleSource !== calendarViewModel else { return }
+        scheduleSource = calendarViewModel
+        scheduleSourceCancellable = calendarViewModel.shareableContentDidChange
+            .debounce(for: .seconds(4), scheduler: RunLoop.main)
+            .sink { [weak self] in
+                self?.requestScheduleSync()
             }
-            let groups = try await loadFriendGroups(ownerID: viewer.id)
-            let groupMembersByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, Set($0.memberIDs)) })
-            let rootRef = firestore.collection("sharedSchedules").document(viewer.id)
-            let legacyItems = makeLegacyScheduleSnapshot(from: calendarViewModel)
+        requestScheduleSync()
+    }
 
-            try await setData([
-                "ownerID": viewer.id,
-                "semesterCode": calendarViewModel.currentSemester.rawValue,
-                "generatedAt": now,
-                "items": legacyItems.map(sharedScheduleItemData),
-            ], at: rootRef)
-
-            for friendID in friendIDs {
-                let visibleItems = makeScheduleSnapshot(
-                    from: calendarViewModel,
-                    visibleToFriendID: friendID,
-                    groupMembersByID: groupMembersByID
-                )
-                try await writeFriendViewSchedule(
-                    ownerID: viewer.id,
-                    viewerID: friendID,
-                    semesterCode: calendarViewModel.currentSemester.rawValue,
-                    generatedAt: now,
-                    items: visibleItems
-                )
-            }
-
-            try await updateData([
-                "lastScheduleAt": now,
-                "sharedScheduleItemCount": legacyItems.count,
-                "sharedScheduleLegacySemesterCode": calendarViewModel.currentSemester.rawValue,
-                "sharedScheduleLegacyGeneratedAt": now,
-                "sharedScheduleLegacyItems": legacyItems.map(sharedScheduleItemData),
-                "sharedCourseKeys": sharedCourseKeys(from: calendarViewModel),
-                "sharedSectionKeys": sharedSectionKeys(from: calendarViewModel),
-            ], at: firestore.collection("users").document(viewer.id))
-
-            if var current = currentUser {
-                current = SocialUser(
-                    id: current.id,
-                    username: current.username,
-                    displayName: current.displayName,
-                    email: current.email,
-                    isGuest: current.isGuest,
-                    shareSchedule: current.shareSchedule,
-                    shareLocation: current.shareLocation,
-                    createdAt: current.createdAt,
-                    lastScheduleAt: now,
-                    sharedCourseKeys: sharedCourseKeys(from: calendarViewModel),
-                    sharedSectionKeys: sharedSectionKeys(from: calendarViewModel)
-                )
-                currentUser = current
-            }
-            try await refreshOverviewInternal()
-#else
-            throw SocialError.firebaseNotLinked
-#endif
+    /// Coalesces publish requests. Unchanged schedules cost no writes, so
+    /// callers can ask freely (app launch, foreground, background refresh).
+    func requestScheduleSync(force: Bool = false) {
+        if force {
+            scheduleSyncForceRequested = true
         }
+        guard !scheduleSyncInFlight else {
+            scheduleSyncPending = true
+            return
+        }
+
+        scheduleSyncInFlight = true
+        Task { [weak self] in
+            guard let self else { return }
+            repeat {
+                self.scheduleSyncPending = false
+                let forceNow = self.scheduleSyncForceRequested
+                self.scheduleSyncForceRequested = false
+                // Class groups follow enrollments whether or not the
+                // schedule itself is shared.
+                if self.currentUser != nil, let source = self.scheduleSource {
+                    await self.syncCourseCommunities(for: source.enrolledCourses)
+                }
+                await self.publishSharedScheduleIfNeeded(force: forceNow)
+            } while self.scheduleSyncPending
+            self.scheduleSyncInFlight = false
+        }
+    }
+
+    /// Kept for explicit "Sync now" actions and older call sites.
+    func syncSchedule(from calendarViewModel: CalendarViewModel) async {
+        attachScheduleSource(calendarViewModel)
+        await runOperation(showSpinner: false) {
+            try await publishSharedSchedule(force: true)
+        }
+    }
+
+    /// Background app refresh: wait for the signed-in session to restore,
+    /// then republish the schedule if anything changed or it is due.
+    func performBackgroundRefresh() async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard FirebaseApp.app() != nil else { return }
+        for _ in 0..<40 where currentUser == nil && Auth.auth().currentUser != nil {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        await publishSharedScheduleIfNeeded()
+#endif
+    }
+
+    /// Publishes (or clears) this user's friend-visible schedule. Background
+    /// callers must not overwrite status messages the user is reading.
+    func publishSharedScheduleIfNeeded(force: Bool = false) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard currentUser != nil, FirebaseApp.app() != nil else { return }
+        do {
+            try await publishSharedSchedule(force: force)
+        } catch {
+            #if DEBUG
+            print("⚠️ Shared schedule publish failed:", error)
+            #endif
+        }
+#endif
     }
 
     func cachedFriendSchedule(for friend: SocialFriend) -> FriendScheduleResponse? {
