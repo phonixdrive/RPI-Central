@@ -24,10 +24,32 @@ enum LMSCalendarFeedService {
         }
     }
 
+    /// Calendar apps hand out `webcal://` links, which URLSession can't load.
+    static func fetchableURL(for url: URL) -> URL {
+        guard let scheme = url.scheme?.lowercased(), scheme == "webcal" || scheme == "webcals",
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.scheme = "https"
+        return components.url ?? url
+    }
+
     static func fetchEvents(from url: URL) async throws -> [LMSImportedCalendarEvent] {
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: fetchableURL(for: url))
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw URLError(
+                http.statusCode == 401 || http.statusCode == 403 ? .userAuthenticationRequired : .badServerResponse,
+                userInfo: [NSLocalizedDescriptionKey: "The calendar feed returned HTTP \(http.statusCode). Copy a fresh feed link from Blackboard."]
+            )
+        }
         guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
             throw URLError(.cannotDecodeRawData)
+        }
+        guard text.contains("BEGIN:VCALENDAR") else {
+            throw URLError(
+                .cannotParseResponse,
+                userInfo: [NSLocalizedDescriptionKey: "That link isn't a calendar feed. Use the iCal/ICS link from Blackboard's calendar settings."]
+            )
         }
 
         let rawEvents = parseRawEvents(from: text)
