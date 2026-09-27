@@ -22,12 +22,17 @@ Dashboard layout is included in the shared settings snapshot. It is also saved i
 
 ## Firebase layout
 
-The latest shared snapshot is stored on the signed-in user document:
+The latest shared snapshot is stored in a document only its owner can read:
 
-- `users/{uid}.webAppState`
-- `users/{uid}.webAppStateUpdatedAt`
-- `users/{uid}.webAppStateVersion`
-- `users/{uid}.webAppStateSource`
+- `users/{uid}/private/appState.webAppState`
+- `users/{uid}/private/appState.webAppStateUpdatedAt`
+- `users/{uid}/private/appState.webAppStateVersion`
+- `users/{uid}/private/appState.webAppStateSource`
+
+Earlier builds (and the web app, until it is updated) stored these fields on the
+public `users/{uid}` profile, which every signed-in user can read. When the phone
+finds them there, it keeps whichever copy is newer, moves it into
+`private/appState`, and deletes the public fields.
 
 Recovery snapshots are stored under:
 
@@ -41,6 +46,10 @@ The repository rules should permit users to access only their own backup documen
 
 ```txt
 match /appBackups/{backupID} {
+  allow read, create, update, delete: if isSelf(userID);
+}
+
+match /private/{documentID} {
   allow read, create, update, delete: if isSelf(userID);
 }
 ```

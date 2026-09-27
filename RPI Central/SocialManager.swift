@@ -3811,6 +3811,14 @@ final class SocialManager: ObservableObject {
                 continue
             }
 
+            // The Cloud Function already sends this alert through APNs. Only
+            // schedule a local fallback when this installation cannot receive
+            // remote push, otherwise one message can produce two banners.
+            if NotificationManager.canReceiveRemotePush {
+                delivered.insert(alert.id)
+                continue
+            }
+
             NotificationManager.requestAuthorization()
             NotificationManager.scheduleSocialNotification(
                 identifier: "social.\(alert.id)",
@@ -3924,7 +3932,8 @@ final class SocialManager: ObservableObject {
                 lastScheduleAt: result.lastScheduleAt,
                 areFriends: result.areFriends,
                 hasPendingIncoming: result.hasPendingIncoming,
-                hasPendingOutgoing: true
+                hasPendingOutgoing: true,
+                reason: result.reason
             )
         }
 
@@ -3942,7 +3951,8 @@ final class SocialManager: ObservableObject {
                 lastScheduleAt: result.lastScheduleAt,
                 areFriends: result.areFriends,
                 hasPendingIncoming: result.hasPendingIncoming,
-                hasPendingOutgoing: true
+                hasPendingOutgoing: true,
+                reason: result.reason
             )
         }
     }
@@ -3980,11 +3990,14 @@ final class SocialManager: ObservableObject {
 
     private func makeUser(from snapshot: DocumentSnapshot) -> SocialUser? {
         guard snapshot.exists, let data = snapshot.data() else { return nil }
+        let privateEmail = snapshot.documentID == Auth.auth().currentUser?.uid
+            ? Auth.auth().currentUser?.email ?? ""
+            : ""
         return SocialUser(
             id: snapshot.documentID,
             username: data["username"] as? String ?? "",
             displayName: data["displayName"] as? String ?? "",
-            email: data["email"] as? String ?? "",
+            email: privateEmail,
             isGuest: data["isGuest"] as? Bool ?? false,
             shareSchedule: data["shareSchedule"] as? Bool ?? false,
             shareLocation: data["shareLocation"] as? Bool ?? false,
@@ -4416,8 +4429,7 @@ final class SocialManager: ObservableObject {
     private func loadFeedItems(friendOwnerIDs: [String]) async throws -> [SocialFeedItem] {
         guard let viewer = currentUser else { return [] }
         let friendOwnerIDSet = Set(friendOwnerIDs)
-        var ownerIDs = friendOwnerIDSet
-        ownerIDs.insert(viewer.id)
+        var ownerSnapshots: [String: DocumentSnapshot] = [:]
 
         do {
             let publicUsersSnapshot = try await getDocuments(
@@ -4426,7 +4438,7 @@ final class SocialManager: ObservableObject {
                     .limit(to: 60)
             )
             for document in publicUsersSnapshot.documents {
-                ownerIDs.insert(document.documentID)
+                ownerSnapshots[document.documentID] = document
             }
         } catch {
             if !isPermissionDenied(error) {
@@ -4434,19 +4446,23 @@ final class SocialManager: ObservableObject {
             }
         }
 
+        // The recent-posters query already returned those documents; only
+        // fetch friends (and this user) who were not in it.
+        let missingOwnerIDs = friendOwnerIDSet.union([viewer.id]).subtracting(ownerSnapshots.keys)
+        if !missingOwnerIDs.isEmpty {
+            do {
+                ownerSnapshots.merge(try await fetchUserSnapshots(ids: Array(missingOwnerIDs))) { current, _ in current }
+            } catch {
+                if !isPermissionDenied(error) {
+                    throw error
+                }
+            }
+        }
+
         var posts: [SocialFeedPost] = []
         var responsesByPostID: [String: [SocialFeedPresence]] = [:]
 
-        for ownerID in ownerIDs {
-            let snapshot: DocumentSnapshot
-            do {
-                snapshot = try await getDocument(firestore.collection("users").document(ownerID))
-            } catch {
-                if isPermissionDenied(error) {
-                    continue
-                }
-                throw error
-            }
+        for (ownerID, snapshot) in ownerSnapshots {
             let data = snapshot.data() ?? [:]
             let ownerGroups = decodeFriendGroups(from: data)
 
@@ -4627,7 +4643,9 @@ final class SocialManager: ObservableObject {
         return SharedScheduleSnapshot(
             semesterCode: data["semesterCode"] as? String ?? "",
             generatedAt: emptyToNil(data["generatedAt"] as? String),
-            items: items
+            items: items,
+            coverageStart: emptyToNil(data["coverageStart"] as? String),
+            coverageEnd: emptyToNil(data["coverageEnd"] as? String)
         )
     }
 
@@ -4705,7 +4723,9 @@ final class SocialManager: ObservableObject {
         return SharedScheduleSnapshot(
             semesterCode: emptyToNil(primary?.semesterCode) ?? fallback?.semesterCode ?? "",
             generatedAt: primary?.generatedAt ?? fallback?.generatedAt,
-            items: mergedItems
+            items: mergedItems,
+            coverageStart: primary?.coverageStart ?? fallback?.coverageStart,
+            coverageEnd: primary?.coverageEnd ?? fallback?.coverageEnd
         )
     }
 
@@ -4732,11 +4752,6 @@ final class SocialManager: ObservableObject {
                 )
             }
         )
-    }
-
-    private func makeLegacyScheduleSnapshot(from viewModel: CalendarViewModel) -> [SharedScheduleItem] {
-        makeScheduleSnapshot(from: viewModel)
-            .filter { $0.kind != CalendarEventKind.personal.rawValue }
     }
 
     private func sharedScheduleItemData(_ item: SharedScheduleItem) -> [String: Any] {
@@ -4895,9 +4910,26 @@ final class SocialManager: ObservableObject {
         }
     }
 
-    private func setData(_ data: [String: Any], at reference: DocumentReference) async throws {
+    private func refreshModeratorClaim() async {
+        guard let user = Auth.auth().currentUser else {
+            canModerateSocialContent = false
+            return
+        }
+
+        canModerateSocialContent = await withCheckedContinuation { continuation in
+            user.getIDTokenResult { result, _ in
+                continuation.resume(returning: result?.claims["moderator"] as? Bool == true)
+            }
+        }
+    }
+
+    private func setData(
+        _ data: [String: Any],
+        at reference: DocumentReference,
+        merge: Bool = false
+    ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            reference.setData(data) { error in
+            reference.setData(data, merge: merge) { error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -4932,13 +4964,18 @@ final class SocialManager: ObservableObject {
     }
 #endif
 
+    /// `quiet` operations run in the background: they neither clear the
+    /// message the user is reading nor replace it with their own errors.
     private func runOperation(
         showSpinner: Bool = true,
+        quiet: Bool = false,
         _ operation: () async throws -> Void
     ) async {
 #if canImport(FirebaseCore)
         if isFirebaseAvailable, FirebaseApp.app() == nil {
-            errorMessage = "Firebase is not configured yet. Add GoogleService-Info.plist to the app target."
+            if !quiet {
+                errorMessage = "Firebase is not configured yet. Add GoogleService-Info.plist to the app target."
+            }
             isLoading = false
             return
         }
@@ -4946,71 +4983,29 @@ final class SocialManager: ObservableObject {
         if showSpinner {
             isLoading = true
         }
-        errorMessage = nil
-        statusMessage = nil
-        defer { isLoading = false }
+        if !quiet {
+            errorMessage = nil
+            statusMessage = nil
+        }
+        defer {
+            if showSpinner {
+                isLoading = false
+            }
+        }
 
         do {
             try await operation()
         } catch {
             let recovered = await handlePermissionErrorIfNeeded(error)
-            if !recovered {
+            if !recovered && !quiet {
                 errorMessage = error.localizedDescription
             }
-        }
-    }
-
-    private func makeScheduleSnapshot(
-        from viewModel: CalendarViewModel,
-        visibleToFriendID: String? = nil,
-        groupMembersByID: [String: Set<String>] = [:]
-    ) -> [SharedScheduleItem] {
-        let now = Date()
-        let calendar = Calendar.current
-        let startWindow = calendar.startOfDay(
-            for: calendar.date(byAdding: .day, value: -7, to: now) ?? now
-        )
-        let endWindow = calendar.startOfDay(
-            for: calendar.date(byAdding: .day, value: 7, to: now) ?? now
-        )
-        let dayCount = calendar.dateComponents([.day], from: startWindow, to: endWindow).day ?? 14
-
-        var seenInteractionKeys: Set<String> = []
-        var collectedEvents: [ClassEvent] = []
-
-        for offset in 0...max(dayCount, 0) {
-            guard let day = calendar.date(byAdding: .day, value: offset, to: startWindow) else { continue }
-            for event in viewModel.events(on: day) {
-                if let visibleToFriendID, event.kind == .personal {
-                    guard viewModel.personalEventVisibleToFriend(
-                        visibleToFriendID,
-                        event: event,
-                        groupMembersByID: groupMembersByID
-                    ) else {
-                        continue
-                    }
-                }
-
-                let key = event.interactionKey
-                guard seenInteractionKeys.insert(key).inserted else { continue }
-                collectedEvents.append(event)
+            #if DEBUG
+            if quiet {
+                print("⚠️ Background social operation failed:", error)
             }
+            #endif
         }
-
-        return collectedEvents
-            .sorted { $0.startDate < $1.startDate }
-            .map { event in
-                SharedScheduleItem(
-                    id: stableScheduleItemID(for: event),
-                    title: event.title,
-                    location: event.location,
-                    startDate: ISO8601DateFormatter().string(from: event.startDate),
-                    endDate: ISO8601DateFormatter().string(from: event.endDate),
-                    isAllDay: event.isAllDay,
-                    kind: event.kind.rawValue,
-                    badge: event.badge?.rawValue
-                )
-            }
     }
 
     private func loadGroupChatThreadStates(memberID: String) async throws -> [String: GroupChatThreadState] {
@@ -5161,7 +5156,7 @@ final class SocialManager: ObservableObject {
     }
 
     private func stableScheduleItemID(for event: ClassEvent) -> String {
-        event.interactionKey
+        SocialHashing.fnv1a64Hex(Data(event.interactionKey.utf8))
     }
 
     private func normalizeDisplayName(_ value: String) -> String {
