@@ -141,6 +141,484 @@ struct SettingsView: View {
             recoveryBackupsView
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showingLocationSettings) {
+            LocationSharingSettingsView()
+                .environmentObject(socialManager)
+                .environmentObject(locationSharingManager)
+                .environmentObject(calendarViewModel)
+        }
+    }
+
+    // MARK: - Layout helpers
+
+    /// A form on the app's tinted background, shared by every settings page.
+    private func settingsForm<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        Form {
+            content()
+        }
+        .scrollContentBackground(.hidden)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(.systemGroupedBackground),
+                    calendarViewModel.themeColor.opacity(0.14),
+                    Color(.systemBackground),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+        )
+    }
+
+    private func settingsRow(_ title: String, systemImage: String, value: String? = nil) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+            Spacer()
+            if let value {
+                Text(value)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private static var appVersionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
+    // MARK: - Sections
+
+    private var appearanceSection: some View {
+        Section(header: Text("Appearance")) {
+            Picker("Mode", selection: $selectedAppearance) {
+                ForEach(AppAppearanceMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+
+            Picker("Theme color", selection: $selectedTheme) {
+                ForEach(AppThemeColor.allCases) { theme in
+                    HStack {
+                        Circle()
+                            .fill(theme.color)
+                            .frame(width: 16, height: 16)
+                        Text(theme.displayName)
+                    }
+                    .tag(theme)
+                }
+            }
+        }
+    }
+
+    private var homeDashboardSection: some View {
+        Section(
+            header: Text("Home Dashboard"),
+            footer: Text("Choose visibility and size here. To reorder, tap Edit on Home and drag the widget cards themselves. Sizes are rows × columns: 1×1 is small, 1×2 is wide, and 2×2 is large.")
+        ) {
+            ForEach(calendarViewModel.homeSectionOrder) { section in
+                HStack(spacing: 12) {
+                    Toggle(
+                        section.title,
+                        isOn: Binding(
+                            get: { calendarViewModel.isHomeSectionEnabled(section) },
+                            set: { calendarViewModel.setHomeSection(section, enabled: $0) }
+                        )
+                    )
+                    .toggleStyle(.switch)
+
+                    Menu {
+                        ForEach(section.supportedWidgetSizes) { size in
+                            Button {
+                                calendarViewModel.setHomeWidgetSize(size, for: section)
+                            } label: {
+                                if calendarViewModel.homeWidgetSize(for: section) == size {
+                                    Label(size.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(size.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(calendarViewModel.homeWidgetSize(for: section).displayName)
+                            .font(.caption.weight(.semibold))
+                            .frame(minWidth: 34)
+                    }
+                    .disabled(!calendarViewModel.isHomeSectionEnabled(section))
+                }
+            }
+        }
+    }
+
+    private var coursesSection: some View {
+        Section(header: Text("Courses")) {
+            Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
+            Toggle("Auto-collapse prerequisites", isOn: $autoCollapseCoursePrerequisites)
+            Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var currentTermSection: some View {
+        Section(
+            header: Text("Current Term"),
+            footer: Text("This is the term the app treats as happening now. Upcoming assignments, reminders, and Flex Dollars use this term.")
+        ) {
+            Picker(
+                "Current term",
+                selection: Binding(
+                    get: { calendarViewModel.currentSemester },
+                    set: { calendarViewModel.changeSemester(to: $0) }
+                )
+            ) {
+                ForEach(calendarViewModel.academicSemestersOnOrAfterStart()) { semester in
+                    Text(semester.displayName).tag(semester)
+                }
+            }
+        }
+    }
+
+    private var visibleTermsSection: some View {
+        Section(
+            header: Text("Show Terms Through"),
+            footer: Text("This controls how far ahead Home and the calendar can display terms. Use it to preview future schedules without changing the current term.")
+        ) {
+            Picker(
+                "Latest term shown",
+                selection: Binding(
+                    get: { calendarViewModel.visibleSemester },
+                    set: { calendarViewModel.changeVisibleSemester(to: $0) }
+                )
+            ) {
+                ForEach(calendarViewModel.academicSemestersOnOrAfterStart()) { semester in
+                    Text(semester.displayName).tag(semester)
+                }
+            }
+        }
+    }
+
+    private var academicHistorySection: some View {
+        Section(header: Text("Academic History")) {
+            Picker("Started college", selection: $calendarViewModel.academicHistoryStartSemester) {
+                ForEach(Semester.allCases.sorted(by: { $0.rawValue > $1.rawValue })) { semester in
+                    Text(semester.displayName).tag(semester)
+                }
+            }
+        }
+    }
+
+    private var phoneWebSyncSection: some View {
+        Section(
+            header: Text("Phone and Web Sync"),
+            footer: Text("RPI Central creates a cloud recovery backup automatically about once a week while you are signed in. Your saved copy is private to your account.")
+        ) {
+            LabeledContent("Automatic backups", value: "Weekly")
+
+            if let lastBackup = appStateSyncManager.lastWeeklyBackupAt {
+                LabeledContent(
+                    "Last automatic backup",
+                    value: lastBackup.formatted(date: .abbreviated, time: .shortened)
+                )
+            }
+
+            HStack {
+                Text("Latest saved copy")
+                Spacer()
+                Text(syncTimestampText(appStateSyncManager.cloudSnapshotUpdatedAt))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let message = appStateSyncManager.cloudSyncMessage, !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+
+            if let error = appStateSyncManager.cloudSyncError, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Button {
+                Task {
+                    _ = await appStateSyncManager.pushPhoneToCloud(
+                        calendarViewModel: calendarViewModel,
+                        socialManager: socialManager
+                    )
+                }
+            } label: {
+                Label(
+                    appStateSyncManager.cloudSyncBusy ? "Working…" : "Save this phone",
+                    systemImage: "arrow.up.circle.fill"
+                )
+            }
+            .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+
+            Button {
+                Task {
+                    _ = await appStateSyncManager.pullCloudToPhone(
+                        calendarViewModel: calendarViewModel,
+                        socialManager: socialManager
+                    )
+                }
+            } label: {
+                Label("Get latest saved copy", systemImage: "arrow.down.circle.fill")
+            }
+            .disabled(!appStateSyncManager.cloudSyncReady || appStateSyncManager.cloudSyncBusy)
+
+            Button {
+                showingRecoveryBackups = true
+            } label: {
+                HStack {
+                    Label("Recovery backups", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    Spacer()
+                    Text("\(appStateSyncManager.cloudBackups.count)")
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .disabled(!appStateSyncManager.cloudSyncReady)
+        }
+    }
+
+    private var lmsCalendarSection: some View {
+        Section(
+            header: Text("LMS Calendar"),
+            footer: Text("Paste your Blackboard calendar feed URL here to import LMS events into your calendar. The link is private to your account, so don’t share it.")
+        ) {
+            Toggle("Auto daily sync", isOn: $calendarViewModel.lmsCalendarAutoDailySyncEnabled)
+
+            TextField("https://lms.rpi.edu/.../learn.ics", text: $calendarViewModel.lmsCalendarFeedURL)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.URL)
+                .autocorrectionDisabled()
+
+            Button {
+                Task {
+                    guard !isSyncingLMSCalendar else { return }
+                    isSyncingLMSCalendar = true
+                    _ = await calendarViewModel.syncLMSCalendarFeed(force: true)
+                    isSyncingLMSCalendar = false
+                }
+            } label: {
+                HStack {
+                    if isSyncingLMSCalendar {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(isSyncingLMSCalendar ? "Syncing…" : "Sync Blackboard calendar")
+                }
+            }
+            .disabled(isSyncingLMSCalendar || calendarViewModel.lmsCalendarFeedURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if let lastSync = calendarViewModel.lmsCalendarLastSyncAt {
+                HStack {
+                    Text("Last synced")
+                    Spacer()
+                    Text(lastSync.formatted(date: .abbreviated, time: .shortened))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let syncStatus = calendarViewModel.lmsCalendarSyncStatus, !syncStatus.isEmpty {
+                Text(syncStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var externalCalendarsSection: some View {
+        Section(
+            header: Text("Google & Outlook Calendars"),
+            footer: Text("RPI Central mirrors events from calendars already connected to Apple Calendar. Add Google or Outlook under iPhone Settings › Apps › Calendar › Calendar Accounts, then choose calendars here.")
+        ) {
+            if externalCalendarSyncManager.needsPermission {
+                Button {
+                    Task {
+                        await externalCalendarSyncManager.requestAccess()
+                    }
+                } label: {
+                    Label("Allow calendar access", systemImage: "calendar.badge.plus")
+                }
+
+                if externalCalendarSyncManager.authorizationStatus == .denied {
+                    Link(
+                        "Open iPhone Settings",
+                        destination: URL(string: UIApplication.openSettingsURLString)!
+                    )
+                }
+            } else {
+                Toggle("Auto sync", isOn: $externalCalendarSyncManager.autoSyncEnabled)
+
+                if externalCalendarSyncManager.availableCalendars.isEmpty {
+                    Text("No calendars are available yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(externalCalendarSyncManager.availableCalendars) { calendar in
+                        Toggle(
+                            isOn: Binding(
+                                get: { externalCalendarSyncManager.isSelected(calendar.id) },
+                                set: { isSelected in
+                                    externalCalendarSyncManager.setSelected(
+                                        isSelected,
+                                        calendarID: calendar.id
+                                    )
+                                    Task {
+                                        await externalCalendarSyncManager.sync(into: calendarViewModel)
+                                    }
+                                }
+                            )
+                        ) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(calendar.title)
+                                Text("\(calendar.accountName) • \(calendar.accountType)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    Task {
+                        await externalCalendarSyncManager.sync(into: calendarViewModel)
+                    }
+                } label: {
+                    HStack {
+                        if externalCalendarSyncManager.isSyncing {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(externalCalendarSyncManager.isSyncing ? "Syncing…" : "Sync selected calendars")
+                    }
+                }
+                .disabled(
+                    externalCalendarSyncManager.isSyncing ||
+                    externalCalendarSyncManager.selectedCalendarIDs.isEmpty
+                )
+
+                if let lastSync = externalCalendarSyncManager.lastSyncAt {
+                    LabeledContent(
+                        "Last synced",
+                        value: lastSync.formatted(date: .abbreviated, time: .shortened)
+                    )
+                }
+            }
+
+            if let status = externalCalendarSyncManager.statusText {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var socialSection: some View {
+        Section(
+            header: Text("Social & Privacy"),
+            footer: Text("Location is shared only with friends you choose, and only while sharing is on.")
+        ) {
+            Button {
+                showingLocationSettings = true
+            } label: {
+                // Explicit colors: inside a Button, hierarchical styles follow the tint.
+                HStack {
+                    Label {
+                        Text("Location Sharing").foregroundStyle(Color.primary)
+                    } icon: {
+                        Image(systemName: "location.fill")
+                    }
+                    Spacer()
+                    Text(locationSharingManager.isSharingActive ? "On" : "Ghost mode")
+                        .foregroundStyle(Color.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                }
+            }
+
+            Toggle("Show All RPI Students group", isOn: $showCampusWideGroup)
+            #if DEBUG
+            Toggle("Enable demo social tools", isOn: $calendarViewModel.socialDemoToolsEnabled)
+            NavigationLink("Friends map demo") {
+                FriendsMapDemoView()
+            }
+            #endif
+        }
+    }
+
+    private var notificationsSection: some View {
+        Section(header: Text("Notifications")) {
+            Toggle("Calendar notifications", isOn: $calendarViewModel.notificationsEnabled)
+            Toggle("Live activity notifications", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
+            Toggle("Group chat notifications", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
+
+            if calendarViewModel.notificationsEnabled {
+                Stepper(
+                    value: $calendarViewModel.minutesBeforeClass,
+                    in: 0...120,
+                    step: 5
+                ) {
+                    HStack {
+                        Text("Remind me")
+                        Spacer()
+                        Text("\(calendarViewModel.minutesBeforeClass) min before")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                #if DEBUG
+                Button("Test notification (5 seconds)") {
+                    NotificationManager.requestAuthorization()
+                    NotificationManager.scheduleTestNotification()
+                }
+                #endif
+            }
+        }
+    }
+
+    private var shuttleSection: some View {
+        Section(
+            header: Text("Shuttle Tracker"),
+            footer: Text("Shorter refresh intervals feel more live, but they use more battery and network.")
+        ) {
+            Picker("Refresh interval", selection: $shuttleTrackerRefreshIntervalSeconds) {
+                Text("1 second").tag(1)
+                Text("2 seconds").tag(2)
+                Text("5 seconds").tag(5)
+                Text("10 seconds").tag(10)
+            }
+        }
+    }
+
+    private var aboutSection: some View {
+        Section(
+            header: Text("About"),
+            footer: Text("RPI Central is an independent student project and is not affiliated with Rensselaer Polytechnic Institute.")
+        ) {
+            ShareLink(
+                item: Self.testFlightURL,
+                subject: Text("Try RPI Central"),
+                message: Text("Download RPI Central on TestFlight:")
+            ) {
+                Label("Invite friends to test", systemImage: "square.and.arrow.up")
+            }
+            Link(destination: Self.privacyURL) {
+                Label("Privacy Policy", systemImage: "hand.raised")
+            }
+            Link(destination: Self.supportURL) {
+                Label("Support", systemImage: "questionmark.circle")
+            }
+            LabeledContent("Version", value: Self.appVersionText)
+        }
     }
 
     private func syncTimestampText(_ value: String?) -> String {
