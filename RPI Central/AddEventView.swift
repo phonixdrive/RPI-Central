@@ -102,7 +102,11 @@ struct AddEventView: View {
                     }
 
                     if frequency == .monthly {
-                        Text("Repeats monthly on day \(dayOfMonth(selectedDate)).")
+                        Text(
+                            dayOfMonth(selectedDate) > 28
+                                ? "Repeats monthly on day \(dayOfMonth(selectedDate)), or the last day of shorter months."
+                                : "Repeats monthly on day \(dayOfMonth(selectedDate))."
+                        )
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -250,25 +254,38 @@ struct AddEventView: View {
     }
 
     private var weekdayPickerRow: some View {
-        let order: [Weekday] = [.mon, .tue, .wed, .thu, .fri, .sat, .sun]
+        let order: [(day: Weekday, label: String, name: String)] = [
+            (.mon, "M", "Monday"),
+            (.tue, "T", "Tuesday"),
+            (.wed, "W", "Wednesday"),
+            (.thu, "Th", "Thursday"),
+            (.fri, "F", "Friday"),
+            (.sat, "Sa", "Saturday"),
+            (.sun, "Su", "Sunday"),
+        ]
 
         return VStack(alignment: .leading, spacing: 8) {
             Text("Repeats on")
                 .font(.subheadline)
 
-            HStack(spacing: 8) {
-                ForEach(order, id: \.self) { d in
-                    Button(action: {
-                        toggleDay(d)
-                    }) {
-                        Text(d.shortName)
+            HStack(spacing: 6) {
+                ForEach(order, id: \.day) { entry in
+                    let isSelected = weeklyDays.contains(entry.day)
+                    Button {
+                        toggleDay(entry.day)
+                    } label: {
+                        Text(entry.label)
                             .font(.caption.bold())
-                            .frame(width: 34, height: 30)
-                            .foregroundColor(weeklyDays.contains(d) ? .black : .white)
-                            .background(weeklyDays.contains(d) ? Color.white : Color.white.opacity(0.15))
-                            .cornerRadius(8)
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                            .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(isSelected ? viewModel.themeColor : Color(.tertiarySystemFill))
+                            )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(entry.name)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
         }
@@ -370,226 +387,44 @@ struct AddEventView: View {
             fixedEndTime = Calendar.current.date(byAdding: .hour, value: 1, to: startTime) ?? endTime
         }
 
-        // ✅ recurrence id (shared across generated events)
-        let seriesID: UUID? = (frequency == .none) ? nil : UUID()
-        let friendIDs = Array(selectedFriendIDs).sorted()
-        let groupIDs = Array(selectedGroupIDs).sorted()
-        let createdEvents: [StoredPersonalEvent]
-
+        let dates: [Date]
         switch frequency {
         case .none:
-            createdEvents = [
-                addSingleEvent(
-                title: trimmedTitle,
-                location: location,
-                eventDate: selectedDate,
-                startTime: startTime,
-                endTime: fixedEndTime,
-                seriesID: nil,
-                friendIDs: friendIDs,
-                groupIDs: groupIDs
-            )
-            ]
-            isPresented = false
-
+            dates = [selectedDate]
         case .daily:
-            createdEvents = addDailyEvents(
-                title: trimmedTitle,
-                location: location,
-                startTime: startTime,
-                endTime: fixedEndTime,
-                seriesID: seriesID,
-                friendIDs: friendIDs,
-                groupIDs: groupIDs
-            )
-            isPresented = false
-
+            dates = EventRecurrence.dailyDates(from: selectedDate, through: repeatUntil, weekdaysOnly: dailyWeekdaysOnly)
         case .weekly:
-            createdEvents = addWeeklyEvents(
-                title: trimmedTitle,
-                location: location,
-                startTime: startTime,
-                endTime: fixedEndTime,
-                seriesID: seriesID,
-                friendIDs: friendIDs,
-                groupIDs: groupIDs
+            var days = weeklyDays
+            if days.isEmpty, let weekday = weekdayEnum(for: selectedDate) { days = [weekday] }
+            dates = EventRecurrence.weeklyDates(
+                from: selectedDate,
+                through: repeatUntil,
+                on: Set(days.map(\.calendarWeekday))
             )
-            isPresented = false
-
         case .monthly:
-            createdEvents = addMonthlyEvents(
-                title: trimmedTitle,
-                location: location,
-                startTime: startTime,
-                endTime: fixedEndTime,
-                seriesID: seriesID,
-                friendIDs: friendIDs,
-                groupIDs: groupIDs
-            )
-            isPresented = false
+            dates = EventRecurrence.monthlyDates(from: selectedDate, through: repeatUntil)
         }
+
+        // One save for the whole series instead of one per occurrence.
+        let createdEvents = viewModel.addEvents(
+            title: trimmedTitle,
+            location: location,
+            dates: dates.isEmpty ? [selectedDate] : dates,
+            startTime: startTime,
+            endTime: fixedEndTime,
+            seriesID: frequency == .none ? nil : UUID(),
+            shareMode: shareMode,
+            sharedFriendIDs: Array(selectedFriendIDs).sorted(),
+            sharedGroupIDs: Array(selectedGroupIDs).sorted()
+        )
+        isPresented = false
 
         if shareMode != .none, socialManager.isAuthenticated {
             Task {
                 await socialManager.sharePersonalEvents(createdEvents)
-                if socialManager.currentUser?.shareSchedule == true {
-                    await socialManager.syncSchedule(from: viewModel)
-                }
-            }
-        } else if socialManager.currentUser?.shareSchedule == true {
-            Task {
-                await socialManager.syncSchedule(from: viewModel)
             }
         }
-    }
-
-    private func addSingleEvent(
-        title: String,
-        location: String,
-        eventDate: Date,
-        startTime: Date,
-        endTime: Date,
-        seriesID: UUID?,
-        friendIDs: [String],
-        groupIDs: [String]
-    ) -> StoredPersonalEvent {
-        viewModel.addEvent(
-            title: title,
-            location: location,
-            date: eventDate,
-            startTime: startTime,
-            endTime: endTime,
-            seriesID: seriesID,
-            shareMode: shareMode,
-            sharedFriendIDs: friendIDs,
-            sharedGroupIDs: groupIDs
-        )
-    }
-
-    private func addDailyEvents(
-        title: String,
-        location: String,
-        startTime: Date,
-        endTime: Date,
-        seriesID: UUID?,
-        friendIDs: [String],
-        groupIDs: [String]
-    ) -> [StoredPersonalEvent] {
-        var cal = Calendar.current
-        cal.timeZone = .current
-
-        let startDay = cal.startOfDay(for: selectedDate)
-        let endDay = cal.startOfDay(for: repeatUntil)
-
-        var cur = startDay
-        var created: [StoredPersonalEvent] = []
-        while cur <= endDay {
-            let weekday = cal.component(.weekday, from: cur) // 1=Sun ... 7=Sat
-            let isWeekend = (weekday == 1 || weekday == 7)
-
-            if !(dailyWeekdaysOnly && isWeekend) {
-                created.append(addSingleEvent(
-                    title: title,
-                    location: location,
-                    eventDate: cur,
-                    startTime: startTime,
-                    endTime: endTime,
-                    seriesID: seriesID,
-                    friendIDs: friendIDs,
-                    groupIDs: groupIDs
-                ))
-            }
-
-            guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
-            cur = next
-        }
-        return created
-    }
-
-    private func addWeeklyEvents(
-        title: String,
-        location: String,
-        startTime: Date,
-        endTime: Date,
-        seriesID: UUID?,
-        friendIDs: [String],
-        groupIDs: [String]
-    ) -> [StoredPersonalEvent] {
-        var cal = Calendar.current
-        cal.timeZone = .current
-
-        let startDay = cal.startOfDay(for: selectedDate)
-        let endDay = cal.startOfDay(for: repeatUntil)
-
-        // If somehow empty, default to weekday of tapped date
-        var days = weeklyDays
-        if days.isEmpty, let wk = weekdayEnum(for: selectedDate) { days = [wk] }
-
-        var cur = startDay
-        var created: [StoredPersonalEvent] = []
-        while cur <= endDay {
-            if let wk = weekdayEnum(for: cur), days.contains(wk) {
-                created.append(addSingleEvent(
-                    title: title,
-                    location: location,
-                    eventDate: cur,
-                    startTime: startTime,
-                    endTime: endTime,
-                    seriesID: seriesID,
-                    friendIDs: friendIDs,
-                    groupIDs: groupIDs
-                ))
-            }
-            guard let next = cal.date(byAdding: .day, value: 1, to: cur) else { break }
-            cur = next
-        }
-        return created
-    }
-
-    private func addMonthlyEvents(
-        title: String,
-        location: String,
-        startTime: Date,
-        endTime: Date,
-        seriesID: UUID?,
-        friendIDs: [String],
-        groupIDs: [String]
-    ) -> [StoredPersonalEvent] {
-        let cal = Calendar.current
-        let day = dayOfMonth(selectedDate)
-
-        var cur = selectedDate
-        var created: [StoredPersonalEvent] = []
-        while cur <= repeatUntil {
-            created.append(addSingleEvent(
-                title: title,
-                location: location,
-                eventDate: cur,
-                startTime: startTime,
-                endTime: endTime,
-                seriesID: seriesID,
-                friendIDs: friendIDs,
-                groupIDs: groupIDs
-            ))
-
-            guard let nextMonth = cal.date(byAdding: .month, value: 1, to: cur) else { break }
-            var comps = cal.dateComponents([.year, .month], from: nextMonth)
-            comps.day = day
-
-            // If the month doesn’t have that day (e.g. 31st), skip to last valid day.
-            if let exact = cal.date(from: comps) {
-                cur = exact
-            } else {
-                // last day of that month
-                if let range = cal.range(of: .day, in: .month, for: nextMonth) {
-                    comps.day = range.count
-                    cur = cal.date(from: comps) ?? nextMonth
-                } else {
-                    cur = nextMonth
-                }
-            }
-        }
-        return created
+        socialManager.requestScheduleSync()
     }
 
     // MARK: - Small helpers
@@ -619,4 +454,77 @@ private struct SharingSelectionRow: Identifiable {
     let title: String
     let subtitle: String
     let isSelected: Bool
+}
+
+/// Occurrence dates for repeating personal events.
+enum EventRecurrence {
+    /// Guards against accidentally creating years of daily copies.
+    static let maximumOccurrences = 750
+
+    static func dailyDates(
+        from start: Date,
+        through end: Date,
+        weekdaysOnly: Bool,
+        calendar: Calendar = .current
+    ) -> [Date] {
+        days(from: start, through: end, calendar: calendar).filter { day in
+            guard weekdaysOnly else { return true }
+            let weekday = calendar.component(.weekday, from: day)
+            return weekday != 1 && weekday != 7
+        }
+    }
+
+    /// `weekdays` uses Calendar numbering (1 = Sunday … 7 = Saturday).
+    static func weeklyDates(
+        from start: Date,
+        through end: Date,
+        on weekdays: Set<Int>,
+        calendar: Calendar = .current
+    ) -> [Date] {
+        days(from: start, through: end, calendar: calendar).filter {
+            weekdays.contains(calendar.component(.weekday, from: $0))
+        }
+    }
+
+    /// Same day each month; months without that day (e.g. the 31st) use
+    /// their last day instead of spilling into the next month.
+    static func monthlyDates(
+        from start: Date,
+        through end: Date,
+        calendar: Calendar = .current
+    ) -> [Date] {
+        let firstDay = calendar.startOfDay(for: start)
+        let lastDay = calendar.startOfDay(for: end)
+        let dayOfMonth = calendar.component(.day, from: firstDay)
+
+        var result: [Date] = []
+        var monthOffset = 0
+        while result.count < maximumOccurrences {
+            guard let monthStart = calendar.date(
+                byAdding: .month,
+                value: monthOffset,
+                to: calendar.date(from: calendar.dateComponents([.year, .month], from: firstDay)) ?? firstDay
+            ),
+            let daysInMonth = calendar.range(of: .day, in: .month, for: monthStart)?.count,
+            let occurrence = calendar.date(byAdding: .day, value: min(dayOfMonth, daysInMonth) - 1, to: monthStart)
+            else { break }
+
+            if occurrence > lastDay { break }
+            result.append(occurrence)
+            monthOffset += 1
+        }
+        return result
+    }
+
+    private static func days(from start: Date, through end: Date, calendar: Calendar) -> [Date] {
+        var result: [Date] = []
+        var day = calendar.startOfDay(for: start)
+        let lastDay = calendar.startOfDay(for: end)
+        while day <= lastDay && result.count < maximumOccurrences {
+            result.append(day)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return result
+    }
 }
