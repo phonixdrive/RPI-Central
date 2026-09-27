@@ -277,3 +277,201 @@ final class LocationSharingManager: NSObject, ObservableObject {
     }
 
     func openSystemSettings() {
+#if canImport(UIKit)
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+#endif
+    }
+
+    /// Called by a background app refresh so friends see a recent time even
+    /// when the device has not moved.
+    func handleBackgroundRefresh() async {
+        guard isSharingActive, settings.shareInBackground, authorizationStatus == .authorizedAlways else {
+            expireSharingIfNeeded()
+            return
+        }
+        locationManager.requestLocation()
+        // Give the one-shot request a moment to arrive before iOS suspends us.
+        try? await Task.sleep(nanoseconds: 8_000_000_000)
+    }
+
+    // MARK: - Location services
+
+    private func refreshLocationServices() {
+        let sharing = isSharingActive
+        let wantsForegroundUpdates = isAppActive && isAuthorized && (sharing || ownLocationObserverCount > 0)
+        if wantsForegroundUpdates {
+            locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+            locationManager.distanceFilter = 15
+            locationManager.startUpdatingLocation()
+        } else {
+            locationManager.stopUpdatingLocation()
+        }
+
+        let wantsBackgroundMonitoring = sharing && settings.shareInBackground && authorizationStatus == .authorizedAlways
+        if wantsBackgroundMonitoring {
+            locationManager.startMonitoringSignificantLocationChanges()
+            locationManager.startMonitoringVisits()
+            startMonitoringCampusZones()
+        } else {
+            locationManager.stopMonitoringSignificantLocationChanges()
+            locationManager.stopMonitoringVisits()
+            stopMonitoringCampusZones()
+        }
+
+        scheduleExpiryTimer()
+    }
+
+    private func startMonitoringCampusZones() {
+        guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else { return }
+        let monitored = Set(locationManager.monitoredRegions.map(\.identifier))
+        for region in Self.campusZoneRegions() where !monitored.contains(region.identifier) {
+            locationManager.startMonitoring(for: region)
+        }
+    }
+
+    private func stopMonitoringCampusZones() {
+        for region in locationManager.monitoredRegions where region.identifier.hasPrefix(Self.regionPrefix) {
+            locationManager.stopMonitoring(for: region)
+        }
+    }
+
+    private static func campusZoneRegions() -> [CLCircularRegion] {
+        let directory = CampusDirectory.shared
+        return campusZones.compactMap { zone in
+            let centers = zone.buildingIDs.compactMap { directory.building(id: $0)?.center }
+            guard !centers.isEmpty else { return nil }
+            let center = CLLocationCoordinate2D(
+                latitude: centers.map(\.latitude).reduce(0, +) / Double(centers.count),
+                longitude: centers.map(\.longitude).reduce(0, +) / Double(centers.count)
+            )
+            let spread = centers.map { CampusDirectory.meters(from: center, to: $0) }.max() ?? 0
+            let region = CLCircularRegion(
+                center: center,
+                radius: min(350, max(120, spread + 60)),
+                identifier: regionPrefix + zone.id
+            )
+            region.notifyOnEntry = true
+            region.notifyOnExit = true
+            return region
+        }
+    }
+
+    private func scheduleExpiryTimer() {
+        expiryTimer?.invalidate()
+        expiryTimer = nil
+        guard isAppActive, settings.isEnabled, let expiresAt = settings.expiresAt else { return }
+
+        let interval = max(1, expiresAt.timeIntervalSinceNow)
+        expiryTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.expireSharingIfNeeded()
+            }
+        }
+    }
+
+    private func expireSharingIfNeeded() {
+        guard settings.isEnabled, settings.isExpired() else { return }
+        Task { await setSharingEnabled(false) }
+    }
+
+    // MARK: - Handling fixes
+
+    fileprivate func handle(location: CLLocation, trigger: PublishTrigger) {
+        guard location.horizontalAccuracy >= 0 else { return }
+        lastLocation = location
+        let place = CampusDirectory.shared.place(
+            for: location.coordinate,
+            horizontalAccuracy: location.horizontalAccuracy
+        )
+        currentPlace = place
+
+        guard isSharingActive else {
+            expireSharingIfNeeded()
+            return
+        }
+        guard location.horizontalAccuracy <= 1_000 else { return }
+        guard shouldPublish(location, place: place, trigger: trigger) else { return }
+
+        Task { await publish(location: location, place: place, trigger: trigger) }
+    }
+
+    private func shouldPublish(_ location: CLLocation, place: CampusPlace, trigger: PublishTrigger) -> Bool {
+        guard let previous = lastPublishedLocation else { return true }
+        // Background wake-ups are rare and each is worth reporting.
+        guard trigger == .foreground else { return true }
+        if place.building?.id != lastPublishedPlaceID { return true }
+        if currentViewerIDs() != lastPublishedViewerIDs { return true }
+        return location.distance(from: previous) >= Self.minimumForegroundMovement ||
+            location.timestamp.timeIntervalSince(previous.timestamp) >= Self.foregroundHeartbeat
+    }
+
+    private func republishWithCurrentFix() {
+        guard isSharingActive else { return }
+        lastPublishedLocation = nil
+        if let lastLocation, Date().timeIntervalSince(lastLocation.timestamp) < 5 * 60 {
+            handle(location: lastLocation, trigger: .manual)
+        } else if isAuthorized {
+            locationManager.requestLocation()
+        }
+    }
+
+    /// Coordinates as they will be published for the chosen precision.
+    private func publishedCoordinate(
+        for location: CLLocation,
+        place: CampusPlace
+    ) -> (coordinate: CLLocationCoordinate2D, accuracy: Double) {
+        switch settings.precision {
+        case .precise:
+            return (location.coordinate, location.horizontalAccuracy)
+        case .building:
+            if let building = place.building {
+                return (building.center, max(location.horizontalAccuracy, 40))
+            }
+            // About 110 m of rounding off campus.
+            let rounded = CLLocationCoordinate2D(
+                latitude: (location.coordinate.latitude * 1_000).rounded() / 1_000,
+                longitude: (location.coordinate.longitude * 1_000).rounded() / 1_000
+            )
+            return (rounded, max(location.horizontalAccuracy, 120))
+        }
+    }
+
+    private func publish(location: CLLocation, place: CampusPlace, trigger: PublishTrigger) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let userID = signedInUserID else { return }
+        let backgroundTask = beginBackgroundTask()
+        defer { endBackgroundTask(backgroundTask) }
+
+        let viewerIDs = currentViewerIDs()
+        let published = publishedCoordinate(for: location, place: place)
+        let now = Date()
+
+        let data: [String: Any] = [
+            "ownerID": userID,
+            "viewerIDs": viewerIDs,
+            "latitude": published.coordinate.latitude,
+            "longitude": published.coordinate.longitude,
+            "accuracy": (published.accuracy * 10).rounded() / 10,
+            "precision": settings.precision.rawValue,
+            "placeID": place.building?.id ?? "",
+            "placeName": place.building?.name ?? "",
+            "placeKind": place.kind.rawValue,
+            "isOnCampus": place.isOnCampus,
+            "updatedAt": SharedScheduleDates.string(from: now),
+            "updatedAtServer": FieldValue.serverTimestamp(),
+            "expiresAt": settings.expiresAt.map(SharedScheduleDates.string(from:)) ?? "",
+            "expiresAtTimestamp": settings.expiresAt.map { Timestamp(date: $0) } ?? NSNull(),
+            "source": trigger.rawValue,
+        ]
+
+        do {
+            try await setDocument(data, at: Firestore.firestore().collection("locationShares").document(userID))
+            lastPublishedLocation = location
+            lastPublishedPlaceID = place.building?.id
+            lastPublishedViewerIDs = viewerIDs
+            lastPublishedAt = now
+            errorMessage = nil
+        } catch {
+            errorMessage = "Couldn't update your shared location: \(error.localizedDescription)"
+        }
