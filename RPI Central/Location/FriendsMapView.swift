@@ -753,3 +753,359 @@ struct FriendsMapSection: View {
     }
 }
 
+// MARK: - Full screen
+
+struct FriendsMapFullScreen: View {
+    let onMessage: (SocialFriend) -> Void
+    let onViewSchedule: (SocialFriend) -> Void
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @EnvironmentObject private var locationManager: LocationSharingManager
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var cameraPosition: MapCameraPosition = .region(CampusDirectory.campusRegion)
+    @State private var selectedFriendID: String?
+    @State private var showSharingSettings = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let snapshot = FriendsMapSnapshot(
+                socialManager: socialManager,
+                locationManager: locationManager,
+                now: context.date
+            )
+            let selected = snapshot.presences.first { $0.id == selectedFriendID }
+
+            ZStack(alignment: .bottom) {
+                FriendsMapCanvas(
+                    pins: snapshot.pins,
+                    highlightedBuilding: selected?.building,
+                    accent: calendarViewModel.themeColor,
+                    showsUserLocation: locationManager.isAuthorized,
+                    position: $cameraPosition,
+                    selectedFriendID: $selectedFriendID
+                )
+                .ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    topBar
+                    Spacer()
+                    friendCarousel(snapshot, now: context.date)
+                }
+            }
+            .onChange(of: selectedFriendID) { _, newValue in
+                guard let newValue,
+                      let coordinate = snapshot.presences.first(where: { $0.id == newValue })?.coordinate else { return }
+                withAnimation(.snappy(duration: 0.4)) {
+                    cameraPosition = .region(MKCoordinateRegion(center: coordinate, latitudinalMeters: 300, longitudinalMeters: 300))
+                }
+            }
+        }
+        .onAppear {
+            locationManager.beginObservingFriends()
+            locationManager.beginShowingOwnLocation()
+        }
+        .onDisappear {
+            locationManager.endObservingFriends()
+            locationManager.endShowingOwnLocation()
+        }
+        .sheet(isPresented: $showSharingSettings) {
+            LocationSharingSettingsView()
+                .environmentObject(socialManager)
+                .environmentObject(locationManager)
+                .environmentObject(calendarViewModel)
+        }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.headline)
+                    .frame(width: 40, height: 40)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close map")
+
+            Spacer()
+
+            Button {
+                showSharingSettings = true
+            } label: {
+                Label(
+                    locationManager.isSharingActive ? "Sharing" : "Ghost mode",
+                    systemImage: locationManager.isSharingActive ? "location.fill" : "location.slash.fill"
+                )
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .foregroundStyle(locationManager.isSharingActive ? calendarViewModel.themeColor : Color.primary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.snappy) {
+                    selectedFriendID = nil
+                    cameraPosition = .region(CampusDirectory.campusRegion)
+                }
+            } label: {
+                Image(systemName: "building.columns")
+                    .font(.headline)
+                    .frame(width: 40, height: 40)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show all of campus")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private func friendCarousel(_ snapshot: FriendsMapSnapshot, now: Date) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                if snapshot.presences.isEmpty {
+                    Text("No friends are sharing right now.")
+                        .font(.subheadline)
+                        .padding(16)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                } else {
+                    ForEach(snapshot.presences) { presence in
+                        FriendPresenceRow(
+                            presence: presence,
+                            distanceText: DistanceText.between(locationManager.lastLocation, presence.coordinate),
+                            isSelected: presence.id == selectedFriendID,
+                            accent: calendarViewModel.themeColor,
+                            now: now,
+                            onFocus: {
+                                withAnimation(.snappy) { selectedFriendID = presence.id }
+                            },
+                            onMessage: { onMessage(presence.friend) },
+                            onViewSchedule: presence.friend.canViewSchedule ? { onViewSchedule(presence.friend) } : nil
+                        )
+                        .frame(width: 290)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+        }
+    }
+}
+
+// MARK: - Sharing status
+
+struct LocationSharingStatusCard: View {
+    @Binding var showSettings: Bool
+    let now: Date
+
+    @EnvironmentObject private var locationManager: LocationSharingManager
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+
+    var body: some View {
+        SocialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: locationManager.isSharingActive ? "location.fill" : "location.slash.fill")
+                        .font(.title3)
+                        .foregroundStyle(locationManager.isSharingActive ? calendarViewModel.themeColor : Color.secondary)
+                        .frame(width: 30)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(locationManager.isSharingActive ? "Sharing your location" : "Ghost mode")
+                            .font(.headline)
+                        Text(summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Toggle(
+                        "Share my location",
+                        isOn: Binding(
+                            get: { locationManager.isSharingActive },
+                            set: { newValue in
+                                Task { await locationManager.setSharingEnabled(newValue) }
+                            }
+                        )
+                    )
+                    .labelsHidden()
+                    .disabled(!locationManager.isSignedIn)
+                }
+
+                if locationManager.isSharingActive, let place = locationManager.currentPlace {
+                    Label(
+                        [place.label, locationManager.lastPublishedAt.map { "updated \(RelativeTimeText.since($0, now: now).lowercased())" }]
+                            .compactMap { $0 }
+                            .joined(separator: " · "),
+                        systemImage: "mappin.circle.fill"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                }
+
+                if locationManager.isAuthorizationDenied {
+                    Button {
+                        locationManager.openSystemSettings()
+                    } label: {
+                        Label("Location access is off. Open Settings", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .tint(.orange)
+                }
+
+                if let error = locationManager.errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Sharing options", systemImage: "slider.horizontal.3")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private var summary: String {
+        guard locationManager.isSignedIn else { return "Sign in to share your location with friends." }
+        guard locationManager.isSharingActive else { return "Friends can't see where you are." }
+
+        let settings = locationManager.settings
+        let count = locationManager.viewerCount
+        let audience = settings.audience == .allFriends
+            ? (count == 1 ? "1 friend" : "\(count) friends")
+            : (count == 1 ? "1 chosen friend" : "\(count) chosen friends")
+        let until: String
+        if let expiresAt = settings.expiresAt {
+            until = "until \(expiresAt.formatted(date: .omitted, time: .shortened))"
+        } else {
+            until = "until you turn it off"
+        }
+        return "Visible to \(audience) · \(settings.precision.title.lowercased()) · \(until)"
+    }
+}
+
+#if DEBUG
+// MARK: - Demo (debug builds only)
+
+/// Sample friends for checking the map without a signed-in account.
+struct FriendsMapDemoView: View {
+    @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @State private var position: MapCameraPosition = .region(CampusDirectory.campusRegion)
+    @State private var selectedFriendID: String?
+
+    var body: some View {
+        let snapshot = FriendsMapSnapshot(presences: Self.samplePresences(now: Date()), hiddenFriendCount: 2)
+        let selected = snapshot.presences.first { $0.id == selectedFriendID }
+
+        ScrollView {
+            VStack(spacing: 12) {
+                FriendsMapCanvas(
+                    pins: snapshot.pins,
+                    highlightedBuilding: selected?.building,
+                    accent: calendarViewModel.themeColor,
+                    showsUserLocation: false,
+                    position: $position,
+                    selectedFriendID: $selectedFriendID
+                )
+                .frame(height: 380)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                ForEach(snapshot.presences) { presence in
+                    FriendPresenceRow(
+                        presence: presence,
+                        distanceText: presence.isOnMap ? "0.2 mi" : nil,
+                        isSelected: presence.id == selectedFriendID,
+                        accent: calendarViewModel.themeColor,
+                        now: Date(),
+                        onFocus: { selectedFriendID = presence.id },
+                        onMessage: {},
+                        onViewSchedule: {}
+                    )
+                }
+            }
+            .padding(16)
+        }
+        .navigationTitle("Friends Map Demo")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    static func samplePresences(now: Date) -> [FriendPresence] {
+        let directory = CampusDirectory.shared
+
+        func friend(_ id: String, _ name: String) -> SocialFriend {
+            SocialFriend(
+                id: id, username: id, displayName: name, email: "", isGuest: false,
+                shareSchedule: true, shareLocation: true, createdAt: "", lastScheduleAt: nil,
+                canViewSchedule: true, schedulePreviewCount: 0, sharedCourseKeys: [], sharedSectionKeys: []
+            )
+        }
+
+        func location(_ id: String, building buildingID: String, minutesAgo: Double) -> SharedFriendLocation? {
+            guard let building = directory.building(id: buildingID) else { return nil }
+            return SharedFriendLocation(
+                id: id, latitude: building.center.latitude, longitude: building.center.longitude,
+                accuracy: 10, precision: .precise, placeID: building.id, placeName: building.name,
+                placeKind: .inside, isOnCampus: true,
+                updatedAt: now.addingTimeInterval(-minutesAgo * 60), expiresAt: nil
+            )
+        }
+
+        func schedule(_ title: String, at room: String) -> SharedScheduleSnapshot {
+            SharedScheduleSnapshot(semesterCode: "202609", generatedAt: nil, items: [
+                SharedScheduleItem(
+                    id: title, title: title, location: room,
+                    startDate: SharedScheduleDates.string(from: now.addingTimeInterval(-25 * 60)),
+                    endDate: SharedScheduleDates.string(from: now.addingTimeInterval(35 * 60)),
+                    isAllDay: false, kind: CalendarEventKind.classMeeting.rawValue, badge: nil
+                ),
+            ])
+        }
+
+        return [
+            FriendPresenceResolver.resolve(
+                friend: friend("maya", "Maya Patel"),
+                location: location("maya", building: "dcc", minutesAgo: 2),
+                schedule: schedule("Data Structures", at: "Darrin Communications Center 308"),
+                now: now
+            ),
+            FriendPresenceResolver.resolve(
+                friend: friend("jordan", "Jordan Lee"),
+                location: location("jordan", building: "folsom", minutesAgo: 6),
+                schedule: nil,
+                now: now
+            ),
+            FriendPresenceResolver.resolve(
+                friend: friend("sam", "Sam Rivera"),
+                location: location("sam", building: "commons", minutesAgo: 95),
+                schedule: nil,
+                now: now
+            ),
+            FriendPresenceResolver.resolve(
+                friend: friend("chris", "Chris Nguyen"),
+                location: nil,
+                schedule: schedule("Calculus II", at: "Jonsson Engineering Center 3117"),
+                now: now
+            ),
+            FriendPresenceResolver.resolve(
+                friend: friend("ava", "Ava Brooks"),
+                location: location("ava", building: "dcc", minutesAgo: 4),
+                schedule: nil,
+                now: now
+            ),
+        ].compactMap { $0 }
+    }
+}
+#endif
