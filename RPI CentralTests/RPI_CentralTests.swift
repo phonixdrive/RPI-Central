@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import RPI_Central
 
@@ -21,7 +22,174 @@ struct RPI_CentralTests {
             )
 
             #expect(!courses.isEmpty, "No courses decoded for \(semester.rawValue)")
+
+            let courseIDs = courses.map { canonicalCourseID($0.id) }
+            #expect(
+                Set(courseIDs).count == courseIDs.count,
+                "Duplicate course records remained in \(semester.rawValue)"
+            )
+
+            for course in courses {
+                let sectionIDs = course.sections.map { section in
+                    section.crn.map { "crn:\($0)" }
+                        ?? "section:\(section.section.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())"
+                }
+                #expect(
+                    Set(sectionIDs).count == sectionIDs.count,
+                    "Duplicate sections remained for \(course.id) in \(semester.rawValue)"
+                )
+            }
         }
+    }
+
+    @Test func repeatedFallCatalogRecordsAreMerged() throws {
+        let appBundle = Bundle(for: CourseCatalogService.self)
+        let courses = try QuACSLoader.buildCourses(
+            termCode: Semester.fall2026.rawValue,
+            bundle: appBundle
+        )
+
+        let discoverySemester = courses.filter { $0.id == "ILEA-4400" }
+        #expect(discoverySemester.count == 1)
+        #expect(discoverySemester.first?.sections.count == 8)
+    }
+
+    @Test func calendarDeduplicationPrefersGeneratedClassOverImportedCopy() {
+        let start = Date(timeIntervalSince1970: 1_788_274_800)
+        let end = start.addingTimeInterval(80 * 60)
+        let importedID = UUID()
+        let generated = ClassEvent(
+            title: "Earth, Energy, And Environment",
+            location: "DCC 318",
+            startDate: start,
+            endDate: end,
+            backgroundColor: .blue,
+            accentColor: .blue,
+            enrollmentID: "ERTH-1100-78123",
+            semesterCode: Semester.fall2026.rawValue,
+            kind: .classMeeting
+        )
+        let importedRecord = StoredPersonalEvent(
+            id: importedID,
+            title: "EARTH, ENERGY, AND ENVIRONMENT",
+            location: "DCC 318",
+            startDate: start,
+            endDate: end,
+            seriesID: nil,
+            shareMode: .none,
+            sharedFriendIDs: [],
+            sharedGroupIDs: [],
+            externalSourceKind: "systemCalendar",
+            externalSourceID: "external-earth-class",
+            relatedEnrollmentID: "erth-1100-78123"
+        )
+        let imported = ClassEvent(
+            title: importedRecord.title,
+            location: importedRecord.location,
+            startDate: start,
+            endDate: end,
+            backgroundColor: .gray,
+            accentColor: .gray,
+            enrollmentID: nil,
+            persistentID: importedID,
+            kind: .personal
+        )
+
+        let visible = CalendarViewModel.deduplicatedCalendarEvents(
+            [imported, generated],
+            storedPersonalEvents: [importedRecord]
+        )
+
+        #expect(visible.count == 1)
+        #expect(visible.first?.kind == .classMeeting)
+    }
+
+    @Test func calendarDeduplicationKeepsRealOverlapsAndRemovesCaseVariantClasses() {
+        let start = Date(timeIntervalSince1970: 1_788_274_800)
+        let end = start.addingTimeInterval(80 * 60)
+        let earth = ClassEvent(
+            title: "Earth Science",
+            location: "JROWL 2C04",
+            startDate: start,
+            endDate: end,
+            backgroundColor: .green,
+            accentColor: .green,
+            enrollmentID: "ERTH-1100-78123",
+            semesterCode: Semester.fall2026.rawValue,
+            kind: .classMeeting
+        )
+        let earthCaseVariant = ClassEvent(
+            title: "EARTH SCIENCE",
+            location: "JROWL 2C04",
+            startDate: start,
+            endDate: end,
+            backgroundColor: .green,
+            accentColor: .green,
+            enrollmentID: "erth-1100-78123",
+            semesterCode: Semester.fall2026.rawValue,
+            kind: .classMeeting
+        )
+        let genuinelyOverlappingCourse = ClassEvent(
+            title: "Data Structures",
+            location: "DCC 308",
+            startDate: start,
+            endDate: end,
+            backgroundColor: .orange,
+            accentColor: .orange,
+            enrollmentID: "CSCI-2300-78999",
+            semesterCode: Semester.fall2026.rawValue,
+            kind: .classMeeting
+        )
+
+        let visible = CalendarViewModel.deduplicatedCalendarEvents(
+            [earth, earthCaseVariant, genuinelyOverlappingCourse],
+            storedPersonalEvents: []
+        )
+
+        #expect(visible.count == 2)
+        #expect(Set(visible.compactMap(\.enrollmentID).map(CalendarViewModel.canonicalEnrollmentIdentity)).count == 2)
+    }
+
+    @Test func persistedEnrollmentDeduplicationIsCaseInsensitiveWithinEachTerm() {
+        let section = CourseSection(
+            crn: 78123,
+            section: "01",
+            instructor: "Staff",
+            meetings: []
+        )
+        let course = Course(
+            subject: "ERTH",
+            number: "1100",
+            title: "Earth Science",
+            description: "",
+            sections: [section]
+        )
+        let fall = EnrolledCourse(
+            id: "ERTH-1100-78123",
+            course: course,
+            section: section,
+            semesterCode: Semester.fall2026.rawValue
+        )
+        let fallCaseVariant = EnrolledCourse(
+            id: "erth-1100-78123",
+            course: course,
+            section: section,
+            semesterCode: Semester.fall2026.rawValue
+        )
+        let historical = EnrolledCourse(
+            id: "ERTH-1100-78123",
+            course: course,
+            section: section,
+            semesterCode: Semester.spring2026.rawValue
+        )
+
+        let deduplicated = CalendarViewModel.deduplicatedEnrollments(
+            [fall, fallCaseVariant, historical]
+        )
+
+        #expect(deduplicated.count == 2)
+        #expect(deduplicated.map(\.semesterCode).contains(Semester.fall2026.rawValue))
+        #expect(deduplicated.map(\.semesterCode).contains(Semester.spring2026.rawValue))
     }
 
     @Test func fall2026IsTheCurrentTerm() throws {
