@@ -5,8 +5,16 @@
     "node": "20"
   },
   "main": "index.js",
+  "scripts": {
+    "test": "npm run test:functions",
+    "test:functions": "node --test notification-policy.test.js location-policy.test.js",
+    "test:rules": "firebase emulators:exec --config ../../firebase.json --project demo-rpi-central --only firestore \"node --test firestore.rules.test.js\""
+  },
   "dependencies": {
-    "firebase-admin": "^12.1.0",
-    "firebase-functions": "^5.1.0"
+    "firebase-admin": "^14.3.0",
+    "firebase-functions": "^7.3.2"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2"
   }
 }

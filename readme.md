@@ -14,9 +14,11 @@ RPI Central is an unofficial iOS campus companion for Rensselaer Polytechnic Ins
 - Home dashboard with persistent ordering and 1×1, 1×2, and 2×2 cards
 - “Next” view combining the next class, room, and related deadline
 - Course search, prerequisite handling, GPA tools, and registration bypass flow
-- Assignment reminders and local notifications
+- Assignment reminders and local notifications, with holidays, breaks, and "follow a Monday schedule" days applied to class times
 - Dining hours, meal swipes, Flex Dollars planning, shuttle tracking, and a study timer
-- Friend schedules, current calendar activity, direct messages, group chats, and class communities
+- Friend schedules that cover the whole term, so a friend's calendar stays correct even if they rarely open the app
+- Friends map: opt-in location sharing with campus-building precision ("In class · DCC 308"), ghost mode, per-friend audiences, timed sharing, and low-power background updates
+- Current calendar activity, direct messages, group chats, and class communities
 - Google/Outlook calendar import through EventKit
 - Manual phone/web sync plus weekly recovery backups
 - Home-screen calendar widgets
@@ -50,6 +52,8 @@ open "RPI Central.xcodeproj"
 | `RPI Central/` | SwiftUI application source |
 | `RPI Central/Widgets/` | WidgetKit extension source |
 | `Data/semester_data/` | Bundled term catalogs and prerequisite data |
+| `RPI Central/Location/` | Friends map, location sharing, and campus building footprints |
+| `Tools/campus_buildings/` | Regenerates `CampusBuildings.json` from OpenStreetMap |
 | `Data/academic_calendar_26.json` | 2026–2027 academic calendar data |
 | `firebase/` | Firestore rules and notification function support |
 | `Tools/scrapers/` | Course-data collection and transformation tools |
@@ -65,8 +69,14 @@ See [firebase/README.md](firebase/README.md) for Authentication, Firestore, Clou
 Deploy updated Firestore rules with:
 
 ```sh
-firebase deploy --only firestore:rules
+firebase deploy --only firestore:rules,functions
 ```
+
+Run `npm test` and `npm run test:rules` from `firebase/functions` first. The current
+rules and functions add notification preference enforcement, protected moderator
+claims, accepted-request friendship validation, in-app social-account deletion,
+friend-only location sharing, private cloud-sync storage, and chat membership checks.
+See [firebase/README.md](firebase/README.md) for what changed and the deploy order.
 
 ### Course and calendar data
 
@@ -91,17 +101,20 @@ xcodebuild \
   test
 ```
 
-The regression suite covers semester selection, academic-calendar boundaries, Thanksgiving break expansion, course-detail refreshes, full-section bypass behavior, unread-message state, calendar display persistence, and Home dashboard persistence.
+The regression suite covers semester selection, academic-calendar boundaries and no-class days, course-detail refreshes, full-section bypass behavior, unread-message state, calendar and Home dashboard persistence, GPA rules, repeating events, shared-schedule coverage, campus building lookup, and friend presence.
 
 ## Privacy and safety
 
 - Calendar access is requested only for calendar import/sync features.
 - Social data is stored in Firebase and protected by the repository’s Firestore rules.
+- Public social profiles do not contain email addresses.
 - Shared schedules are opt-in and friend-gated.
-- Live person-location sharing is not implemented.
+- Location sharing is off by default. When on, it is readable only by the friends the user picks, can expire automatically, and is deleted when the user turns on ghost mode, signs out, or deletes their account.
+- Cloud sync snapshots (grades, notes, tasks) are stored in a document only the owner can read.
+- Users can request deletion of their social data and Firebase account from Settings.
 - Secrets and private Firebase configuration must remain outside source control.
 
-Read the project’s [privacy overview](https://phonixdrive.github.io/RPI-Central/privacy.html) and [security policy](SECURITY.md).
+Read the project’s [privacy policy](https://phonixdrive.github.io/RPI-Central/privacy.html) and [security policy](SECURITY.md).
 
 ## Contributing
 
