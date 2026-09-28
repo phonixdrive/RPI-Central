@@ -55,6 +55,7 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openCoursesTab)) { _ in
             selectedTab = .courses
         }
+        .onOpenURL(perform: handleDeepLink)
         .onReceive(NotificationCenter.default.publisher(for: SocialDeepLink.didChangeNotification)) { _ in
             selectedTab = .social
         }
@@ -63,6 +64,28 @@ struct ContentView: View {
             if SocialDeepLink.pendingContextID != nil {
                 selectedTab = .social
             }
+        }
+    }
+
+    /// Widget and watch links: rpicentral://calendar?date=<unix>, rpicentral://tasks.
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "rpicentral" else { return }
+        switch url.host {
+        case "calendar":
+            if let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "date" })?.value,
+               let seconds = TimeInterval(value) {
+                calendarViewModel.setSelectedDate(Date(timeIntervalSince1970: seconds))
+            } else {
+                calendarViewModel.setSelectedDate(Date())
+            }
+            selectedTab = .calendar
+        case "tasks":
+            selectedTab = .home
+        case "social":
+            selectedTab = .social
+        default:
+            break
         }
     }
 

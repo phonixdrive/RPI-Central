@@ -306,9 +306,9 @@ struct TimelineCalendarView: View {
     let days: [Date]
     let displayMode: CalendarDisplayMode
 
-    @State private var selectedEvent: ClassEvent?
+    @State private var selection: EventDetailSelection?
 
-    // ✅ overlap swipe state: groupKey -> topEventKey
+    // Overlap stacks: groupKey -> interactionKey of the card on top.
     @State private var topEventKeyByGroup: [String: String] = [:]
 
     // ✅ all-day “show all” sheet
@@ -463,7 +463,7 @@ struct TimelineCalendarView: View {
                             }
                         }
 
-                        // ✅ render timed events per overlap group
+                        // Timed events, one overlap group at a time.
                         ForEach(Array(days.enumerated()), id: \.1) { (colIndex, day) in
                             let timed = viewModel.events(on: day).filter { !$0.isAllDay }
                             let groups = overlapGroups(timed)
@@ -472,24 +472,33 @@ struct TimelineCalendarView: View {
                                 let group = groups[gi]
                                 let columnLeft = gridLeftX + dayWidth * CGFloat(colIndex)
                                 let eventWidth = max(dayWidth - 8, 0)
-                                let centerX = columnLeft + dayWidth / 2
                                 let groupKey = makeGroupKey(day: day, group: group)
+                                let lanes = OverlapLayout.lanes(for: group)
+                                let laneCount = (lanes.values.max() ?? 0) + 1
+                                let laneWidth = eventWidth / CGFloat(max(laneCount, 1))
 
-                                if group.count == 1, let ev = group.first,
-                                   let r = rectForEvent(ev, totalHeight: totalHeight) {
-
-                                    eventChip(ev)
-                                        .frame(width: eventWidth, height: r.height)
-                                        .position(x: centerX, y: r.minY + r.height / 2)
-                                        .onTapGesture { selectedEvent = ev }
-                                        .contextMenu { chipMenu(for: ev) }
-
+                                if group.count == 1 || laneWidth >= OverlapLayout.minimumLaneWidth {
+                                    // Enough room: overlapping classes sit side by side.
+                                    ForEach(group, id: \.interactionKey) { ev in
+                                        if let r = rectForEvent(ev, totalHeight: totalHeight) {
+                                            let lane = CGFloat(lanes[ev.interactionKey] ?? 0)
+                                            let gap: CGFloat = laneCount > 1 ? 2 : 0
+                                            eventChip(ev, compact: laneCount > 1)
+                                                .frame(width: max(laneWidth - gap, 0), height: r.height)
+                                                .position(
+                                                    x: columnLeft + 4 + laneWidth * lane + laneWidth / 2,
+                                                    y: r.minY + r.height / 2
+                                                )
+                                                .onTapGesture { openDetail(group: group, startingAt: ev) }
+                                                .contextMenu { chipMenu(for: ev) }
+                                        }
+                                    }
                                 } else {
                                     overlapStack(
                                         groupKey: groupKey,
                                         group: group,
                                         width: eventWidth,
-                                        centerX: centerX,
+                                        columnLeft: columnLeft,
                                         totalHeight: totalHeight
                                     )
                                 }
@@ -523,8 +532,8 @@ struct TimelineCalendarView: View {
         .onReceive(nowTimer) { t in
             now = t
         }
-        .sheet(item: $selectedEvent) { event in
-            ClassEventDetailView(event: event)
+        .sheet(item: $selection) { selection in
+            EventDetailPager(selection: selection)
                 .environmentObject(viewModel)
                 .environmentObject(socialManager)
         }
@@ -624,61 +633,84 @@ struct TimelineCalendarView: View {
         return Array(arr[i...]) + Array(arr[..<i])
     }
 
+    /// Opens the detail pager for a tapped event; overlapping events can be
+    /// swiped between.
+    private func openDetail(group: [ClassEvent], startingAt event: ClassEvent) {
+        let ordered = group.sorted { $0.startDate < $1.startDate }
+        let index = ordered.firstIndex { $0.interactionKey == event.interactionKey } ?? 0
+        selection = EventDetailSelection(events: ordered, index: index)
+    }
+
+    /// Too narrow for side-by-side (week and 3-day views): overlapping events
+    /// stack like cards. Swipe the stack to bring the next one to the top, or
+    /// tap to open all of them in a swipeable pager.
     @ViewBuilder
     private func overlapStack(
         groupKey: String,
         group: [ClassEvent],
         width: CGFloat,
-        centerX: CGFloat,
+        columnLeft: CGFloat,
         totalHeight: CGFloat
     ) -> some View {
-
-        let base = group.sorted {
-            let d0 = $0.endDate.timeIntervalSince($0.startDate)
-            let d1 = $1.endDate.timeIntervalSince($1.startDate)
-            if d0 != d1 { return d0 < d1 }
-            return $0.startDate < $1.startDate
-        }
-
-        let defaultTop = base.first?.interactionKey ?? group[0].interactionKey
-        let topKey = topEventKeyByGroup[groupKey] ?? defaultTop
-
+        let base = group.sorted { $0.startDate < $1.startDate }
         let baseKeys = base.map(\.interactionKey)
+        let topKey = topEventKeyByGroup[groupKey].flatMap { baseKeys.contains($0) ? $0 : nil } ?? baseKeys[0]
         let rotatedKeys = rotate(baseKeys, startingAt: topKey)
-
-        let ordered: [ClassEvent] = rotatedKeys.compactMap { k in
-            base.first(where: { $0.interactionKey == k })
+        let ordered: [ClassEvent] = rotatedKeys.compactMap { key in base.first { $0.interactionKey == key } }
+        let rects = ordered.map { rectForEvent($0, totalHeight: totalHeight) }
+        let union = rects.compactMap { $0 }.reduce(CGRect?.none) { partial, rect in
+            partial.map { CGRect(x: 0, y: min($0.minY, rect.minY), width: 0, height: max($0.maxY, rect.maxY) - min($0.minY, rect.minY)) } ?? rect
         }
+        let peek: CGFloat = 4
 
-        ZStack {
-            ForEach(Array(ordered.prefix(3).enumerated()), id: \.element.interactionKey) { (i, ev) in
-                if let r = rectForEvent(ev, totalHeight: totalHeight) {
-                    let xOff: CGFloat = CGFloat(i) * 6
-                    let yOff: CGFloat = CGFloat(i) * 6
-
-                    eventChip(ev)
-                        .frame(width: width, height: r.height)
-                        .position(x: centerX + xOff, y: r.minY + r.height / 2 + yOff)
-                        .zIndex(Double(100 - i))
-                        .onTapGesture { selectedEvent = ev }
-                        .contextMenu { chipMenu(for: ev) }
-                }
-            }
-        }
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 12)
-                .onEnded { value in
-                    let dx = value.translation.width
-                    let dy = value.translation.height
-                    guard abs(dx) > abs(dy), abs(dx) > 20 else { return }
-                    guard rotatedKeys.count > 1 else { return }
-
-                    let newTop = (dx < 0) ? rotatedKeys[1] : (rotatedKeys.last ?? topKey)
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        topEventKeyByGroup[groupKey] = newTop
+        if let union {
+            ZStack(alignment: .topLeading) {
+                // Back cards peek out behind the top one; drawn back to front.
+                ForEach(Array(ordered.enumerated()).reversed(), id: \.element.interactionKey) { index, ev in
+                    if index < 3, let r = rects[index] {
+                        eventChip(ev, compact: true)
+                            .frame(width: width - peek * CGFloat(min(ordered.count - 1, 2)), height: r.height)
+                            .offset(x: peek * CGFloat(index), y: r.minY - union.minY + peek * CGFloat(index))
+                            .opacity(index == 0 ? 1 : 0.85)
+                            .allowsHitTesting(index == 0)
                     }
                 }
-        )
+            }
+            .frame(width: width, height: union.height + peek * 2, alignment: .topLeading)
+            .overlay(alignment: .topTrailing) {
+                Label("\(ordered.count)", systemImage: "square.stack.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.black.opacity(0.55)))
+                    .padding(2)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+            .position(x: columnLeft + 4 + width / 2, y: union.minY + (union.height + peek * 2) / 2)
+            .onTapGesture { openDetail(group: base, startingAt: ordered[0]) }
+            .contextMenu { chipMenu(for: ordered[0]) }
+            // Only this stack's frame handles the swipe, so swiping elsewhere
+            // still changes days.
+            .gesture(
+                DragGesture(minimumDistance: 14)
+                    .onEnded { value in
+                        let dx = value.translation.width
+                        guard abs(dx) > abs(value.translation.height), abs(dx) > 20, rotatedKeys.count > 1 else { return }
+                        let newTop = dx < 0 ? rotatedKeys[1] : (rotatedKeys.last ?? topKey)
+                        withAnimation(.snappy(duration: 0.2)) {
+                            topEventKeyByGroup[groupKey] = newTop
+                        }
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ordered.map(\.title).joined(separator: ", "))
+            .accessibilityHint("\(ordered.count) overlapping events. Opens details.")
+            .accessibilityAddTraits(.isButton)
+        }
     }
 
     // MARK: - Geometry helpers
@@ -738,7 +770,7 @@ struct TimelineCalendarView: View {
         socialManager.requestScheduleSync()
     }
 
-    private func eventChip(_ event: ClassEvent) -> some View {
+    private func eventChip(_ event: ClassEvent, compact: Bool = false) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 Rectangle()
@@ -748,9 +780,11 @@ struct TimelineCalendarView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(event.title)
+                        // Exam meetings are titled "★ …"; the icon below shows the star.
+                        Text(event.badge == .exam ? event.title.replacingOccurrences(of: "★ ", with: "") : event.title)
                             .font(.caption2.bold())
                             .foregroundColor(.black)
+                            .lineLimit(compact ? 2 : nil)
 
                         if event.badge == .exam {
                             Image(systemName: "star.fill")
@@ -759,14 +793,16 @@ struct TimelineCalendarView: View {
                         }
                     }
 
-                    Text("\(timeString(event.startDate)) – \(timeString(event.endDate))")
+                    Text(compact ? timeString(event.startDate) : "\(timeString(event.startDate)) – \(timeString(event.endDate))")
                         .font(.caption2)
                         .foregroundColor(.black)
+                        .lineLimit(1)
 
                     if !event.location.isEmpty {
                         Text(event.location)
                             .font(.caption2)
                             .foregroundColor(.black.opacity(0.8))
+                            .lineLimit(compact ? 1 : nil)
                     }
                 }
                 .padding(4)
@@ -1090,187 +1126,6 @@ struct MonthGridView: View {
 
 // MARK: - Detail sheet + All-day list + corner radius helper
 
-struct ClassEventDetailView: View {
-    @EnvironmentObject var viewModel: CalendarViewModel
-    @EnvironmentObject var socialManager: SocialManager
-    let event: ClassEvent
-
-    @Environment(\.dismiss) private var dismiss
-    @FocusState private var notesFocused: Bool
-    @State private var confirmRemoveOne: Bool = false
-    @State private var confirmRemoveSeries: Bool = false
-    @State private var confirmRemoveCourse: Bool = false
-    @State private var confirmHideOccurrence: Bool = false
-    @State private var confirmHideAllDay: Bool = false
-    @State private var notesText: String = ""
-
-    private let dfDate: DateFormatter = {
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        df.timeStyle = .none
-        return df
-    }()
-
-    private let dfTime: DateFormatter = {
-        let df = DateFormatter()
-        df.dateStyle = .none
-        df.timeStyle = .short
-        return df
-    }()
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(event.title)
-                        .font(.title3.bold())
-
-                    if event.isAllDay {
-                        Text("All-day event")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        Text("\(dfDate.string(from: event.startDate))")
-                            .font(.subheadline)
-
-                        if Calendar.current.startOfDay(for: event.startDate) != Calendar.current.startOfDay(for: event.endDate) {
-                            Text("Through \(dfDate.string(from: event.endDate))")
-                                .font(.subheadline)
-                        }
-                    } else {
-                        Text(dfDate.string(from: event.startDate))
-                            .font(.subheadline)
-
-                        Text("\(dfTime.string(from: event.startDate)) – \(dfTime.string(from: event.endDate))")
-                            .font(.subheadline)
-                    }
-
-                    if !event.location.isEmpty {
-                        Text(event.location)
-                            .font(.subheadline)
-                    }
-
-                    if let enrollmentID = event.enrollmentID, event.kind == .classMeeting {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Notes")
-                                .font(.headline)
-
-                            TextEditor(text: $notesText)
-                                .focused($notesFocused)
-                                .frame(minHeight: 160)
-                                .padding(8)
-                                .background(Color(.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .onChange(of: notesText) {
-                                    viewModel.setNotes(notesText, for: enrollmentID)
-                                }
-                        }
-                    }
-                }
-                .padding()
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Event Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        if event.isAllDay {
-                            Button(role: .destructive) { confirmHideAllDay = true } label: {
-                                Label("Hide all-day event", systemImage: "eye.slash")
-                            }
-                        }
-
-                        if event.kind == .personal {
-                            Button(role: .destructive) { confirmRemoveOne = true } label: {
-                                Label("Remove event", systemImage: "trash")
-                            }
-
-                            if event.seriesID != nil {
-                                Button(role: .destructive) { confirmRemoveSeries = true } label: {
-                                    Label("Remove recurrence", systemImage: "trash.slash")
-                                }
-                            }
-                        }
-
-                        if event.kind == .classMeeting {
-                            Button(role: .destructive) { confirmHideOccurrence = true } label: {
-                                Label("Hide this occurrence", systemImage: "eye.slash")
-                            }
-
-                            if event.enrollmentID != nil {
-                                Button(role: .destructive) { confirmRemoveCourse = true } label: {
-                                    Label("Remove course from calendar", systemImage: "trash")
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { notesFocused = false }
-                }
-            }
-            .onAppear {
-                if let enrollmentID = event.enrollmentID, event.kind == .classMeeting {
-                    notesText = viewModel.notes(for: enrollmentID)
-                }
-            }
-            .confirmationDialog("Hide all-day event?", isPresented: $confirmHideAllDay, titleVisibility: .visible) {
-                Button("Hide", role: .destructive) {
-                    viewModel.hideAllDayEvent(event)
-                    syncSharedScheduleIfNeeded()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-            .confirmationDialog("Remove event?", isPresented: $confirmRemoveOne, titleVisibility: .visible) {
-                Button("Remove event", role: .destructive) {
-                    viewModel.removePersonalEvent(event)
-                    syncSharedScheduleIfNeeded()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-            .confirmationDialog("Remove recurrence?", isPresented: $confirmRemoveSeries, titleVisibility: .visible) {
-                Button("Remove recurrence", role: .destructive) {
-                    if let sid = event.seriesID {
-                        viewModel.removePersonalSeries(seriesID: sid)
-                    }
-                    syncSharedScheduleIfNeeded()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-            .confirmationDialog("Remove course?", isPresented: $confirmRemoveCourse, titleVisibility: .visible) {
-                Button("Remove course", role: .destructive) {
-                    if let id = event.enrollmentID,
-                       let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
-                        viewModel.removeEnrollment(enrollment)
-                    }
-                    syncSharedScheduleIfNeeded()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-            .confirmationDialog("Hide this class meeting only?", isPresented: $confirmHideOccurrence, titleVisibility: .visible) {
-                Button("Hide this occurrence", role: .destructive) {
-                    viewModel.hideClassOccurrence(event)
-                    syncSharedScheduleIfNeeded()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
-    }
-
-    private func syncSharedScheduleIfNeeded() {
-        socialManager.requestScheduleSync()
-    }
-}
-
 struct AllDayEventsListView: View {
     @EnvironmentObject var viewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
@@ -1367,5 +1222,62 @@ fileprivate struct RoundedCorner: Shape {
             cornerRadii: CGSize(width: radius, height: radius)
         )
         return Path(path.cgPath)
+    }
+}
+
+
+// MARK: - Overlap layout
+
+enum OverlapLayout {
+    /// Narrower than this, overlapping events stack instead of sharing the column.
+    static let minimumLaneWidth: CGFloat = 72
+
+    /// Assigns each event the first lane that is free when it starts.
+    static func lanes(for events: [ClassEvent]) -> [String: Int] {
+        var laneEnds: [Date] = []
+        var result: [String: Int] = [:]
+        for event in events.sorted(by: { $0.startDate == $1.startDate ? $0.endDate > $1.endDate : $0.startDate < $1.startDate }) {
+            if let lane = laneEnds.firstIndex(where: { $0 <= event.startDate }) {
+                laneEnds[lane] = event.endDate
+                result[event.interactionKey] = lane
+            } else {
+                laneEnds.append(event.endDate)
+                result[event.interactionKey] = laneEnds.count - 1
+            }
+        }
+        return result
+    }
+}
+
+// MARK: - Detail pager
+
+struct EventDetailSelection: Identifiable {
+    let events: [ClassEvent]
+    let index: Int
+    var id: String { events.map(\.interactionKey).joined(separator: "|") + "#\(index)" }
+}
+
+/// Event details; when events overlap, swipe sideways between them.
+struct EventDetailPager: View {
+    let selection: EventDetailSelection
+    @State private var page: Int
+
+    init(selection: EventDetailSelection) {
+        self.selection = selection
+        _page = State(initialValue: selection.index)
+    }
+
+    var body: some View {
+        if selection.events.count == 1, let event = selection.events.first {
+            ClassEventDetailView(event: event)
+        } else {
+            TabView(selection: $page) {
+                ForEach(Array(selection.events.enumerated()), id: \.offset) { index, event in
+                    ClassEventDetailView(event: event, pageLabel: "\(index + 1) of \(selection.events.count)")
+                        .tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+        }
     }
 }
