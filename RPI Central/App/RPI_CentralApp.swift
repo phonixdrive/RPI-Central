@@ -22,6 +22,9 @@ struct RPI_CentralApp: App {
            let filePath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
            let options = FirebaseOptions(contentsOfFile: filePath) {
             FirebaseApp.configure(options: options)
+            #if DEBUG && canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+            FirebaseEmulator.configureIfRequested()
+            #endif
         }
 #endif
     }

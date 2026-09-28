@@ -63,6 +63,7 @@ open "RPI Central.xcodeproj"
 | `Data/semester_data_archive/` | Older terms, kept out of the app bundle |
 | `Data/academic_calendar_26.json` | 2026–2027 academic calendar data |
 | `firebase/` | Firestore rules, Cloud Functions, and their tests |
+| `firebase/emulator/` | Sample data for running the app against local Firebase emulators |
 | `Tools/campus_buildings/` | Regenerates `CampusBuildings.json` from OpenStreetMap |
 | `Tools/scrapers/` | Course-data collection and transformation tools |
 | `Tools/shuttle_tracker/` | Reference data the shuttle screens were built from |
