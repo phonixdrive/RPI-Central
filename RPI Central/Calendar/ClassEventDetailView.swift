@@ -702,3 +702,241 @@ struct ClassEventDetailView: View {
     }
 }
 
+// MARK: - Removal confirmations
+
+private struct RemovalDialogs: ViewModifier {
+    @EnvironmentObject var viewModel: CalendarViewModel
+    let event: ClassEvent
+    @Binding var confirmHideAllDay: Bool
+    @Binding var confirmRemoveOne: Bool
+    @Binding var confirmRemoveSeries: Bool
+    @Binding var confirmRemoveCourse: Bool
+    @Binding var confirmHideOccurrence: Bool
+    let onDone: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("Hide all-day event?", isPresented: $confirmHideAllDay, titleVisibility: .visible) {
+                Button("Hide", role: .destructive) {
+                    viewModel.hideAllDayEvent(event)
+                    onDone()
+                }
+            }
+            .confirmationDialog("Remove event?", isPresented: $confirmRemoveOne, titleVisibility: .visible) {
+                Button("Remove Event", role: .destructive) {
+                    viewModel.removePersonalEvent(event)
+                    onDone()
+                }
+            }
+            .confirmationDialog("Remove every repeat of this event?", isPresented: $confirmRemoveSeries, titleVisibility: .visible) {
+                Button("Remove All", role: .destructive) {
+                    if let seriesID = event.seriesID { viewModel.removePersonalSeries(seriesID: seriesID) }
+                    onDone()
+                }
+            }
+            .confirmationDialog("Remove this course from your calendar?", isPresented: $confirmRemoveCourse, titleVisibility: .visible) {
+                Button("Remove Course", role: .destructive) {
+                    if let id = event.enrollmentID, let enrollment = viewModel.enrolledCourses.first(where: { $0.id == id }) {
+                        viewModel.removeEnrollment(enrollment)
+                    }
+                    onDone()
+                }
+            }
+            .confirmationDialog("Hide only this class meeting?", isPresented: $confirmHideOccurrence, titleVisibility: .visible) {
+                Button("Hide This Meeting", role: .destructive) {
+                    viewModel.hideClassOccurrence(event)
+                    onDone()
+                }
+            }
+    }
+}
+
+// MARK: - Rating sheet
+
+struct RateClassSheet: View {
+    let courseTitle: String
+    let existing: CourseRating?
+    let semesterCode: String
+    let accent: Color
+    @ObservedObject var model: CourseRatingsModel
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var overall = 4
+    @State private var difficulty = 3
+    @State private var hours = 6
+    @State private var tags: Set<CourseRatingTag> = []
+    @State private var isSaving = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Overall") {
+                    StarPicker(value: $overall, systemImage: "star.fill", color: .yellow)
+                }
+                Section {
+                    StarPicker(value: $difficulty, systemImage: "flame.fill", color: .orange)
+                } header: {
+                    Text("Difficulty")
+                } footer: {
+                    Text("1 is easy, 5 is very hard.")
+                }
+                Section("Work Outside Class") {
+                    Stepper("\(hours) hours a week", value: $hours, in: 0...40)
+                }
+                Section {
+                    ForEach(CourseRatingTag.allCases) { tag in
+                        Button {
+                            if tags.contains(tag) {
+                                tags.remove(tag)
+                            } else if tags.count < CourseRating.maximumTags {
+                                tags.insert(tag)
+                            }
+                        } label: {
+                            HStack {
+                                Text(tag.title).foregroundStyle(Color.primary)
+                                Spacer()
+                                if tags.contains(tag) {
+                                    Image(systemName: "checkmark").foregroundStyle(accent)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Tags")
+                } footer: {
+                    Text("Pick up to \(CourseRating.maximumTags). Ratings are anonymous averages.")
+                }
+                if existing != nil {
+                    Section {
+                        Button("Delete My Rating", role: .destructive) {
+                            Task {
+                                await model.deleteMyRating()
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(courseTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Submit") {
+                        isSaving = true
+                        Task {
+                            let saved = await model.save(CourseRating(
+                                overall: overall,
+                                difficulty: difficulty,
+                                hoursPerWeek: hours,
+                                tags: CourseRatingTag.allCases.filter(tags.contains),
+                                semesterCode: semesterCode
+                            ))
+                            isSaving = false
+                            if saved { dismiss() }
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+            .onAppear {
+                if let existing {
+                    overall = existing.overall
+                    difficulty = existing.difficulty
+                    hours = existing.hoursPerWeek
+                    tags = Set(existing.tags)
+                }
+            }
+        }
+    }
+}
+
+private struct StarPicker: View {
+    @Binding var value: Int
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ForEach(1...5, id: \.self) { index in
+                Button {
+                    value = index
+                } label: {
+                    Image(systemName: systemImage)
+                        .font(.title2)
+                        .foregroundStyle(index <= value ? color : Color.secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(index)")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityValue("\(value) of 5")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: value = min(5, value + 1)
+            case .decrement: value = max(1, value - 1)
+            @unknown default: break
+            }
+        }
+    }
+}
+
+/// Tags that wrap onto multiple lines.
+private struct FlowTags: View {
+    let tags: [String]
+    let accent: Color
+
+    var body: some View {
+        WrappingHStack(spacing: 6) {
+            ForEach(tags, id: \.self) { tag in
+                Text(tag)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.12), in: Capsule())
+                    .foregroundStyle(accent)
+            }
+        }
+    }
+}
+
+private struct WrappingHStack: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            maxX = max(maxX, x - spacing)
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? maxX, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
