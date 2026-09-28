@@ -77,12 +77,18 @@ private struct PlanRow: View {
 
                 Spacer(minLength: 8)
 
-                Text(state.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(state.color)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(state.color.opacity(0.14), in: Capsule())
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(state.title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(state.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(state.color.opacity(0.14), in: Capsule())
+
+                    if canEnd || isOwnPost {
+                        optionsMenu(state: state)
+                    }
+                }
             }
 
             if !post.details.isEmpty {
@@ -97,36 +103,11 @@ private struct PlanRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            if state != .ended || isOwnPost {
+            if state != .ended {
                 HStack(spacing: 8) {
-                    if state != .ended {
-                        presenceButton("Going", systemImage: "figure.walk", status: .going)
-                        if state == .live {
-                            presenceButton("I’m Here", systemImage: "location.fill", status: .here)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if canEnd || isOwnPost {
-                        Menu {
-                            if state != .ended && canEnd {
-                                Button("End Plan", systemImage: "checkmark.circle") {
-                                    Task { _ = await socialManager.endFeedPost(post) }
-                                }
-                            }
-                            if isOwnPost {
-                                Button("Delete Plan", systemImage: "trash", role: .destructive) {
-                                    Task { _ = await socialManager.deleteFeedPost(post.id) }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .frame(width: 32, height: 32)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Plan options")
+                    presenceButton("Going", systemImage: "figure.walk", status: .going)
+                    if state == .live {
+                        presenceButton("I’m Here", systemImage: "location.fill", status: .here)
                     }
                 }
             }
@@ -134,15 +115,40 @@ private struct PlanRow: View {
         .padding(.vertical, 4)
     }
 
+    private func optionsMenu(state: PlanTiming.State) -> some View {
+        Menu {
+            if state != .ended && canEnd {
+                Button("End Plan", systemImage: "checkmark.circle") {
+                    Task { _ = await socialManager.endFeedPost(post) }
+                }
+            }
+            if isOwnPost {
+                Button("Delete Plan", systemImage: "trash", role: .destructive) {
+                    Task { _ = await socialManager.deleteFeedPost(post.id) }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .frame(width: 32, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("Plan options")
+    }
+
     private var metaLine: String {
         let owner = isOwnPost ? "You" : post.ownerDisplayName
         return post.location.isEmpty ? owner : "\(owner) · \(post.location)"
     }
 
-    /// "Sam going · Jordan here", or counts once it gets long.
+    /// "You & Sam going · Jordan here", or counts once it gets long.
     private var attendance: String? {
+        let viewerID = socialManager.currentUser?.id
         func part(_ status: SocialFeedPresenceStatus, _ verb: String) -> String? {
-            let names = item.responses.filter { $0.status == status }.map { FriendAvatarStyle.firstName(for: $0.displayName) }
+            let responses = item.responses
+                .filter { $0.status == status }
+                .sorted { ($0.userID == viewerID ? 0 : 1) < ($1.userID == viewerID ? 0 : 1) }
+            let names = responses.map { $0.userID == viewerID ? "You" : FriendAvatarStyle.firstName(for: $0.displayName) }
             switch names.count {
             case 0: return nil
             case 1, 2: return "\(names.joined(separator: " & ")) \(verb)"
@@ -199,12 +205,14 @@ private enum PlanTiming {
 
     static func text(for post: SocialFeedPost, now: Date = Date()) -> String {
         if let ended = endDate(for: post, now: now) {
+            if now.timeIntervalSince(ended) < 60 { return "Just ended" }
             return "Ended \(relative.localizedString(for: ended, relativeTo: now))"
         }
         guard let start = date(post.startsAt) else { return "Just posted" }
         if start > now {
             return "Starts \(start.formatted(.relative(presentation: .named)))"
         }
+        if now.timeIntervalSince(start) < 60 { return "Just started" }
         return "Started \(relative.localizedString(for: start, relativeTo: now))"
     }
 
@@ -269,6 +277,7 @@ struct FeedComposerView: View {
                         .focused($titleFocused)
                     TextField("Where", text: $location)
                         .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
                     TextField("Details", text: $details, axis: .vertical)
                         .textInputAutocapitalization(.sentences)
                         .lineLimit(2...5)
