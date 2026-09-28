@@ -1677,27 +1677,16 @@ final class SocialManager: ObservableObject {
                 latestMessageAt: message.createdAt
             )
 
-            if reference.sourceKind != .campusGroup {
-                let deliveredViaRelay = try await triggerGroupChatPushIfPossible(
-                    for: reference,
-                    message: message
-                )
+            didSucceed = true
 
-                if !deliveredViaRelay {
-                    try await sendSocialAlert(
-                        to: reference.memberIDs,
-                        type: "groupMessage",
-                        title: reference.sourceKind == .directMessage ? viewer.displayName : reference.title,
-                        body: reference.sourceKind == .directMessage
-                            ? trimmedBody
-                            : "\(viewer.displayName): \(trimmedBody)",
-                        eventDate: nil,
-                        contextID: reference.id
-                    )
+            // The message is saved. Notifying members is best effort and must
+            // not delay the send or report it as failed.
+            if reference.sourceKind != .campusGroup {
+                let senderName = viewer.displayName
+                Task { [weak self] in
+                    await self?.notifyMembers(of: message, in: reference, senderName: senderName)
                 }
             }
-
-            didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
 #endif
@@ -1755,6 +1744,34 @@ final class SocialManager: ObservableObject {
         }
 
         return didSucceed
+    }
+
+    /// Pushes a new message through the relay, falling back to a social alert
+    /// (delivered by the Cloud Function) when the relay is unavailable.
+    private func notifyMembers(
+        of message: SocialGroupChatMessage,
+        in reference: SocialGroupChatReference,
+        senderName: String
+    ) async {
+        let deliveredViaRelay = (try? await triggerGroupChatPushIfPossible(for: reference, message: message)) ?? false
+        guard !deliveredViaRelay else { return }
+
+        do {
+            try await sendSocialAlert(
+                to: reference.memberIDs,
+                type: "groupMessage",
+                title: reference.sourceKind == .directMessage ? senderName : reference.title,
+                body: reference.sourceKind == .directMessage
+                    ? message.body
+                    : "\(senderName): \(message.body)",
+                eventDate: nil,
+                contextID: reference.id
+            )
+        } catch {
+            #if DEBUG
+            print("Chat notification failed:", error.localizedDescription)
+            #endif
+        }
     }
 
     private func triggerGroupChatPushIfPossible(
@@ -1838,11 +1855,11 @@ final class SocialManager: ObservableObject {
             let normalizedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalizedTitle.isEmpty else {
-                throw SocialError.api("Activity title is required.")
+                throw SocialError.api("Give your plan a title.")
             }
             let sanitizedGroupIDs = Array(Set(groupIDs)).sorted()
             if visibility == .groups && sanitizedGroupIDs.isEmpty {
-                throw SocialError.api("Choose at least one group for a group-only activity.")
+                throw SocialError.api("Choose at least one group.")
             }
 
             let snapshot = try await getDocument(firestore.collection("users").document(viewer.id))
@@ -1878,7 +1895,7 @@ final class SocialManager: ObservableObject {
             try await sendSocialAlert(
                 to: recipients,
                 type: "feedPost",
-                title: "\(viewer.displayName) posted an activity",
+                title: "\(viewer.displayName) posted a plan",
                 body: normalizedLocation.isEmpty
                     ? "\(normalizedTitle) is up on the campus feed."
                     : "\(normalizedTitle) at \(normalizedLocation).",
@@ -1886,7 +1903,7 @@ final class SocialManager: ObservableObject {
             )
 
             try await refreshOverviewInternal()
-            statusMessage = "Activity posted."
+            statusMessage = "Plan posted."
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
@@ -1903,7 +1920,7 @@ final class SocialManager: ObservableObject {
             guard let viewer = currentUser else { throw SocialError.notAuthenticated }
             let targetOwnerID = post.ownerID
             guard targetOwnerID == viewer.id || canModerateSocialContent else {
-                throw SocialError.api("You cannot end that activity.")
+                throw SocialError.api("You can’t end that plan.")
             }
 
             let snapshot = try await getDocument(firestore.collection("users").document(targetOwnerID))
@@ -1932,7 +1949,7 @@ final class SocialManager: ObservableObject {
             }
 
             guard didUpdate else {
-                throw SocialError.api("That activity is not available.")
+                throw SocialError.api("That plan isn’t available anymore.")
             }
 
             try await updateData([
@@ -1941,7 +1958,7 @@ final class SocialManager: ObservableObject {
             ], at: firestore.collection("users").document(targetOwnerID))
 
             try await refreshOverviewInternal()
-            statusMessage = "Activity ended."
+            statusMessage = "Plan ended."
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked
@@ -1960,7 +1977,7 @@ final class SocialManager: ObservableObject {
             let data = snapshot.data() ?? [:]
             let posts = decodeFeedPosts(from: data)
             guard posts.contains(where: { $0.id == postID && $0.ownerID == viewer.id }) else {
-                throw SocialError.api("That activity is not available.")
+                throw SocialError.api("That plan isn’t available anymore.")
             }
 
             let updatedPosts = posts.filter { $0.id != postID }
@@ -1975,7 +1992,7 @@ final class SocialManager: ObservableObject {
             try await updateData(payload, at: firestore.collection("users").document(viewer.id))
 
             try await refreshOverviewInternal()
-            statusMessage = "Activity removed."
+            statusMessage = "Plan deleted."
             didSucceed = true
 #else
             throw SocialError.firebaseNotLinked

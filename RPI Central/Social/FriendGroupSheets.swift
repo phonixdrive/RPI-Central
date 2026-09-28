@@ -14,6 +14,7 @@ struct FriendGroupEditorView: View {
     @State private var groupName = ""
     @State private var selectedMemberIDs: Set<String> = []
     @State private var isSaving = false
+    @FocusState private var nameFocused: Bool
 
     private var sortedFriends: [SocialFriend] {
         friends.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
@@ -29,6 +30,7 @@ struct FriendGroupEditorView: View {
                 Section {
                     TextField("Group name", text: $groupName)
                         .textInputAutocapitalization(.words)
+                        .focused($nameFocused)
                 }
 
                 Section(selectedMemberIDs.isEmpty ? "Members" : "Members · \(selectedMemberIDs.count)") {
@@ -55,6 +57,7 @@ struct FriendGroupEditorView: View {
                 }
             }
             .navigationTitle("New Group")
+            .onAppear { nameFocused = true }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

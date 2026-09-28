@@ -20,6 +20,7 @@ struct GroupChatSheet: View {
     @State private var isLoadingMessages = true
     @State private var draftMessage: String = ""
     @State private var isSending = false
+    @State private var sendFailed = false
     @State private var didPerformInitialScroll = false
     @State private var isMuted = false
     @State private var participantsByID: [String: SocialUser] = [:]
@@ -219,6 +220,21 @@ struct GroupChatSheet: View {
     }
 
     private func composerBar(proxy: ScrollViewProxy) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if sendFailed {
+                Label("Not sent. Tap send to try again.", systemImage: "exclamationmark.circle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
+            }
+            composerRow(proxy: proxy)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private func composerRow(proxy: ScrollViewProxy) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField("Send a message", text: $draftMessage, axis: .vertical)
                 .textFieldStyle(.plain)
@@ -242,13 +258,12 @@ struct GroupChatSheet: View {
                 isSending = true
                 Task {
                     let didSend = await socialManager.sendGroupChatMessage(for: reference, body: trimmed)
-                    if didSend {
-                        await MainActor.run {
+                    await MainActor.run {
+                        sendFailed = !didSend
+                        if didSend {
                             draftMessage = ""
                             scrollToBottom(proxy, animated: true)
                         }
-                    }
-                    await MainActor.run {
                         isSending = false
                     }
                 }
@@ -276,10 +291,6 @@ struct GroupChatSheet: View {
             .buttonStyle(.plain)
             .disabled(draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .background(.ultraThinMaterial)
     }
 
     private func chatMessageRow(
