@@ -41,6 +41,16 @@
                ReferencedContainer = "container:RPI Central.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "0D3BAF2D2E909BB5006793BF"
+               BuildableName = "RPI CentralUITests.xctest"
+               BlueprintName = "RPI CentralUITests"
+               ReferencedContainer = "container:RPI Central.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

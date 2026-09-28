@@ -12,13 +12,22 @@ struct AcademicEvent: Identifiable, Codable {
     /// Category for color-coding / behavior (all-day academic events, etc.)
     let kind: CalendarEventKind
 
+    /// Regular classes do not meet on these days (holidays, breaks).
+    let cancelsClasses: Bool
+
+    /// Calendar weekday (1 = Sunday … 7 = Saturday) whose class schedule runs
+    /// instead, for "Follow a Monday Class Schedule today" days.
+    let followsWeekday: Int?
+
     init(
         id: UUID = UUID(),
         title: String,
         startDate: Date,
         endDate: Date,
         location: String? = nil,
-        kind: CalendarEventKind = .academicOther
+        kind: CalendarEventKind = .academicOther,
+        cancelsClasses: Bool = false,
+        followsWeekday: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -26,6 +35,8 @@ struct AcademicEvent: Identifiable, Codable {
         self.endDate = endDate
         self.location = location
         self.kind = kind
+        self.cancelsClasses = cancelsClasses
+        self.followsWeekday = followsWeekday
     }
 
     // We only encode/decode semantic fields; `id` is regenerated on decode.
@@ -35,6 +46,8 @@ struct AcademicEvent: Identifiable, Codable {
         case endDate
         case location
         case kind
+        case cancelsClasses
+        case followsWeekday
     }
 
     init(from decoder: Decoder) throws {
@@ -50,7 +63,9 @@ struct AcademicEvent: Identifiable, Codable {
             startDate: startDate,
             endDate: endDate,
             location: location,
-            kind: kind
+            kind: kind,
+            cancelsClasses: (try? container.decode(Bool.self, forKey: .cancelsClasses)) ?? false,
+            followsWeekday: try? container.decode(Int.self, forKey: .followsWeekday)
         )
     }
 
@@ -61,5 +76,17 @@ struct AcademicEvent: Identifiable, Codable {
         try container.encode(endDate, forKey: .endDate)
         try container.encode(location, forKey: .location)
         try container.encode(kind, forKey: .kind)
+        try container.encode(cancelsClasses, forKey: .cancelsClasses)
+        try container.encodeIfPresent(followsWeekday, forKey: .followsWeekday)
+    }
+
+    /// Weekday named in "Follow a Monday Class Schedule today".
+    static func followedWeekday(inTitle title: String) -> Int? {
+        let names = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+        let lowered = title.lowercased()
+        guard let range = lowered.range(of: "follow a ") else { return nil }
+        let remainder = lowered[range.upperBound...]
+        guard let index = names.firstIndex(where: { remainder.hasPrefix($0) }) else { return nil }
+        return index + 1
     }
 }

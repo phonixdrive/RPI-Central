@@ -9,6 +9,23 @@ import FirebaseCore
 import FirebaseMessaging
 #endif
 
+/// A chat the user asked to open by tapping a notification. Held until the
+/// Social tab is ready, since a tap can cold-launch the app.
+enum SocialDeepLink {
+    static let didChangeNotification = Notification.Name("rpiCentral.socialDeepLinkDidChange")
+    private(set) static var pendingContextID: String?
+
+    static func open(contextID: String) {
+        pendingContextID = contextID
+        NotificationCenter.default.post(name: didChangeNotification, object: nil)
+    }
+
+    static func consume() -> String? {
+        defer { pendingContextID = nil }
+        return pendingContextID
+    }
+}
+
 final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
@@ -25,6 +42,10 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         Messaging.messaging().delegate = self
 #endif
         NotificationManager.registerForRemoteNotificationsIfAuthorized()
+
+        // iOS relaunches the app in the background for shared-location
+        // events; the location manager must exist to receive them.
+        LocationSharingManager.shared.handleLaunch()
         return true
     }
 
@@ -64,6 +85,12 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let userInfo = response.notification.request.content.userInfo
+        if let payload = NotificationManager.socialPushPayload(from: userInfo),
+           payload.type == "groupMessage",
+           !payload.contextID.isEmpty {
+            SocialDeepLink.open(contextID: payload.contextID)
+        }
         completionHandler()
     }
 }
