@@ -81,23 +81,29 @@ def get_prereq_course_ids(prereqs) -> List[str]:
     return []
 
 
-def generate(semester_data_path: str):
+def generate(semester_data_paths):
     """
     Generate the prerequisite graph adjacency list.
-    The parameter `semester_data_path` is the path to the semester-specific data.
+    `semester_data_paths` is a path (or list of paths) containing one folder
+    per term, e.g. Data/semester_data and Data/semester_data_archive.
     """
+    if isinstance(semester_data_paths, str):
+        semester_data_paths = [semester_data_paths]
 
     # Map from course ID to title and prereqs.
     # This is an adjacency list.
     adj_list: Dict[str, CoursePrereqs] = dict()
 
-    # List of semester paths
-    sem_dirs = list(
-        map(
-            lambda sem_dir: f"{semester_data_path}/{sem_dir}",
-            # Need to sort so new semester data replaces old data
-            sorted(os.listdir(semester_data_path)),
-        )
+    # Semester folders from every path, sorted by term code so newer
+    # semester data replaces older data.
+    sem_dirs = sorted(
+        (
+            os.path.join(data_path, sem_dir)
+            for data_path in semester_data_paths
+            for sem_dir in os.listdir(data_path)
+            if os.path.isdir(os.path.join(data_path, sem_dir))
+        ),
+        key=os.path.basename,
     )
 
     most_recent_catalog = {}
@@ -119,9 +125,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("semester_data_path")
     parser.add_argument("output_path")
+    parser.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        help="Additional term folders to read, e.g. Data/semester_data_archive (older terms kept out of the app bundle)",
+    )
     args = parser.parse_args()
 
-    graph = generate(args.semester_data_path)
+    graph = generate([args.semester_data_path, *args.include])
 
     with open(args.output_path, "w") as f:
         json.dump(graph, f, indent=2)

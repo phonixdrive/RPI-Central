@@ -78,15 +78,7 @@ final class AcademicCalendarService {
                     let end = self.parseYMD(e.endDate ?? e.startDate) ?? start
                     let kind = self.kindFromTags(e.tags)
 
-                    out.append(
-                        AcademicEvent(
-                            title: e.title,
-                            startDate: start,
-                            endDate: end,
-                            location: nil,
-                            kind: kind
-                        )
-                    )
+                    out.append(self.makeAcademicEvent(e, start: start, end: end, kind: kind))
                 }
 
                 completion(.success(out))
@@ -141,15 +133,7 @@ final class AcademicCalendarService {
                     let end = self.parseYMD(e.endDate ?? e.startDate) ?? start
                     let kind = self.kindFromTags(e.tags)
 
-                    out.append(
-                        AcademicEvent(
-                            title: e.title,
-                            startDate: start,
-                            endDate: end,
-                            location: nil,
-                            kind: kind
-                        )
-                    )
+                    out.append(self.makeAcademicEvent(e, start: start, end: end, kind: kind))
                 }
 
                 completion(.success(out))
@@ -317,6 +301,23 @@ final class AcademicCalendarService {
         }
 
         return try loadBundledCalendar(named: filename)
+    }
+
+    private func makeAcademicEvent(
+        _ event: AcademicCalendarEvent,
+        start: Date,
+        end: Date,
+        kind: CalendarEventKind
+    ) -> AcademicEvent {
+        AcademicEvent(
+            title: event.title,
+            startDate: start,
+            endDate: end,
+            location: nil,
+            kind: kind,
+            cancelsClasses: event.tags.noClasses,
+            followsWeekday: event.tags.followDay ? AcademicEvent.followedWeekday(inTitle: event.title) : nil
+        )
     }
 
     private func kindFromTags(_ tags: AcademicTags) -> CalendarEventKind {

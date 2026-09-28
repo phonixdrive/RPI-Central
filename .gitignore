@@ -19,3 +19,14 @@ RPI Central.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 firebase-debug.log
 firebase-debug.*.log
 firebase/functions/node_modules/
+
+# Firestore emulator logs (from `npm run test:rules`)
+firestore-debug.log
+**/firestore-debug.log
+ui-debug.log
+
+# Local Python environment for Tools/scrapers
+Tools/scrapers/.venv/
+
+# macOS Finder metadata
+.DS_Store

@@ -428,6 +428,7 @@ struct PhoneWebGradeBreakdownLite: Codable {
     var simpleInputMode: String?
     var simpleLetterGrade: String?
     var creditsOverride: Double?
+    var creditsOverrideIsExplicit: Bool?
 
     init(_ breakdown: GradeBreakdown) {
         self.letter = breakdown.overrideLetterGrade?.rawValue
@@ -440,6 +441,7 @@ struct PhoneWebGradeBreakdownLite: Codable {
         self.simpleInputMode = breakdown.simpleInputMode.rawValue
         self.simpleLetterGrade = breakdown.simpleLetterGrade?.rawValue
         self.creditsOverride = breakdown.creditsOverride
+        self.creditsOverrideIsExplicit = breakdown.creditsOverrideIsExplicit
     }
 
     var gradeBreakdownValue: GradeBreakdown {
@@ -447,6 +449,7 @@ struct PhoneWebGradeBreakdownLite: Codable {
             categories: (categories ?? []).map(\.gradeCategoryValue),
             overrideLetterGrade: letter.flatMap(LetterGrade.init(rawValue:)),
             creditsOverride: creditsOverride,
+            creditsOverrideIsExplicit: creditsOverrideIsExplicit,
             gradeCutoffs: gradeCutoffs ?? .standard,
             isAdvancedMode: isAdvancedMode ?? true,
             simpleScorePercent: simpleScorePercent,
@@ -740,8 +743,7 @@ final class AppStateSyncManager: ObservableObject {
             )
 
             if let socialManager {
-                await socialManager.syncCourseCommunities(from: calendarViewModel)
-                await socialManager.syncSchedule(from: calendarViewModel)
+                socialManager.requestScheduleSync(force: true)
             }
 
             try await refreshAfterMutation(userID: userID)
@@ -777,8 +779,7 @@ final class AppStateSyncManager: ObservableObject {
             NotificationCenter.default.post(name: .appStateSyncDidApplyLocalState, object: nil)
 
             if let socialManager {
-                await socialManager.syncCourseCommunities(from: calendarViewModel)
-                await socialManager.syncSchedule(from: calendarViewModel)
+                socialManager.requestScheduleSync(force: true)
             }
 
             try await refreshAfterMutation(userID: userID)
@@ -830,8 +831,7 @@ final class AppStateSyncManager: ObservableObject {
             NotificationCenter.default.post(name: .appStateSyncDidApplyLocalState, object: nil)
 
             if let socialManager {
-                await socialManager.syncCourseCommunities(from: calendarViewModel)
-                await socialManager.syncSchedule(from: calendarViewModel)
+                socialManager.requestScheduleSync(force: true)
             }
 
             try await refreshAfterMutation(userID: userID)
@@ -912,20 +912,55 @@ final class AppStateSyncManager: ObservableObject {
         cloudSyncReady = true
     }
 
-    private func loadCloudSnapshot(userID: String) async throws -> (appState: PhoneWebAppState, updatedAt: String, source: String)? {
-        let snapshot = try await getDocument(firestore.collection("users").document(userID))
-        let data = snapshot.data()
-        guard snapshot.exists, let data else {
-            return nil
-        }
-        guard let appStateObject = data["webAppState"] else {
-            return nil
-        }
+    /// The latest saved copy lives in a document only its owner can read.
+    /// Builds before this change (and the current web app) stored it on the
+    /// public `users/{uid}` profile, which every signed-in user can read.
+    private func privateAppStateReference(userID: String) -> DocumentReference {
+        firestore.collection("users")
+            .document(userID)
+            .collection("private")
+            .document("appState")
+    }
 
+    private static let legacyAppStateFields = [
+        "webAppState",
+        "webAppStateUpdatedAt",
+        "webAppStateSource",
+        "webAppStateVersion",
+    ]
+
+    private func decodeCloudSnapshot(
+        from data: [String: Any]?
+    ) throws -> (appState: PhoneWebAppState, updatedAt: String, source: String)? {
+        guard let data, let appStateObject = data["webAppState"] else { return nil }
         let appState = try decodeJSONObject(PhoneWebAppState.self, from: appStateObject)
         let updatedAt = data["webAppStateUpdatedAt"] as? String ?? SyncISO8601.string(from: Date())
         let source = data["webAppStateSource"] as? String ?? "cloud"
         return (appState, updatedAt, source)
+    }
+
+    private func loadCloudSnapshot(userID: String) async throws -> (appState: PhoneWebAppState, updatedAt: String, source: String)? {
+        let privateSnapshot = try await getDocument(privateAppStateReference(userID: userID))
+        let privateCopy = try decodeCloudSnapshot(from: privateSnapshot.data())
+
+        let profileSnapshot = try await getDocument(firestore.collection("users").document(userID))
+        let legacyCopy = try? decodeCloudSnapshot(from: profileSnapshot.data())
+
+        guard let legacyCopy else { return privateCopy }
+
+        let privateDate = privateCopy.flatMap { SyncISO8601.date(from: $0.updatedAt) } ?? .distantPast
+        let legacyDate = SyncISO8601.date(from: legacyCopy.updatedAt) ?? .distantPast
+        let newest = legacyDate > privateDate ? legacyCopy : (privateCopy ?? legacyCopy)
+
+        // Move the newest copy into the private document, then remove the
+        // publicly readable one.
+        try await writeCloudSnapshot(
+            userID: userID,
+            appState: newest.appState,
+            updatedAt: newest.updatedAt,
+            source: newest.source
+        )
+        return newest
     }
 
     private func loadCloudBackups(userID: String) async throws -> [PhoneWebCloudBackupSummary] {
@@ -1012,9 +1047,28 @@ final class AppStateSyncManager: ObservableObject {
                 "webAppStateSource": source,
                 "webAppState": dictionaryRepresentation(of: appState),
             ],
-            at: firestore.collection("users").document(userID),
-            merge: true
+            at: privateAppStateReference(userID: userID)
         )
+
+        var removals: [AnyHashable: Any] = [:]
+        for field in Self.legacyAppStateFields {
+            removals[field] = FieldValue.delete()
+        }
+        // The private copy is already saved; a failed cleanup is retried on
+        // the next save instead of failing this one.
+        try? await updateData(removals, at: firestore.collection("users").document(userID))
+    }
+
+    private func updateData(_ data: [AnyHashable: Any], at reference: DocumentReference) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            reference.updateData(data) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 
     private func getDocument(_ reference: DocumentReference) async throws -> DocumentSnapshot {

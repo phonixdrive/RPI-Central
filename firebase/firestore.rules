@@ -22,14 +22,46 @@ service cloud.firestore {
 
     function isModerator() {
       return signedIn() &&
+        "moderator" in request.auth.token &&
+        request.auth.token.moderator == true;
+    }
+
+    function isValidSelfProfileCreate(userID) {
+      return isSelf(userID) &&
+        !request.resource.data.keys().hasAny([
+          "email",
+          "socialBanned",
+          "socialMutedUntil"
+        ]);
+    }
+
+    function isValidSelfProfileUpdate(userID) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isSelf(userID) &&
+        !changed.hasAny(["socialBanned", "socialMutedUntil"]) &&
         (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.usernameLower == "neilshrestha20061" ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayNameLower == "phonixdrive"
+          !changed.hasAny(["email"]) ||
+          !("email" in request.resource.data)
         );
     }
 
-    function isCampusWideChat(data) {
-      return data.sourceKind == "campusGroup" || data.isCampusWide == true;
+    function isAcceptedFriendship(friendshipID) {
+      let data = request.resource.data;
+      let friendRequest = get(
+        /databases/$(database)/documents/friendRequests/$(data.acceptedRequestID)
+      ).data;
+      return data.keys().hasOnly(["members", "createdAt", "acceptedRequestID"]) &&
+        data.members is list &&
+        data.members.size() == 2 &&
+        friendshipID == friendshipDocID(data.members[0], data.members[1]) &&
+        friendRequest.status == "accepted" &&
+        friendRequest.toUserID == request.auth.uid &&
+        friendRequest.fromUserID in data.members &&
+        friendRequest.toUserID in data.members;
+    }
+
+    function campusChatID() {
+      return "campusGroup_all_rpi_students";
     }
 
     function isDirectMessageBetweenFriends(data) {
@@ -38,6 +70,88 @@ service cloud.firestore {
         data.memberIDs.size() == 2 &&
         request.auth.uid in data.memberIDs &&
         areFriends(data.memberIDs[0], data.memberIDs[1]);
+    }
+
+    // A group chat's members must come from the friend group it belongs to.
+    function membersBelongToFriendGroup(chatID, memberIDs) {
+      let groupPath = /databases/$(database)/documents/friendGroups/$(chatID.replace("^manualGroup_", ""));
+      return exists(groupPath) &&
+        memberIDs.hasOnly(get(groupPath).data.memberIDs.concat([get(groupPath).data.ownerID]));
+    }
+
+    // A class chat's members must be members of that class community.
+    function membersBelongToCommunity(chatID, memberIDs) {
+      let communityPath = /databases/$(database)/documents/courseCommunities/$(chatID.replace("^classGroup_", ""));
+      return exists(communityPath) &&
+        memberIDs.hasOnly(get(communityPath).data.memberIDs);
+    }
+
+    // The thread's kind is fixed by its ID, only the one campus-wide chat can
+    // be public, and nobody can add themselves to a private chat.
+    function isValidChatThread(chatID, data) {
+      return data.memberIDs is list &&
+        (
+          (
+            chatID == campusChatID() &&
+            data.sourceKind == "campusGroup"
+          ) ||
+          (
+            chatID != campusChatID() &&
+            data.get("isCampusWide", false) == false &&
+            request.auth.uid in data.memberIDs &&
+            (
+              (chatID.matches("directMessage_.+") && isDirectMessageBetweenFriends(data)) ||
+              (
+                chatID.matches("manualGroup_.+") &&
+                data.sourceKind == "manualGroup" &&
+                membersBelongToFriendGroup(chatID, data.memberIDs)
+              ) ||
+              (
+                chatID.matches("classGroup_.+") &&
+                data.sourceKind == "classGroup" &&
+                membersBelongToCommunity(chatID, data.memberIDs)
+              )
+            )
+          )
+        );
+    }
+
+    // Only the one campus-wide thread is public. Checking the ID rather than
+    // a stored flag keeps chats that were previously flagged public private.
+    function isChatReadable(chatID) {
+      return chatID == campusChatID() ||
+        request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs;
+    }
+
+    function isValidLocationShare(ownerID) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          "ownerID",
+          "viewerIDs",
+          "latitude",
+          "longitude",
+          "accuracy",
+          "precision",
+          "placeID",
+          "placeName",
+          "placeKind",
+          "isOnCampus",
+          "updatedAt",
+          "updatedAtServer",
+          "expiresAt",
+          "expiresAtTimestamp",
+          "source"
+        ]) &&
+        data.ownerID == ownerID &&
+        data.viewerIDs is list &&
+        data.viewerIDs.size() <= 300 &&
+        !(ownerID in data.viewerIDs) &&
+        data.latitude is number &&
+        data.latitude >= -90 &&
+        data.latitude <= 90 &&
+        data.longitude is number &&
+        data.longitude >= -180 &&
+        data.longitude <= 180;
     }
 
     function isGroupMessageAlertForSharedChat(targetUserID) {
@@ -51,8 +165,8 @@ service cloud.firestore {
 
     match /users/{userID} {
       allow read: if signedIn();
-      allow create: if isSelf(userID);
-      allow update: if isSelf(userID) || (
+      allow create: if isValidSelfProfileCreate(userID);
+      allow update: if isValidSelfProfileUpdate(userID) || (
         isModerator() &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly([
           "feedPosts",
@@ -68,6 +182,12 @@ service cloud.firestore {
       }
 
       match /appBackups/{backupID} {
+        allow read, create, update, delete: if isSelf(userID);
+      }
+
+      // Grades, notes, tasks, and the LMS feed URL. The profile document
+      // itself is readable by every signed-in user, so private state lives here.
+      match /private/{documentID} {
         allow read, create, update, delete: if isSelf(userID);
       }
 
@@ -122,19 +242,47 @@ service cloud.firestore {
         (resource.data.fromUserID == request.auth.uid || resource.data.toUserID == request.auth.uid);
 
       allow create: if signedIn() &&
-        request.resource.data.fromUserID == request.auth.uid;
+        request.resource.data.keys().hasOnly([
+          "fromUserID",
+          "toUserID",
+          "status",
+          "createdAt",
+          "respondedAt"
+        ]) &&
+        request.resource.data.fromUserID == request.auth.uid &&
+        request.resource.data.toUserID is string &&
+        request.resource.data.toUserID != request.auth.uid &&
+        request.resource.data.status == "pending";
 
       allow update: if signedIn() &&
-        resource.data.toUserID == request.auth.uid;
+        resource.data.toUserID == request.auth.uid &&
+        resource.data.status == "pending" &&
+        request.resource.data.fromUserID == resource.data.fromUserID &&
+        request.resource.data.toUserID == resource.data.toUserID &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.status in ["accepted", "declined"] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "respondedAt"
+        ]);
 
       allow delete: if false;
     }
 
     match /friendships/{friendshipID} {
       allow read: if signedIn() && request.auth.uid in resource.data.members;
-      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow create: if isModerator() || (
+        signedIn() && isAcceptedFriendship(friendshipID)
+      );
       allow delete: if signedIn() && request.auth.uid in resource.data.members;
       allow update: if false;
+    }
+
+    match /accountDeletionRequests/{userID} {
+      allow create: if isSelf(userID) &&
+        request.resource.data.keys().hasOnly(["requesterID", "requestedAt"]) &&
+        request.resource.data.requesterID == request.auth.uid;
+      allow read, update, delete: if false;
     }
 
     match /friendGroups/{groupID} {
@@ -149,10 +297,11 @@ service cloud.firestore {
           request.resource.data.ownerID == request.auth.uid
         ) ||
         (
+          // Members may only leave; they cannot add or remove anyone else.
           request.auth.uid in resource.data.memberIDs &&
-          request.resource.data.ownerID == resource.data.ownerID &&
-          request.resource.data.name == resource.data.name &&
-          request.resource.data.createdAt == resource.data.createdAt
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberIDs"]) &&
+          resource.data.memberIDs.toSet().difference(request.resource.data.memberIDs.toSet()) == [request.auth.uid].toSet() &&
+          request.resource.data.memberIDs.toSet().difference(resource.data.memberIDs.toSet()).size() == 0
         )
       );
       allow delete: if signedIn() && resource.data.ownerID == request.auth.uid;
@@ -160,11 +309,19 @@ service cloud.firestore {
 
     match /courseCommunities/{communityID} {
       allow read: if signedIn() && request.auth.uid in resource.data.memberIDs;
-      allow create: if signedIn() && request.auth.uid in request.resource.data.memberIDs;
-      allow update: if signedIn() && (
-        request.auth.uid in resource.data.memberIDs ||
-        request.auth.uid in request.resource.data.memberIDs
-      );
+      allow create: if signedIn() &&
+        request.resource.data.memberIDs is list &&
+        request.resource.data.memberIDs.hasOnly([request.auth.uid]) &&
+        request.auth.uid in request.resource.data.memberIDs;
+      // Anyone enrolled can join (add themselves) or leave (remove themselves),
+      // but nobody can change another student's membership.
+      allow update: if signedIn() &&
+        (
+          request.auth.uid in resource.data.memberIDs ||
+          request.auth.uid in request.resource.data.memberIDs
+        ) &&
+        request.resource.data.memberIDs.toSet().difference(resource.data.memberIDs.toSet()).hasOnly([request.auth.uid]) &&
+        resource.data.memberIDs.toSet().difference(request.resource.data.memberIDs.toSet()).hasOnly([request.auth.uid]);
       allow delete: if false;
 
       match /comments/{commentID} {
@@ -200,37 +357,19 @@ service cloud.firestore {
 
     match /groupChats/{chatID} {
       allow read: if signedIn() && (
-        request.auth.uid in resource.data.memberIDs ||
-        isCampusWideChat(resource.data)
+        chatID == campusChatID() ||
+        request.auth.uid in resource.data.memberIDs
       );
-      allow create: if signedIn() && (
-        request.auth.uid in request.resource.data.memberIDs ||
-        isCampusWideChat(request.resource.data)
-      ) && (
-        request.resource.data.sourceKind != "directMessage" ||
-        isDirectMessageBetweenFriends(request.resource.data)
-      );
-      allow update: if signedIn() && (
-        request.auth.uid in request.resource.data.memberIDs ||
-        isCampusWideChat(request.resource.data)
-      ) && (
-        request.resource.data.sourceKind != "directMessage" ||
-        isDirectMessageBetweenFriends(request.resource.data)
-      );
+      allow create, update: if signedIn() && isValidChatThread(chatID, request.resource.data);
       allow delete: if false;
 
       match /messages/{messageID} {
-        allow read: if signedIn() &&
-          (
-            request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs ||
-            isCampusWideChat(get(/databases/$(database)/documents/groupChats/$(chatID)).data)
-          );
+        allow read: if signedIn() && isChatReadable(chatID);
         allow create: if signedIn() &&
           request.resource.data.userID == request.auth.uid &&
-          (
-            request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs ||
-            isCampusWideChat(get(/databases/$(database)/documents/groupChats/$(chatID)).data)
-          );
+          request.resource.data.body is string &&
+          request.resource.data.body.size() <= 4000 &&
+          isChatReadable(chatID);
         allow update: if false;
         allow delete: if signedIn() && (
           resource.data.userID == request.auth.uid ||
@@ -239,27 +378,43 @@ service cloud.firestore {
       }
 
       match /polls/{pollID} {
-        allow read: if signedIn() &&
-          (
-            request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs ||
-            isCampusWideChat(get(/databases/$(database)/documents/groupChats/$(chatID)).data)
-          );
+        allow read: if signedIn() && isChatReadable(chatID);
         allow create: if signedIn() &&
           request.resource.data.createdByUserID == request.auth.uid &&
+          isChatReadable(chatID);
+        allow update: if signedIn() && isChatReadable(chatID) && (
           (
-            request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs ||
-            isCampusWideChat(get(/databases/$(database)/documents/groupChats/$(chatID)).data)
-          );
-        allow update: if signedIn() &&
+            // Members change only their own vote.
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["votesByUserID"]) &&
+            request.resource.data.votesByUserID.diff(resource.data.get("votesByUserID", {}))
+              .affectedKeys().hasOnly([request.auth.uid])
+          ) ||
           (
-            request.auth.uid in get(/databases/$(database)/documents/groupChats/$(chatID)).data.memberIDs ||
-            isCampusWideChat(get(/databases/$(database)/documents/groupChats/$(chatID)).data)
-          );
+            // The creator (or a moderator) can close the poll.
+            (resource.data.createdByUserID == request.auth.uid || isModerator()) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isClosed"])
+          )
+        );
         allow delete: if signedIn() && (
           resource.data.createdByUserID == request.auth.uid ||
           isModerator()
         );
       }
+    }
+
+    match /locationShares/{ownerID} {
+      allow read: if isSelf(ownerID) || (
+        signedIn() && request.auth.uid in resource.data.viewerIDs
+      );
+      allow create, update: if isSelf(ownerID) && isValidLocationShare(ownerID);
+      // A viewer may remove only themselves (for example after unfriending).
+      allow update: if signedIn() &&
+        !isSelf(ownerID) &&
+        request.auth.uid in resource.data.viewerIDs &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["viewerIDs"]) &&
+        resource.data.viewerIDs.toSet().difference(request.resource.data.viewerIDs.toSet()).hasOnly([request.auth.uid]) &&
+        request.resource.data.viewerIDs.toSet().difference(resource.data.viewerIDs.toSet()).size() == 0;
+      allow delete: if isSelf(ownerID);
     }
 
     match /sharedSchedules/{ownerID} {

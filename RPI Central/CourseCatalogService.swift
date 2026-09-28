@@ -54,7 +54,9 @@ final class CourseCatalogService: ObservableObject {
         let loadID = UUID()
         activeLoadID = loadID
         loadingSemester = semester
+        #if DEBUG
         print("🟦 Loading QuACS term:", term, "semester:", semester)
+        #endif
 
         Task.detached(priority: .userInitiated) { [term] in
             do {
@@ -65,7 +67,9 @@ final class CourseCatalogService: ObservableObject {
                     self.loadingSemester = nil
                 }
             } catch {
+                #if DEBUG
                 print("❌ QuACS load failed:", error)
+                #endif
                 await MainActor.run {
                     guard self.activeLoadID == loadID else { return }
                     self.courses = []
@@ -160,8 +164,49 @@ enum QuACSLoader {
             }
         }
 
-        result.sort { ($0.subject, $0.number) < ($1.subject, $1.number) }
-        return result
+        return mergeDuplicateCourses(result)
+    }
+
+    /// Some source terms contain the same course record more than once (often
+    /// with the same sections repeated verbatim). Present one canonical course
+    /// and preserve the union of its genuinely distinct sections.
+    static func mergeDuplicateCourses(_ courses: [Course]) -> [Course] {
+        var orderedIDs: [String] = []
+        var mergedByID: [String: Course] = [:]
+
+        for course in courses {
+            let courseID = canonicalCourseID(course.id)
+            guard let existing = mergedByID[courseID] else {
+                orderedIDs.append(courseID)
+                mergedByID[courseID] = course
+                continue
+            }
+
+            var sections = existing.sections
+            var seenSectionIDs = Set(sections.map(sectionIdentity))
+            for section in course.sections where seenSectionIDs.insert(sectionIdentity(section)).inserted {
+                sections.append(section)
+            }
+
+            mergedByID[courseID] = Course(
+                subject: existing.subject,
+                number: existing.number,
+                title: existing.title.isEmpty ? course.title : existing.title,
+                description: existing.description.isEmpty ? course.description : existing.description,
+                sections: sections
+            )
+        }
+
+        return orderedIDs
+            .compactMap { mergedByID[$0] }
+            .sorted { ($0.subject.uppercased(), $0.number) < ($1.subject.uppercased(), $1.number) }
+    }
+
+    private static func sectionIdentity(_ section: CourseSection) -> String {
+        if let crn = section.crn {
+            return "crn:\(crn)"
+        }
+        return "section:\(section.section.trimmingCharacters(in: .whitespacesAndNewlines).uppercased())"
     }
 
     private static func loadJSON<T: Decodable>(
@@ -199,12 +244,14 @@ enum QuACSLoader {
 
     private static func buildMeetings(from timeslots: [QuACSTimeslot]) -> [Meeting] {
         var meetings: [Meeting] = []
+        var seenMeetingIDs = Set<String>()
 
         for t in timeslots {
             guard t.timeStart >= 0, t.timeEnd >= 0 else { continue }
             guard !t.days.isEmpty else { continue }
 
-            let days: [Weekday] = t.days.compactMap { Weekday(rawValue: $0) }
+            let days = Array(Set(t.days.compactMap { Weekday(rawValue: $0) }))
+                .sorted { $0.calendarWeekday < $1.calendarWeekday }
             guard !days.isEmpty else { continue }
 
             guard
@@ -212,12 +259,21 @@ enum QuACSLoader {
                 let end = timeIntToHHMM(t.timeEnd)
             else { continue }
 
+            let location = t.location.trimmingCharacters(in: .whitespacesAndNewlines)
+            let meetingID = [
+                days.map(\.rawValue).joined(),
+                start,
+                end,
+                location.lowercased()
+            ].joined(separator: "|")
+            guard seenMeetingIDs.insert(meetingID).inserted else { continue }
+
             meetings.append(
                 Meeting(
                     days: days,
                     start: start,
                     end: end,
-                    location: t.location
+                    location: location
                 )
             )
         }

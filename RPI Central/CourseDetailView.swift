@@ -407,9 +407,7 @@ struct CourseDetailView: View {
                                 Task {
                                     await socialManager.syncCourseCommunities(from: calendarViewModel)
                                     await socialManager.refreshCourseComments(for: course)
-                                    if socialManager.currentUser?.shareSchedule == true {
-                                        await socialManager.syncSchedule(from: calendarViewModel)
-                                    }
+                                    socialManager.requestScheduleSync()
                                 }
                             }
                         }
@@ -440,9 +438,7 @@ struct CourseDetailView: View {
                         Task {
                             await socialManager.syncCourseCommunities(from: calendarViewModel)
                             await socialManager.refreshCourseComments(for: course)
-                            if socialManager.currentUser?.shareSchedule == true {
-                                await socialManager.syncSchedule(from: calendarViewModel)
-                            }
+                            socialManager.requestScheduleSync()
                         }
                     }
                 }

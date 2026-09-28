@@ -3,57 +3,10 @@ import SwiftUI
 import FirebaseFirestore
 #endif
 
-private struct FriendActivitySummary {
-    let title: String
-    let detail: String
-    let systemImage: String
-
-    static func current(
-        friend: SocialFriend,
-        response: FriendScheduleResponse?,
-        at now: Date
-    ) -> FriendActivitySummary? {
-        guard friend.canViewSchedule, let response else { return nil }
-
-        let activeItems = response.schedule.items.compactMap { item -> (SharedScheduleItem, Date, Date)? in
-            guard let start = activityISODate(item.startDate),
-                  let end = activityISODate(item.endDate),
-                  start <= now,
-                  now < end else { return nil }
-            return (item, start, end)
-        }
-        let active = activeItems.sorted { lhs, rhs in
-            let lhsIsClass = lhs.0.kind == "classMeeting"
-            let rhsIsClass = rhs.0.kind == "classMeeting"
-            if lhsIsClass != rhsIsClass { return lhsIsClass }
-            return lhs.1 < rhs.1
-        }.first
-
-        guard let (item, _, end) = active else { return nil }
-        let activity = item.kind == "classMeeting" ? "In class • \(item.title)" : item.title
-        let timeText = item.isAllDay
-            ? "All day"
-            : "Until \(end.formatted(date: .omitted, time: .shortened))"
-        let detail = [item.location.trimmingCharacters(in: .whitespacesAndNewlines), timeText]
-            .filter { !$0.isEmpty }
-            .joined(separator: " • ")
-
-        return FriendActivitySummary(
-            title: activity,
-            detail: detail,
-            systemImage: item.kind == "classMeeting" ? "book.closed.fill" : "calendar"
-        )
-    }
-
-    private static func activityISODate(_ value: String) -> Date? {
-        groupChatISOFormatterWithFractionalSeconds.date(from: value)
-            ?? groupChatISOFormatter.date(from: value)
-    }
-}
-
 struct SocialHubView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var socialManager: SocialManager
+    @EnvironmentObject var locationManager: LocationSharingManager
     @AppStorage("social_show_campus_wide_group") private var showCampusWideGroup = true
 
     @State private var selectedSection: SocialHubSection = .chat
@@ -66,6 +19,7 @@ struct SocialHubView: View {
     @State private var showFriendTools = false
     @State private var showCreateGroup = false
     @State private var showFeedComposer = false
+    @State private var showingDeleteAccountConfirmation = false
     @State private var selectedFriendSchedule: FriendSchedulePresentation?
     @State private var selectedGroupChat: SocialGroupChatReference?
     @State private var selectedGroupHub: GroupHubPresentation?
@@ -80,16 +34,6 @@ struct SocialHubView: View {
 
     private var friendCount: Int { socialManager.overview?.friends.count ?? 0 }
     private var incomingCount: Int { socialManager.overview?.incomingRequests.count ?? 0 }
-    private var scheduleSyncTaskID: String {
-        [
-            socialManager.currentUser?.id ?? "none",
-            calendarViewModel.currentSemester.rawValue,
-            String(calendarViewModel.events.count),
-            String(calendarViewModel.enrolledCourses.count),
-            calendarViewModel.currentEnrollmentScheduleFingerprint,
-            String(friendCount)
-        ].joined(separator: "|")
-    }
     private var friendActivityTaskID: String {
         let friendsVersion = (socialManager.overview?.friends ?? [])
             .map { "\($0.id):\($0.lastScheduleAt ?? "none"):\($0.canViewSchedule)" }
@@ -129,6 +73,20 @@ struct SocialHubView: View {
                 .sheet(isPresented: $showFriendTools) { friendToolsSheet }
                 .sheet(isPresented: $showCreateGroup) { createGroupSheet }
                 .sheet(isPresented: $showFeedComposer) { feedComposerSheet }
+                .confirmationDialog(
+                    "Delete your RPI Central account?",
+                    isPresented: $showingDeleteAccountConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Account", role: .destructive) {
+                        Task {
+                            _ = await socialManager.requestAccountDeletion()
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This permanently deletes your social account and associated cloud data. Your local calendar remains on this device.")
+                }
         )
 
         let withTasks = AnyView(
@@ -138,7 +96,7 @@ struct SocialHubView: View {
                         await socialManager.refreshOverview()
                     }
                     syncProfileDisplayName()
-                    await syncSharedScheduleIfNeeded()
+                    openPendingDeepLink()
                 }
                 .task(id: socialManager.currentUser?.displayName) {
                     syncProfileDisplayName()
@@ -146,11 +104,12 @@ struct SocialHubView: View {
                 .task(id: socialManager.currentUser?.id) {
                     syncProfileDisplayName()
                 }
-                .task(id: scheduleSyncTaskID) {
-                    await syncSharedScheduleIfNeeded()
-                }
                 .task(id: friendActivityTaskID) {
                     await socialManager.preloadFriendSchedulesForActivity()
+                    openPendingDeepLink()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: SocialDeepLink.didChangeNotification)) { _ in
+                    openPendingDeepLink()
                 }
         )
 
@@ -185,6 +144,9 @@ struct SocialHubView: View {
                     .padding(.bottom, 24)
             }
         }
+        // Friends' live locations feed the activity lines in every section.
+        .onAppear { locationManager.beginObservingFriends() }
+        .onDisappear { locationManager.endObservingFriends() }
     }
 
     private var backgroundGradient: some View {
@@ -223,9 +185,11 @@ struct SocialHubView: View {
             setupCard
             profileCard
             sharingCard
+            #if DEBUG
             if calendarViewModel.socialDemoToolsEnabled {
                 demoCard
             }
+            #endif
         case .chat:
             if socialManager.overview == nil {
                 socialLoadingCard
@@ -241,6 +205,18 @@ struct SocialHubView: View {
                 friendsCard
                 feedListCard
             }
+        case .map:
+            FriendsMapSection(
+                onMessage: { friend in
+                    selectedGroupChat = socialManager.directMessageReference(with: friend)
+                },
+                onViewSchedule: { friend in
+                    selectedFriendSchedule = FriendSchedulePresentation(
+                        friend: friend,
+                        cachedResponse: socialManager.cachedFriendSchedule(for: friend)
+                    )
+                }
+            )
         }
     }
 
@@ -278,7 +254,7 @@ struct SocialHubView: View {
         ) { name, memberIDs in
             let created = await socialManager.createFriendGroup(name: name, memberIDs: memberIDs)
             if created {
-                await syncSharedScheduleIfNeeded()
+                socialManager.requestScheduleSync()
             }
             return created
         }
@@ -316,10 +292,21 @@ struct SocialHubView: View {
         GroupMembersSheet(presentation: presentation)
     }
 
+    /// Opens the chat from a tapped notification once its data has loaded.
+    private func openPendingDeepLink() {
+        guard socialManager.overview != nil,
+              let contextID = SocialDeepLink.pendingContextID,
+              let reference = socialManager.chatReference(forThreadID: contextID) else { return }
+        _ = SocialDeepLink.consume()
+        selectedSection = .chat
+        selectedGroupChat = reference
+    }
+
     private var sectionBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             sectionButton(title: "Chat", section: .chat)
             sectionButton(title: "Friends", section: .friends, badgeCount: incomingCount)
+            sectionButton(title: "Map", section: .map)
             sectionButton(title: "Profile", section: .profile)
         }
     }
@@ -401,22 +388,29 @@ struct SocialHubView: View {
         }
     }
 
+    /// Setup problems and status messages; hidden when there's nothing to say.
+    @ViewBuilder
     private var setupCard: some View {
-        SocialCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Firebase", systemImage: "bolt.shield")
-                    .font(.headline)
+        let needsSetup = !socialManager.isFirebaseConfigured
+        if needsSetup || socialManager.statusMessage != nil || socialManager.errorMessage != nil {
+            SocialCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    if needsSetup {
+                        Label("Firebase", systemImage: "bolt.shield")
+                            .font(.headline)
 
-                Text(socialManager.setupMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                        Text(socialManager.setupMessage)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
-                if let statusMessage = socialManager.statusMessage {
-                    messageBanner(text: statusMessage, color: .green)
-                }
+                    if let statusMessage = socialManager.statusMessage {
+                        messageBanner(text: statusMessage, color: .green)
+                    }
 
-                if let errorMessage = socialManager.errorMessage {
-                    messageBanner(text: errorMessage, color: .red)
+                    if let errorMessage = socialManager.errorMessage {
+                        messageBanner(text: errorMessage, color: .red)
+                    }
                 }
             }
         }
@@ -538,49 +532,85 @@ struct SocialHubView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Button("Sign out", role: .destructive) {
-                    socialManager.logout()
+                HStack(spacing: 10) {
+                    Button("Sign out") {
+                        socialManager.logout()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Delete account", role: .destructive) {
+                        showingDeleteAccountConfirmation = true
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
             }
         }
     }
 
     private var sharingCard: some View {
-        SocialCard {
+        let isSharingSchedule = socialManager.currentUser?.shareSchedule ?? false
+
+        return SocialCard {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Sharing", systemImage: "calendar.badge.clock")
                     .font(.headline)
 
-                Text("Share your schedule with accepted friends. Location sharing is reserved for a later pass.")
+                Text("Share your schedule with accepted friends. Friends get your whole term, so their view stays correct even when you don't open the app for a while.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 Toggle(
                     "Share my schedule with friends",
                     isOn: Binding(
-                        get: { socialManager.currentUser?.shareSchedule ?? false },
+                        get: { isSharingSchedule },
                         set: { newValue in
                             Task {
                                 await socialManager.updateShareSettings(
                                     shareSchedule: newValue,
                                     shareLocation: socialManager.currentUser?.shareLocation ?? false
                                 )
-                                if newValue {
-                                    await socialManager.syncSchedule(from: calendarViewModel)
-                                }
                             }
                         }
                     )
                 )
 
-                Button("Sync current schedule") {
-                    Task {
-                        await socialManager.syncSchedule(from: calendarViewModel)
+                if isSharingSchedule {
+                    if let publish = socialManager.lastSchedulePublish {
+                        Label(
+                            "Friends can see your schedule through \(publish.coverageEnd.formatted(date: .abbreviated, time: .omitted)) · updated \(RelativeTimeText.since(publish.publishedAt).lowercased())",
+                            systemImage: "checkmark.circle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
+
+                    Button("Sync now") {
+                        Task {
+                            await socialManager.syncSchedule(from: calendarViewModel)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(socialManager.isLoading)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(socialManager.isLoading)
+
+                Divider()
+
+                HStack(spacing: 10) {
+                    Image(systemName: locationManager.isSharingActive ? "location.fill" : "location.slash.fill")
+                        .foregroundStyle(locationManager.isSharingActive ? calendarViewModel.themeColor : Color.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Location")
+                            .font(.subheadline.weight(.semibold))
+                        Text(locationManager.isSharingActive ? "Sharing with friends" : "Ghost mode")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Open map") {
+                        selectedSection = .map
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
         }
     }
@@ -919,7 +949,7 @@ struct SocialHubView: View {
                                                 Task {
                                                     let deleted = await socialManager.deleteFriendGroup(group.id)
                                                     if deleted {
-                                                        await syncSharedScheduleIfNeeded()
+                                                        socialManager.requestScheduleSync()
                                                     }
                                                 }
                                             } label: {
@@ -1162,11 +1192,6 @@ struct SocialHubView: View {
                 }
             }
 
-            if !result.email.isEmpty {
-                Text(result.email)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1183,6 +1208,13 @@ struct SocialHubView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+
+            if let reason = result.reason {
+                Text(reason)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(calendarViewModel.themeColor)
+                    .lineLimit(1)
+            }
 
             if result.hasPendingOutgoing {
                 Text("Pending")
@@ -1299,28 +1331,44 @@ struct SocialHubView: View {
 
     private func friendActivityLine(_ friend: SocialFriend, compact: Bool = false) -> some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            let activity = FriendActivitySummary.current(
+            let schedule = socialManager.cachedFriendSchedule(for: friend)?.schedule
+            let presence = FriendPresenceResolver.resolve(
                 friend: friend,
-                response: socialManager.cachedFriendSchedule(for: friend),
-                at: context.date
+                location: locationManager.friendLocations[friend.id],
+                schedule: schedule,
+                now: context.date
             )
+            let scheduleEnded = schedule?.coverageEndDate.map { $0 < context.date } ?? false
+            let idleText: String = {
+                if !friend.canViewSchedule { return "Activity hidden" }
+                if scheduleEnded { return "Schedule not updated recently" }
+                return "No current calendar activity"
+            }()
+            let detail: String? = {
+                guard let presence else { return nil }
+                let updated = presence.updatedAt.map { RelativeTimeText.since($0, now: context.date) }
+                return [presence.detail, updated].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            }()
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Circle()
-                    .fill(activity == nil ? Color.secondary.opacity(0.45) : Color.green)
+                    .fill(presence == nil ? Color.secondary.opacity(0.45) : (presence?.freshness == .stale ? Color.orange : Color.green))
                     .frame(width: 7, height: 7)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(activity?.title ?? (friend.canViewSchedule ? "No current calendar activity" : "Activity hidden"))
-                        .font(.caption.weight(activity == nil ? .regular : .semibold))
-                        .foregroundStyle(activity == nil ? .secondary : .primary)
+                    Text(presence?.headline ?? idleText)
+                        .font(.caption.weight(presence == nil ? .regular : .semibold))
+                        .foregroundStyle(presence == nil ? .secondary : .primary)
                         .lineLimit(1)
 
-                    if !compact, let detail = activity?.detail, !detail.isEmpty {
-                        Label(detail, systemImage: activity?.systemImage ?? "calendar")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    if !compact, let detail, !detail.isEmpty {
+                        Label(
+                            detail,
+                            systemImage: presence?.freshness == .scheduled ? "calendar" : "location.fill"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                     }
                 }
             }
@@ -1662,13 +1710,6 @@ struct SocialHubView: View {
         }
     }
 
-    private func syncSharedScheduleIfNeeded() async {
-        guard socialManager.isAuthenticated else { return }
-        await socialManager.syncCourseCommunities(from: calendarViewModel)
-        guard socialManager.currentUser?.shareSchedule == true else { return }
-        await socialManager.syncSchedule(from: calendarViewModel)
-    }
-
     private func syncProfileDisplayName() {
         profileDisplayName = socialManager.currentUser?.displayName ?? ""
     }
@@ -1883,6 +1924,7 @@ struct SocialHubView: View {
 private enum SocialHubSection: String {
     case friends
     case chat
+    case map
     case profile
 }
 
@@ -3474,10 +3516,23 @@ private struct FriendScheduleView: View {
                                     .foregroundStyle(.secondary)
                             }
 
+                            if let coverageEnd = response.schedule.coverageEndDate {
+                                Label(
+                                    "Shared through \(coverageEnd.formatted(date: .abbreviated, time: .omitted))",
+                                    systemImage: "calendar.badge.checkmark"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(coverageEnd < Date() ? Color.orange : Color.secondary)
+                            }
+
                             if !response.schedule.semesterCode.isEmpty {
-                                Label(response.schedule.semesterCode, systemImage: "graduationcap")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Label(
+                                    Semester(rawValue: response.schedule.semesterCode)?.displayName
+                                        ?? response.schedule.semesterCode,
+                                    systemImage: "graduationcap"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -3529,7 +3584,7 @@ private struct FriendScheduleView: View {
                                     .font(.headline)
 
                                 if selectedDateItems.isEmpty {
-                                    Text("No shared items on this day.")
+                                    Text(emptyDayMessage)
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 } else {
@@ -3573,6 +3628,21 @@ private struct FriendScheduleView: View {
                 }
             }
         }
+    }
+
+    /// Distinguishes a free day from a day the friend's app never published.
+    private var emptyDayMessage: String {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: selectedDate)
+        if let coverageEnd = response.schedule.coverageEndDate,
+           day > calendar.startOfDay(for: coverageEnd) {
+            return "\(response.owner.displayName)'s shared schedule ends \(coverageEnd.formatted(date: .abbreviated, time: .omitted)). It extends automatically the next time their app syncs."
+        }
+        if let coverageStart = response.schedule.coverageStart.flatMap(SharedScheduleDates.parse),
+           day < calendar.startOfDay(for: coverageStart) {
+            return "Older days aren't shared."
+        }
+        return "Nothing scheduled this day."
     }
 
     private func shiftMonth(by value: Int) {
@@ -3955,20 +4025,33 @@ private struct FriendScheduleCache {
 
         var grouped: [String: [ParsedScheduleItem]] = [:]
         var summaries: [String: FriendScheduleDaySummary] = [:]
+        let calendar = FriendScheduleCalendar.calendar
 
         for item in items {
-            let key = FriendScheduleFormatters.dayKey.string(
-                from: FriendScheduleCalendar.calendar.startOfDay(for: item.startDate)
-            )
-            grouped[key, default: []].append(item)
+            // Multi-day all-day items (breaks, finals) belong on every day
+            // they cover, not just the first.
+            var day = calendar.startOfDay(for: item.startDate)
+            let lastDay = item.isAllDay
+                ? calendar.startOfDay(for: max(item.startDate, item.endDate))
+                : day
+            var coveredDays = 0
 
-            var summary = summaries[key] ?? FriendScheduleDaySummary(itemCount: 0, hasExam: false, markerStyles: [])
-            summary.itemCount += 1
-            summary.hasExam = summary.hasExam || item.isExam
-            if !summary.markerStyles.contains(item.markerStyle) {
-                summary.markerStyles.append(item.markerStyle)
+            while day <= lastDay && coveredDays < 60 {
+                let key = FriendScheduleFormatters.dayKey.string(from: day)
+                grouped[key, default: []].append(item)
+
+                var summary = summaries[key] ?? FriendScheduleDaySummary(itemCount: 0, hasExam: false, markerStyles: [])
+                summary.itemCount += 1
+                summary.hasExam = summary.hasExam || item.isExam
+                if !summary.markerStyles.contains(item.markerStyle) {
+                    summary.markerStyles.append(item.markerStyle)
+                }
+                summaries[key] = summary
+
+                coveredDays += 1
+                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
             }
-            summaries[key] = summary
         }
 
         self.itemsByDayKey = grouped

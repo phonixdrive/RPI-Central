@@ -52,6 +52,15 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openCalendarTab)) { _ in
             selectedTab = .calendar
         }
+        .onReceive(NotificationCenter.default.publisher(for: SocialDeepLink.didChangeNotification)) { _ in
+            selectedTab = .social
+        }
+        .onAppear {
+            // A notification tap may have launched the app.
+            if SocialDeepLink.pendingContextID != nil {
+                selectedTab = .social
+            }
+        }
     }
 
     private func tabContent<Content: View>(_ content: Content) -> some View {
@@ -157,4 +166,5 @@ extension Notification.Name {
         .environmentObject(SocialManager())
         .environmentObject(ExternalCalendarSyncManager())
         .environmentObject(AppStateSyncManager())
+        .environmentObject(LocationSharingManager.shared)
 }

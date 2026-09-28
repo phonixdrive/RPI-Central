@@ -78,6 +78,8 @@ struct SocialSearchResult: Codable, Identifiable, Equatable {
     let areFriends: Bool
     let hasPendingIncoming: Bool
     let hasPendingOutgoing: Bool
+    /// Why this person is suggested, e.g. "2 shared classes".
+    var reason: String? = nil
 }
 
 struct SocialFriendGroup: Codable, Identifiable, Equatable {
@@ -294,6 +296,59 @@ struct SharedScheduleSnapshot: Codable, Equatable {
     let semesterCode: String
     let generatedAt: String?
     let items: [SharedScheduleItem]
+    /// First and last moments the owner published (ISO 8601). Snapshots from
+    /// older app versions have no coverage and are treated as ending at
+    /// their last item.
+    var coverageStart: String? = nil
+    var coverageEnd: String? = nil
+
+    /// The last day this snapshot can answer questions about.
+    var coverageEndDate: Date? {
+        if let coverageEnd, let date = SharedScheduleDates.parse(coverageEnd) {
+            return date
+        }
+        return items.compactMap { SharedScheduleDates.parse($0.endDate) }.max()
+    }
+
+    var generatedDate: Date? {
+        generatedAt.flatMap(SharedScheduleDates.parse)
+    }
+}
+
+enum SocialHashing {
+    /// Stable across launches and devices (unlike `Hasher`), for change
+    /// detection and compact identifiers.
+    static func fnv1a64Hex(_ data: Data) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+enum SharedScheduleDates {
+    private static let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let plain: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    static func parse(_ value: String) -> Date? {
+        guard !value.isEmpty else { return nil }
+        return plain.date(from: value) ?? fractional.date(from: value)
+    }
+
+    static func string(from date: Date) -> String {
+        plain.string(from: date)
+    }
 }
 
 struct SharedScheduleItem: Codable, Identifiable, Equatable {

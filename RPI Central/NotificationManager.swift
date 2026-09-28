@@ -384,8 +384,11 @@ enum NotificationManager {
 
     // MARK: - Pomodoro timer notifications
 
-    /// Schedules an immediate "timer finished" notification.
-    static func scheduleTimerFinishedNotification(isBreak: Bool) {
+    private static let pomodoroNotificationID = "pomodoro.phase"
+
+    /// Schedules the end-of-phase alert for `date`, replacing any earlier one,
+    /// so it arrives on time even while the app is in the background.
+    static func schedulePomodoroNotification(at date: Date, isBreak: Bool) {
         let content = UNMutableNotificationContent()
         content.sound = .default
 
@@ -397,23 +400,23 @@ enum NotificationManager {
             content.body = "Take a short break."
         }
 
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-
         let request = UNNotificationRequest(
-            identifier: "pomodoro.finished.\(UUID().uuidString)",
+            identifier: pomodoroNotificationID,
             content: content,
-            trigger: trigger
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, date.timeIntervalSinceNow), repeats: false)
         )
 
         UNUserNotificationCenter.current().add(request) { err in
             #if DEBUG
             if let err {
                 print("❌ Pomodoro notification failed:", err)
-            } else {
-                print("✅ Pomodoro notification scheduled")
             }
             #endif
         }
+    }
+
+    static func cancelPomodoroNotification() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [pomodoroNotificationID])
     }
 
     // MARK: - Social notifications

@@ -2799,8 +2799,8 @@ private struct SemesterGPAOverrideEditorView: View {
                 guard let grade = GPACalculator.resolvedLetter(
                     enrollmentID: enrollment.id,
                     fallbackLetter: calendarViewModel.grade(for: enrollment.id)
-                ) else { return nil }
-                return (grade, enrollment.section.credits)
+                ), GPACalculator.countsTowardGPA(grade) else { return nil }
+                return (grade, calendarViewModel.gpaCredits(for: enrollment))
             }
     }
 
@@ -3327,32 +3327,48 @@ private struct MealPlanSettingsView: View {
 
 // MARK: - Pomodoro Timer View
 
+/// The countdown is derived from an end date, so it stays correct while the
+/// app is in the background, and the "session finished" alert is scheduled
+/// with the system up front instead of when the in-app timer happens to fire.
 private struct PomodoroTimerView: View {
     let themeColor: Color
     @ObservedObject var settings: PomodoroSettingsManager
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isRunning = false
     @State private var isBreak = false
-    @State private var remainingSeconds: Int = 0
+    /// When the running phase ends; `nil` while paused or stopped.
+    @State private var phaseEndsAt: Date?
+    /// Time left in a paused phase.
+    @State private var pausedRemaining: TimeInterval?
 
-    @State private var timer: Timer? = nil
+    private var isRunning: Bool { phaseEndsAt != nil }
+
+    private var phaseDuration: TimeInterval {
+        TimeInterval((isBreak ? settings.preset.breakMinutes : settings.preset.focusMinutes) * 60)
+    }
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(spacing: 6) {
-                Text(isBreak ? "Break" : "Focus")
-                    .font(.title2.weight(.bold))
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                VStack(spacing: 6) {
+                    Text(isBreak ? "Break" : "Focus")
+                        .font(.title2.weight(.bold))
 
-                Text(timeString(remainingSeconds))
-                    .font(.system(size: 52, weight: .bold, design: .rounded))
-                    .monospacedDigit()
+                    Text(timeString(remainingSeconds(at: context.date)))
+                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText(countsDown: true))
+
+                    ProgressView(value: progress(at: context.date))
+                        .tint(themeColor)
+                        .frame(maxWidth: 220)
+                }
             }
             .padding(.top, 20)
 
             HStack(spacing: 12) {
-                Button(isRunning ? "Pause" : "Start") {
+                Button(isRunning ? "Pause" : (pausedRemaining == nil ? "Start" : "Resume")) {
                     if isRunning { pause() } else { start() }
                 }
                 .buttonStyle(.borderedProminent)
@@ -3360,6 +3376,11 @@ private struct PomodoroTimerView: View {
 
                 Button("Reset") { reset() }
                     .buttonStyle(.bordered)
+
+                Button(isBreak ? "Skip break" : "Skip to break") {
+                    finishPhase()
+                }
+                .buttonStyle(.bordered)
             }
 
             Form {
@@ -3374,9 +3395,10 @@ private struct PomodoroTimerView: View {
                         set: { settings.preset.breakMinutes = max(1, $0) }
                     ), in: 1...60)
                 }
+                .disabled(isRunning)
 
                 Section {
-                    Text("When a session ends, you’ll get a notification.")
+                    Text("You'll get a notification when a session ends, even if you leave the app. Closing the timer stops it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -3386,77 +3408,76 @@ private struct PomodoroTimerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .tint(themeColor)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Close") {
-                    stopTimer()
-                    dismiss()
-                }
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") {
-                    stopTimer()
+                    stop()
                     dismiss()
                 }
             }
         }
-        .onAppear {
-            remainingSeconds = settings.preset.focusMinutes * 60
+        .task(id: phaseEndsAt) {
+            guard let end = phaseEndsAt else { return }
+            let delay = end.timeIntervalSinceNow
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled, phaseEndsAt == end else { return }
+            // The scheduled notification already announced this phase.
+            advancePhase()
         }
         .onDisappear {
-            stopTimer()
+            stop()
         }
+    }
+
+    private func remainingSeconds(at date: Date) -> Int {
+        if let phaseEndsAt {
+            return max(0, Int(phaseEndsAt.timeIntervalSince(date).rounded(.up)))
+        }
+        return Int((pausedRemaining ?? phaseDuration).rounded(.up))
+    }
+
+    private func progress(at date: Date) -> Double {
+        guard phaseDuration > 0 else { return 0 }
+        return min(1, max(0, 1 - Double(remainingSeconds(at: date)) / phaseDuration))
     }
 
     private func start() {
-        if remainingSeconds <= 0 {
-            remainingSeconds = (isBreak ? settings.preset.breakMinutes : settings.preset.focusMinutes) * 60
-        }
-
-        isRunning = true
-        stopTimer()
-
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            tick()
-        }
+        NotificationManager.requestAuthorization()
+        let end = Date().addingTimeInterval(pausedRemaining ?? phaseDuration)
+        pausedRemaining = nil
+        phaseEndsAt = end
+        NotificationManager.schedulePomodoroNotification(at: end, isBreak: isBreak)
     }
 
     private func pause() {
-        isRunning = false
-        stopTimer()
+        guard let phaseEndsAt else { return }
+        pausedRemaining = max(0, phaseEndsAt.timeIntervalSinceNow)
+        self.phaseEndsAt = nil
+        NotificationManager.cancelPomodoroNotification()
     }
 
     private func reset() {
-        isRunning = false
-        stopTimer()
+        stop()
         isBreak = false
-        remainingSeconds = settings.preset.focusMinutes * 60
     }
 
-    private func tick() {
-        guard remainingSeconds > 0 else {
-            finishPhase()
-            return
-        }
-        remainingSeconds -= 1
-        if remainingSeconds == 0 {
-            finishPhase()
-        }
+    private func stop() {
+        phaseEndsAt = nil
+        pausedRemaining = nil
+        NotificationManager.cancelPomodoroNotification()
     }
 
+    /// Ends the current phase early and starts the next one paused.
     private func finishPhase() {
-        stopTimer()
-        isRunning = false
-
-        NotificationManager.requestAuthorization()
-        NotificationManager.scheduleTimerFinishedNotification(isBreak: isBreak)
-
+        stop()
         isBreak.toggle()
-        remainingSeconds = (isBreak ? settings.preset.breakMinutes : settings.preset.focusMinutes) * 60
     }
 
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
+    private func advancePhase() {
+        phaseEndsAt = nil
+        pausedRemaining = nil
+        isBreak.toggle()
     }
 
     private func timeString(_ sec: Int) -> String {

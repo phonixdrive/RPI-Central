@@ -50,19 +50,34 @@ enum LetterGrade: String, CaseIterable, Identifiable, Codable {
 
 enum GPACalculator {
 
-    static func weightedGPA(_ entries: [(grade: LetterGrade, credits: Double)]) -> Double? {
-        guard !entries.isEmpty else { return nil }
+    /// Pass/No Pass grades earn (or deny) credit but never enter the GPA.
+    static func countsTowardGPA(_ grade: LetterGrade) -> Bool {
+        grade != .pass && grade != .noPass
+    }
 
+    static func weightedGPA(_ entries: [(grade: LetterGrade, credits: Double)]) -> Double? {
         var totalPoints = 0.0
         var totalCredits = 0.0
 
-        for e in entries {
+        for e in entries where countsTowardGPA(e.grade) && e.credits > 0 {
             totalPoints += e.grade.points * e.credits
             totalCredits += e.credits
         }
 
         guard totalCredits > 0 else { return nil }
         return totalPoints / totalCredits
+    }
+
+    /// Credits used for GPA weighting. Older app versions saved a default
+    /// 4.0 override whenever the breakdown sheet was opened, so only an
+    /// override the student explicitly typed replaces the catalog credits.
+    static func effectiveCredits(enrollmentID: String, catalogCredits: Double) -> Double {
+        guard let breakdown = GradeBreakdownStore.load(enrollmentID: enrollmentID),
+              breakdown.creditsOverrideIsExplicit == true,
+              let credits = breakdown.creditsOverride else {
+            return catalogCredits
+        }
+        return max(0, credits)
     }
 
     static func format(_ gpa: Double?) -> String {
@@ -320,6 +335,21 @@ struct GradeCategory: Identifiable, Codable, Equatable {
         }
     }
 
+    /// Whether the student has entered anything for this category yet.
+    /// Ungraded categories are left out of the running grade instead of
+    /// counting as zero (which turned every new breakdown into an F).
+    var hasScore: Bool {
+        if usesSubItems {
+            return items.contains { $0.possible > 0 }
+        }
+        switch scoreMode {
+        case .percent:
+            return scorePercent > 0
+        case .points:
+            return possiblePoints > 0
+        }
+    }
+
     func normalizedScorePercent() -> Double {
         if usesSubItems {
             let e = items.reduce(0.0) { $0 + $1.earned }
@@ -342,6 +372,9 @@ struct GradeBreakdown: Codable, Equatable {
     var categories: [GradeCategory] = []
     var overrideLetterGrade: LetterGrade? = nil
     var creditsOverride: Double? = nil
+    /// `true` only when the student typed a credit value. See
+    /// `GPACalculator.effectiveCredits`.
+    var creditsOverrideIsExplicit: Bool? = nil
     var gradeCutoffs: GradeCutoffs = .standard
     var isAdvancedMode: Bool = true
     var simpleScorePercent: Double? = nil
@@ -352,6 +385,7 @@ struct GradeBreakdown: Codable, Equatable {
         categories: [GradeCategory] = [],
         overrideLetterGrade: LetterGrade? = nil,
         creditsOverride: Double? = nil,
+        creditsOverrideIsExplicit: Bool? = nil,
         gradeCutoffs: GradeCutoffs = .standard,
         isAdvancedMode: Bool = true,
         simpleScorePercent: Double? = nil,
@@ -361,6 +395,7 @@ struct GradeBreakdown: Codable, Equatable {
         self.categories = categories
         self.overrideLetterGrade = overrideLetterGrade
         self.creditsOverride = creditsOverride
+        self.creditsOverrideIsExplicit = creditsOverrideIsExplicit
         self.gradeCutoffs = gradeCutoffs
         self.isAdvancedMode = isAdvancedMode
         self.simpleScorePercent = simpleScorePercent
@@ -372,6 +407,7 @@ struct GradeBreakdown: Codable, Equatable {
         case categories
         case overrideLetterGrade
         case creditsOverride
+        case creditsOverrideIsExplicit
         case gradeCutoffs
         case isAdvancedMode
         case simpleScorePercent
@@ -385,6 +421,7 @@ struct GradeBreakdown: Codable, Equatable {
         categories = try c.decodeIfPresent([GradeCategory].self, forKey: .categories) ?? []
         overrideLetterGrade = try c.decodeIfPresent(LetterGrade.self, forKey: .overrideLetterGrade)
         creditsOverride = try c.decodeIfPresent(Double.self, forKey: .creditsOverride)
+        creditsOverrideIsExplicit = try c.decodeIfPresent(Bool.self, forKey: .creditsOverrideIsExplicit)
         gradeCutoffs = try c.decodeIfPresent(GradeCutoffs.self, forKey: .gradeCutoffs) ?? .standard
         simpleScorePercent = try c.decodeIfPresent(Double.self, forKey: .simpleScorePercent)
         simpleInputMode = try c.decodeIfPresent(SimpleGradeInputMode.self, forKey: .simpleInputMode) ?? .percent
@@ -402,6 +439,7 @@ struct GradeBreakdown: Codable, Equatable {
         try container.encode(categories, forKey: .categories)
         try container.encodeIfPresent(overrideLetterGrade, forKey: .overrideLetterGrade)
         try container.encodeIfPresent(creditsOverride, forKey: .creditsOverride)
+        try container.encodeIfPresent(creditsOverrideIsExplicit, forKey: .creditsOverrideIsExplicit)
         try container.encode(gradeCutoffs, forKey: .gradeCutoffs)
         try container.encode(isAdvancedMode, forKey: .isAdvancedMode)
         try container.encodeIfPresent(simpleScorePercent, forKey: .simpleScorePercent)
@@ -420,14 +458,15 @@ struct GradeBreakdown: Codable, Equatable {
             return max(0, min(100, simpleScorePercent))
         }
 
-        let w = totalWeight
-        guard w > 0 else { return nil }
+        let graded = categories.filter { $0.weightPercent > 0 && $0.hasScore }
+        let gradedWeight = graded.reduce(0.0) { $0 + $1.weightPercent }
+        guard gradedWeight > 0 else { return nil }
 
-        let weightedSum = categories.reduce(0.0) { partial, c in
-            return partial + (c.weightPercent * c.normalizedScorePercent() / 100.0)
+        let weightedSum = graded.reduce(0.0) { partial, c in
+            partial + (c.weightPercent * c.normalizedScorePercent() / 100.0)
         }
 
-        return (weightedSum / w) * 100.0
+        return (weightedSum / gradedWeight) * 100.0
     }
 
     func effectiveCutoffs() -> GradeCutoffs {
@@ -435,7 +474,7 @@ struct GradeBreakdown: Codable, Equatable {
     }
 
     func categoryDisplayPercent(_ category: GradeCategory) -> Double? {
-        return category.normalizedScorePercent()
+        category.hasScore ? category.normalizedScorePercent() : nil
     }
 
     func categoryWeightedPercent(_ category: GradeCategory) -> Double? {
@@ -459,7 +498,7 @@ struct GradeBreakdown: Codable, Equatable {
 
 // MARK: - Storage
 
-private enum GradeBreakdownStore {
+enum GradeBreakdownStore {
     static let keyPrefix = "gradeBreakdown.v9."
     static func key(for enrollmentID: String) -> String { keyPrefix + enrollmentID }
 
@@ -616,12 +655,21 @@ struct GradeBreakdownView: View {
         case simpleLetter
     }
 
-    @State private var breakdown: GradeBreakdown = GradeBreakdown(categories: [
+    private static let starterTemplate = GradeBreakdown(categories: [
         GradeCategory(name: "Midterm", weightPercent: 25),
         GradeCategory(name: "Final", weightPercent: 35),
         GradeCategory(name: "Homework", weightPercent: 30),
         GradeCategory(name: "Participation", weightPercent: 10)
     ], isAdvancedMode: true)
+
+    @State private var breakdown: GradeBreakdown = Self.starterTemplate
+    /// The starter template is only saved once the student edits it, so
+    /// browsing a course never records a grade.
+    @State private var hasSavedBreakdown = false
+
+    private var catalogCredits: Double {
+        calendarViewModel.enrollment(withID: enrollmentID)?.section.credits ?? 4.0
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -693,13 +741,20 @@ struct GradeBreakdownView: View {
                     }
                 }
 
-                Section("Credits (GPA weight)") {
+                Section {
                     HStack {
                         Text("Credits")
                         Spacer()
-                        TextField("4.0", value: Binding(
-                            get: { breakdown.creditsOverride ?? 4.0 },
-                            set: { breakdown.creditsOverride = max(0, $0) }
+                        TextField(catalogCredits.formatted(), value: Binding(
+                            get: {
+                                breakdown.creditsOverrideIsExplicit == true
+                                    ? (breakdown.creditsOverride ?? catalogCredits)
+                                    : catalogCredits
+                            },
+                            set: { newValue in
+                                breakdown.creditsOverride = max(0, newValue)
+                                breakdown.creditsOverrideIsExplicit = true
+                            }
                         ), format: .number)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
@@ -708,6 +763,18 @@ struct GradeBreakdownView: View {
                         .foregroundStyle(.tint)
                         .id(Field.credits)
                     }
+
+                    if breakdown.creditsOverrideIsExplicit == true {
+                        Button("Use catalog credits (\(catalogCredits.formatted()))") {
+                            breakdown.creditsOverride = nil
+                            breakdown.creditsOverrideIsExplicit = nil
+                        }
+                        .buttonStyle(.themedPill())
+                    }
+                } header: {
+                    Text("Credits (GPA weight)")
+                } footer: {
+                    Text("Pass/No Pass grades count toward credits earned but not toward GPA.")
                 }
 
                 Section("Override (for GPA)") {
@@ -872,15 +939,9 @@ struct GradeBreakdownView: View {
 
                 Section {
                     Button(role: .destructive) {
-                        breakdown = GradeBreakdown(categories: [])
+                        breakdown = Self.starterTemplate
                         GradeBreakdownStore.clear(enrollmentID: enrollmentID)
-                        breakdown.overrideLetterGrade = nil
-                        breakdown.creditsOverride = nil
-                        breakdown.gradeCutoffs = .standard
-                        breakdown.isAdvancedMode = true
-                        breakdown.simpleScorePercent = nil
-                        breakdown.simpleInputMode = .percent
-                        breakdown.simpleLetterGrade = nil
+                        hasSavedBreakdown = false
                         applyOverrideToCalendarVM()
                     } label: {
                         Label("Clear All", systemImage: "trash")
@@ -906,12 +967,13 @@ struct GradeBreakdownView: View {
             .onAppear {
                 if let saved = GradeBreakdownStore.load(enrollmentID: enrollmentID) {
                     breakdown = saved
-                } else {
-                    if breakdown.creditsOverride == nil { breakdown.creditsOverride = 4.0 }
+                    hasSavedBreakdown = true
                 }
                 applyOverrideToCalendarVM()
             }
             .onChange(of: breakdown) {
+                guard hasSavedBreakdown || breakdown != Self.starterTemplate else { return }
+                hasSavedBreakdown = true
                 GradeBreakdownStore.save(breakdown, enrollmentID: enrollmentID)
                 applyOverrideToCalendarVM()
             }

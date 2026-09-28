@@ -12,6 +12,9 @@ struct CoursesView: View {
     @State private var searchText: String = ""
     @State private var selectedSubjectFilter: SubjectOption? = nil
     @State private var subjectBrowserPresentation: SubjectBrowserPresentation?
+    /// Lowercased "subject number code title instructors" per course, rebuilt
+    /// when the catalog changes rather than on every keystroke.
+    @State private var searchIndex: [String: String] = [:]
 
     private let filterColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -61,12 +64,55 @@ struct CoursesView: View {
             return baseCourses.sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
         }
 
-        return allCourses.filter { course in
-            course.subject.lowercased().contains(trimmedQuery) ||
-            course.number.lowercased().contains(trimmedQuery) ||
-            course.title.lowercased().contains(trimmedQuery)
-        }
-        .sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
+        // "CSCI 1200", "csci-1200", "data structures", or an instructor name.
+        let tokens = trimmedQuery
+            .split(whereSeparator: { $0.isWhitespace || $0 == "-" })
+            .map(String.init)
+        let compactQuery = tokens.joined()
+
+        return allCourses
+            .compactMap { course -> (course: Course, rank: Int)? in
+                let haystack = searchIndex[course.id] ?? Self.searchText(for: course)
+                guard tokens.allSatisfy({ haystack.contains($0) }) else { return nil }
+                let code = "\(course.subject)\(course.number)".lowercased()
+                let rank: Int
+                if code == compactQuery {
+                    rank = 0
+                } else if code.hasPrefix(compactQuery) {
+                    rank = 1
+                } else if course.title.lowercased().hasPrefix(trimmedQuery) {
+                    rank = 2
+                } else {
+                    rank = 3
+                }
+                return (course, rank)
+            }
+            .sorted { lhs, rhs in
+                if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
+                return (lhs.course.subject, lhs.course.number) < (rhs.course.subject, rhs.course.number)
+            }
+            .map(\.course)
+    }
+
+    private static func searchText(for course: Course) -> String {
+        let instructors = Set(course.sections.map(\.instructor)).sorted().joined(separator: " ")
+        return [
+            course.subject,
+            course.number,
+            "\(course.subject)\(course.number)",
+            course.title,
+            instructors,
+        ]
+        .joined(separator: " ")
+        .lowercased()
+    }
+
+    private var enrolledCourseIDsInCatalogTerm: Set<String> {
+        Set(
+            calendarViewModel.enrolledCourses
+                .filter { $0.semesterCode == catalog.semester.rawValue }
+                .map { canonicalCourseID($0.course.id) }
+        )
     }
 
     var body: some View {
@@ -98,7 +144,7 @@ struct CoursesView: View {
             }
             .navigationTitle("Courses")
         }
-        .searchable(text: $searchText, prompt: "Search by subject, number, or title")
+        .searchable(text: $searchText, prompt: "Course, code, or instructor")
         .sheet(item: $subjectBrowserPresentation) { presentation in
             SubjectBrowserSheet(
                 presentation: presentation,
@@ -110,6 +156,10 @@ struct CoursesView: View {
             clearUnavailableSubjectFilterIfNeeded()
         }
         .onReceive(catalog.$courses) { courses in
+            searchIndex = Dictionary(
+                courses.map { ($0.id, Self.searchText(for: $0)) },
+                uniquingKeysWith: { first, _ in first }
+            )
             clearUnavailableSubjectFilterIfNeeded()
             calendarViewModel.refreshCurrentSemesterEnrollmentDetails(
                 from: courses,
@@ -230,18 +280,36 @@ struct CoursesView: View {
     }
 
     private var coursesSection: some View {
-        Section {
-            ForEach(filteredCourses) { course in
+        let enrolledIDs = enrolledCourseIDsInCatalogTerm
+        let courses = filteredCourses
+
+        return Section {
+            if courses.isEmpty && isSearching {
+                ContentUnavailableView.search(text: searchText)
+                    .listRowBackground(Color.clear)
+            }
+
+            ForEach(courses) { course in
                 NavigationLink {
                     CourseDetailView(course: course, displaySemester: catalog.semester)
                         .environmentObject(calendarViewModel)
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(course.title)
-                            .font(.headline)
-                        Text("\(course.subject) \(course.number)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(course.title)
+                                .font(.headline)
+                            Text("\(course.subject) \(course.number)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: 6)
+
+                        if enrolledIDs.contains(canonicalCourseID(course.id)) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(calendarViewModel.themeColor)
+                                .accessibilityLabel("Added to your schedule")
+                        }
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 12)

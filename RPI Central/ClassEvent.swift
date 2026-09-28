@@ -101,6 +101,10 @@ struct ClassEvent: Identifiable, Equatable {
     /// `nil` for manually-added events and academic calendar events.
     let enrollmentID: String?
 
+    /// Term that owns a generated class template. Keeping this on the event
+    /// avoids ambiguity if a CRN/enrollment identifier is reused in history.
+    let semesterCode: String?
+
     /// Optional recurrence group for manually-added events.
     /// If non-nil, all events in the recurrence share the same seriesID.
     let seriesID: UUID?
@@ -129,6 +133,7 @@ struct ClassEvent: Identifiable, Equatable {
         backgroundColor: Color,
         accentColor: Color,
         enrollmentID: String?,
+        semesterCode: String? = nil,
         seriesID: UUID? = nil,
         persistentID: UUID? = nil,
         isAllDay: Bool = false,
@@ -143,6 +148,7 @@ struct ClassEvent: Identifiable, Equatable {
         self.backgroundColor = backgroundColor
         self.accentColor = accentColor
         self.enrollmentID = enrollmentID
+        self.semesterCode = semesterCode
         self.seriesID = seriesID
         self.persistentID = persistentID
         self.isAllDay = isAllDay
