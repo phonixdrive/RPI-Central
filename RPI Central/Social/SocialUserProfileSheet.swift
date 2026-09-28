@@ -18,6 +18,8 @@ struct SocialUserProfileSheet: View {
     @State private var showRemoveFriendConfirmation = false
     @State private var selectedFriendSchedule: FriendSchedulePresentation?
     @State private var selectedDirectMessage: SocialGroupChatReference?
+    @State private var reportTarget: SocialReportTarget?
+    @State private var showBlockConfirmation = false
 
     private var isCurrentUser: Bool {
         socialManager.currentUser?.id == user.id
@@ -247,11 +249,47 @@ struct SocialUserProfileSheet: View {
                 moderationLoaded = true
             }
             .toolbar {
+                if !isCurrentUser {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            Button("Report \(user.displayName)", systemImage: "exclamationmark.bubble") {
+                                reportTarget = SocialReportTarget(userID: user.id, displayName: user.displayName, kind: .user)
+                            }
+                            if socialManager.isBlocked(user.id) {
+                                Button("Unblock", systemImage: "hand.raised.slash") {
+                                    Task { await socialManager.unblockUser(user.id) }
+                                }
+                            } else {
+                                Button("Block", systemImage: "hand.raised", role: .destructive) {
+                                    showBlockConfirmation = true
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("More")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+            }
+            .socialReportDialog($reportTarget)
+            .confirmationDialog(
+                "Block \(user.displayName)?",
+                isPresented: $showBlockConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Block", role: .destructive) {
+                    Task {
+                        await socialManager.blockUser(user.id)
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("You won’t see their messages or plans, and they’ll be removed from your friends.")
             }
             .confirmationDialog(
                 "Remove \(user.displayName) from your friends?",

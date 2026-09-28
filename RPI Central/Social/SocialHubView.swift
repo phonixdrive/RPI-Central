@@ -26,6 +26,7 @@ struct SocialHubView: View {
     @State private var showNewMessage = false
     @State private var showNewGroup = false
     @State private var showNewPlan = false
+    @AppStorage("social_guidelines_accepted_v1") private var acceptedGuidelines = false
 
     private var isSignedIn: Bool {
         socialManager.isFirebaseAvailable && socialManager.isAuthenticated
@@ -72,6 +73,12 @@ struct SocialHubView: View {
         }
         .sheet(isPresented: $showNewGroup, onDismiss: openPendingChat) { newGroupSheet }
         .sheet(isPresented: $showNewPlan) { newPlanSheet }
+        .sheet(isPresented: Binding(
+            get: { isSignedIn && !acceptedGuidelines },
+            set: { _ in }
+        )) {
+            SocialGuidelinesSheet { acceptedGuidelines = true }
+        }
         .task {
             if socialManager.isAuthenticated && socialManager.overview == nil {
                 await socialManager.refreshOverview()

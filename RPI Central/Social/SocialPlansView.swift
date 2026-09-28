@@ -48,6 +48,7 @@ private struct PlanRow: View {
 
     @EnvironmentObject private var socialManager: SocialManager
     @EnvironmentObject private var calendarViewModel: CalendarViewModel
+    @State private var reportTarget: SocialReportTarget?
 
     private var post: SocialFeedPost { item.post }
     private var isOwnPost: Bool { post.ownerID == socialManager.currentUser?.id }
@@ -85,9 +86,7 @@ private struct PlanRow: View {
                         .padding(.vertical, 4)
                         .background(state.color.opacity(0.14), in: Capsule())
 
-                    if canEnd || isOwnPost {
-                        optionsMenu(state: state)
-                    }
+                    optionsMenu(state: state)
                 }
             }
 
@@ -113,6 +112,7 @@ private struct PlanRow: View {
             }
         }
         .padding(.vertical, 4)
+        .socialReportDialog($reportTarget)
     }
 
     private func optionsMenu(state: PlanTiming.State) -> some View {
@@ -125,6 +125,19 @@ private struct PlanRow: View {
             if isOwnPost {
                 Button("Delete Plan", systemImage: "trash", role: .destructive) {
                     Task { _ = await socialManager.deleteFeedPost(post.id) }
+                }
+            } else {
+                Button("Report Plan", systemImage: "exclamationmark.bubble") {
+                    reportTarget = SocialReportTarget(
+                        userID: post.ownerID,
+                        displayName: post.ownerDisplayName,
+                        kind: .plan,
+                        contextID: post.id,
+                        excerpt: [post.title, post.location, post.details].filter { !$0.isEmpty }.joined(separator: " · ")
+                    )
+                }
+                Button("Block \(post.ownerDisplayName)", systemImage: "hand.raised", role: .destructive) {
+                    Task { await socialManager.blockUser(post.ownerID) }
                 }
             }
         } label: {
