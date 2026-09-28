@@ -121,10 +121,12 @@ so testers should update first.
    the tightened chat rules reject group-chat writes whose member list includes
    someone outside the friend group or class, and poll votes must now update only
    the voter's own entry (`votesByUserID.<uid>`).
-2. Deploy rules and functions together:
+2. Deploy rules and functions together. The functions now run on Node 22
+   (firebase-admin 14 requires it); `firebase/functions/.nvmrc` pins it, so run
+   `nvm use` there first:
 
    ```sh
-   cd firebase/functions && npm ci && npm test && npm run test:rules && cd ../..
+   cd firebase/functions && nvm use && npm ci && npm test && npm run test:rules && cd ../..
    firebase deploy --only firestore:rules,functions
    ```
 
@@ -132,6 +134,12 @@ so testers should update first.
    the `webAppState*` fields on `users/{uid}`. Until then, web → phone sync still
    works (the phone migrates the old fields), but the web app won't see saves made
    on the phone.
+
+## Local emulators
+
+`firebase/emulator/` seeds the Auth and Firestore emulators with sample friends,
+chats, groups, schedules, locations, and plans, and Debug builds can point at
+them. See [emulator/README.md](emulator/README.md).
 
 ## Moderators and account deletion
 

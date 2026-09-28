@@ -2,12 +2,12 @@
   "name": "rpi-central-functions",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "scripts": {
     "test": "npm run test:functions",
-    "test:functions": "node --test notification-policy.test.js location-policy.test.js",
+    "test:functions": "node --test index.test.js notification-policy.test.js location-policy.test.js",
     "test:rules": "firebase emulators:exec --config ../../firebase.json --project demo-rpi-central --only firestore \"node --test firestore.rules.test.js\""
   },
   "dependencies": {
