@@ -1,18 +1,22 @@
 const {onDocumentCreated, onDocumentDeleted} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
-const admin = require("firebase-admin");
+// firebase-admin 13+ only has the modular API (no getFirestore()).
+const {initializeApp} = require("firebase-admin/app");
+const {getAuth} = require("firebase-admin/auth");
+const {FieldValue, Timestamp, getFirestore} = require("firebase-admin/firestore");
+const {getMessaging} = require("firebase-admin/messaging");
 const {deviceCanReceiveAlert} = require("./notification-policy");
 const {isExpiredLocationShare} = require("./location-policy");
 
-admin.initializeApp();
+initializeApp();
 
 /** Removes `viewerId` from `ownerId`'s shared location, if it exists. */
 async function revokeLocationViewer(firestore, ownerId, viewerId) {
   const reference = firestore.collection("locationShares").doc(ownerId);
   try {
     await reference.update({
-      viewerIDs: admin.firestore.FieldValue.arrayRemove(viewerId),
+      viewerIDs: FieldValue.arrayRemove(viewerId),
     });
   } catch (error) {
     // NOT_FOUND: that user was not sharing a location.
@@ -32,7 +36,7 @@ async function recursivelyDeleteQuery(firestore, query) {
 async function removeMembership(query, userId) {
   const snapshot = await query.get();
   await Promise.all(snapshot.docs.map((document) => document.ref.update({
-    memberIDs: admin.firestore.FieldValue.arrayRemove(userId),
+    memberIDs: FieldValue.arrayRemove(userId),
   })));
 }
 
@@ -53,8 +57,7 @@ exports.sendSocialNotificationPush = onDocumentCreated(
       return;
     }
 
-    const tokensSnapshot = await admin
-      .firestore()
+    const tokensSnapshot = await getFirestore()
       .collection("users")
       .doc(userId)
       .collection("deviceTokens")
@@ -80,7 +83,7 @@ exports.sendSocialNotificationPush = onDocumentCreated(
 
     const tokens = tokenEntries.map(([token]) => token);
 
-    const response = await admin.messaging().sendEachForMulticast({
+    const response = await getMessaging().sendEachForMulticast({
       tokens,
       notification: {
         title,
@@ -144,7 +147,7 @@ exports.deleteSocialAccount = onDocumentCreated(
       return;
     }
 
-    const firestore = admin.firestore();
+    const firestore = getFirestore();
 
     await recursivelyDeleteQuery(
       firestore,
@@ -213,7 +216,7 @@ exports.deleteSocialAccount = onDocumentCreated(
       .where("viewerIDs", "array-contains", userId)
       .get();
     await Promise.all(visibleLocations.docs.map((document) => document.ref.update({
-      viewerIDs: admin.firestore.FieldValue.arrayRemove(userId),
+      viewerIDs: FieldValue.arrayRemove(userId),
     })));
 
     await firestore.recursiveDelete(firestore.collection("sharedSchedules").doc(userId));
@@ -221,7 +224,7 @@ exports.deleteSocialAccount = onDocumentCreated(
     await firestore.recursiveDelete(firestore.collection("users").doc(userId));
 
     try {
-      await admin.auth().deleteUser(userId);
+      await getAuth().deleteUser(userId);
     } catch (error) {
       if (error.code !== "auth/user-not-found") {
         throw error;
@@ -242,7 +245,7 @@ exports.cleanUpEndedFriendship = onDocumentDeleted(
       return;
     }
 
-    const firestore = admin.firestore();
+    const firestore = getFirestore();
     const [first, second] = members;
     await Promise.all([
       revokeLocationViewer(firestore, first, second),
@@ -255,15 +258,15 @@ exports.cleanUpEndedFriendship = onDocumentDeleted(
 
 // Shared locations expire on schedule even if the sharer's phone is off.
 exports.expireLocationShares = onSchedule("every 30 minutes", async () => {
-  const firestore = admin.firestore();
+  const firestore = getFirestore();
   const now = new Date();
   const expired = await firestore
     .collection("locationShares")
-    .where("expiresAtTimestamp", "<=", admin.firestore.Timestamp.fromDate(now))
+    .where("expiresAtTimestamp", "<=", Timestamp.fromDate(now))
     .get();
 
   // Documents nobody has updated in two weeks are abandoned; remove them too.
-  const staleCutoff = admin.firestore.Timestamp.fromMillis(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const staleCutoff = Timestamp.fromMillis(now.getTime() - 14 * 24 * 60 * 60 * 1000);
   const abandoned = await firestore
     .collection("locationShares")
     .where("updatedAtServer", "<=", staleCutoff)
