@@ -108,6 +108,9 @@ final class SocialManager: ObservableObject {
     @Published private(set) var feedItems: [SocialFeedItem] = []
     @Published private(set) var searchResults: [SocialSearchResult] = []
     @Published private(set) var quickAddSuggestions: [SocialSearchResult] = []
+    /// People this user blocked. Their messages, plans, and profiles are hidden.
+    @Published private(set) var blockedUserIDs: Set<String> = []
+    private var blockedUsersLoadedFor: String?
     @Published private(set) var loadedFriendSchedule: FriendScheduleResponse?
     @Published private var friendScheduleCacheByFriendID: [String: FriendScheduleResponse] = [:]
     @Published private(set) var activeGroupChatID: String?
@@ -329,6 +332,8 @@ final class SocialManager: ObservableObject {
         statusMessage = nil
         lastKnownFriendIDs = nil
         lastSchedulePublish = nil
+        blockedUserIDs = []
+        blockedUsersLoadedFor = nil
         overviewRefreshTask?.cancel()
     }
 
@@ -408,6 +413,7 @@ final class SocialManager: ObservableObject {
             }
 
             quickAddSuggestions = orderedIDs
+                .filter { !blockedUserIDs.contains($0) }
                 .compactMap { candidates[$0] }
                 .filter { !isDemoUser($0) && !$0.isGuest }
                 .map { user in
@@ -733,7 +739,7 @@ final class SocialManager: ObservableObject {
 
             searchResults = merged
                 .compactMap(makeUser)
-                .filter { $0.id != viewer.id }
+                .filter { $0.id != viewer.id && !blockedUserIDs.contains($0.id) }
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
                 .map { user in
                     SocialSearchResult(
@@ -2430,6 +2436,9 @@ final class SocialManager: ObservableObject {
         }
         currentUser = viewer
         attachRealtimeListenersIfNeeded(for: viewer.id)
+        if blockedUsersLoadedFor != viewer.id {
+            await loadBlockedUsers(viewerID: viewer.id)
+        }
 
         let friendshipsSnapshot = try await getDocuments(
             firestore.collection("friendships").whereField("members", arrayContains: viewer.id)
@@ -2518,6 +2527,7 @@ final class SocialManager: ObservableObject {
 
         do {
             feedItems = try await loadFeedItems(friendOwnerIDs: friendIDs)
+                .filter { !blockedUserIDs.contains($0.post.ownerID) }
         } catch {
             if isPermissionDenied(error) {
                 feedItems = []
@@ -5201,6 +5211,119 @@ final class SocialManager: ObservableObject {
     private func isoDate(_ value: String?) -> Date? {
         guard let value, !value.isEmpty else { return nil }
         return ISO8601DateFormatter().date(from: value)
+    }
+
+    // MARK: - Blocking and reporting
+
+    func isBlocked(_ userID: String) -> Bool {
+        blockedUserIDs.contains(userID)
+    }
+
+    /// Hides the person everywhere and ends the friendship, if any.
+    func blockUser(_ userID: String) async {
+        guard let viewerID = currentUser?.id, userID != viewerID else { return }
+        blockedUserIDs.insert(userID)
+        feedItems.removeAll { $0.post.ownerID == userID }
+        searchResults.removeAll { $0.id == userID }
+        quickAddSuggestions.removeAll { $0.id == userID }
+        await saveBlockedUsers(viewerID: viewerID)
+        if overview?.friends.contains(where: { $0.id == userID }) == true {
+            await unfriend(userID)
+        }
+        statusMessage = "Blocked. You won’t see their messages or plans."
+    }
+
+    func unblockUser(_ userID: String) async {
+        guard let viewerID = currentUser?.id else { return }
+        blockedUserIDs.remove(userID)
+        await saveBlockedUsers(viewerID: viewerID)
+        statusMessage = "Unblocked."
+    }
+
+    @discardableResult
+    func report(
+        userID: String,
+        kind: SocialReportKind,
+        contextID: String?,
+        excerpt: String?,
+        reason: SocialReportReason
+    ) async -> Bool {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let viewerID = currentUser?.id else { return false }
+        do {
+            try await setData([
+                "reporterID": viewerID,
+                "reportedUserID": userID,
+                "kind": kind.rawValue,
+                "contextID": contextID ?? "",
+                "excerpt": String((excerpt ?? "").prefix(500)),
+                "reason": reason.rawValue,
+                "createdAt": FieldValue.serverTimestamp(),
+            ], at: firestore.collection("reports").document())
+            statusMessage = "Thanks. The report was sent for review."
+            return true
+        } catch {
+            errorMessage = "Couldn’t send the report. Try again."
+            return false
+        }
+#else
+        return false
+#endif
+    }
+
+    private func loadBlockedUsers(viewerID: String) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        guard let snapshot = try? await getDocument(blockedUsersReference(viewerID: viewerID)) else { return }
+        blockedUserIDs = Set(snapshot.data()?["userIDs"] as? [String] ?? [])
+        blockedUsersLoadedFor = viewerID
+#endif
+    }
+
+    private func saveBlockedUsers(viewerID: String) async {
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+        do {
+            try await setData([
+                "userIDs": Array(blockedUserIDs).sorted(),
+                "updatedAt": nowISO(),
+            ], at: blockedUsersReference(viewerID: viewerID))
+        } catch {
+            errorMessage = "Couldn’t save your block list."
+        }
+#endif
+    }
+
+#if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
+    private func blockedUsersReference(viewerID: String) -> DocumentReference {
+        firestore.collection("users").document(viewerID).collection("private").document("blocks")
+    }
+#endif
+}
+
+enum SocialReportKind: String {
+    case message
+    case user
+    case plan
+}
+
+enum SocialReportReason: String, CaseIterable, Identifiable {
+    case spam
+    case harassment
+    case hate
+    case sexual
+    case violence
+    case other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .spam: return "Spam or scam"
+        case .harassment: return "Harassment or bullying"
+        case .hate: return "Hate speech"
+        case .sexual: return "Sexual content"
+        case .violence: return "Violence or threats"
+        case .other: return "Something else"
+        }
     }
 }
 

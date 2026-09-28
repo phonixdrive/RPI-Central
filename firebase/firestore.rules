@@ -417,6 +417,41 @@ service cloud.firestore {
       allow delete: if isSelf(ownerID);
     }
 
+    // One anonymous rating per student per course; everyone signed in can
+    // read them to see the averages.
+    match /courseRatings/{courseKey}/ratings/{userID} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(userID) &&
+        request.resource.data.keys().hasOnly(["overall", "difficulty", "hoursPerWeek", "tags", "semesterCode", "updatedAt"]) &&
+        request.resource.data.overall is int &&
+        request.resource.data.overall >= 1 && request.resource.data.overall <= 5 &&
+        request.resource.data.difficulty is int &&
+        request.resource.data.difficulty >= 1 && request.resource.data.difficulty <= 5 &&
+        request.resource.data.hoursPerWeek is int &&
+        request.resource.data.hoursPerWeek >= 0 && request.resource.data.hoursPerWeek <= 40 &&
+        request.resource.data.tags is list &&
+        request.resource.data.tags.size() <= 4 &&
+        request.resource.data.semesterCode is string &&
+        request.resource.data.semesterCode.size() <= 12;
+      allow delete: if isSelf(userID);
+    }
+
+    // Reports of abusive content. Only moderators (via the Firebase console
+    // or Admin SDK) read them.
+    match /reports/{reportID} {
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(["reporterID", "reportedUserID", "kind", "contextID", "excerpt", "reason", "createdAt"]) &&
+        request.resource.data.reporterID == request.auth.uid &&
+        request.resource.data.reportedUserID is string &&
+        request.resource.data.reportedUserID != request.auth.uid &&
+        request.resource.data.kind in ["message", "user", "plan"] &&
+        request.resource.data.reason in ["spam", "harassment", "hate", "sexual", "violence", "other"] &&
+        request.resource.data.excerpt is string &&
+        request.resource.data.excerpt.size() <= 500;
+      allow read: if isModerator();
+      allow update, delete: if false;
+    }
+
     match /sharedSchedules/{ownerID} {
       allow read: if isSelf(ownerID) || (
         signedIn() &&
