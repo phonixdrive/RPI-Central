@@ -302,10 +302,7 @@ struct FlexDollarsPlannerView: View {
                 LabeledContent("Tracking for", value: semester.displayName)
             }
 
-            Section(
-                header: Text("Meal Plan"),
-                footer: Text("If you do not enter a current balance, the planner uses the plan's starting flex dollars for the semester.")
-            ) {
+            Section(header: Text("Meal Plan")) {
                 Picker("Plan", selection: $selectedPlan) {
                     Text("None").tag(nil as FlexDollarMealPlan?)
                     ForEach(FlexDollarMealPlan.allCases) { plan in
@@ -328,10 +325,10 @@ struct FlexDollarsPlannerView: View {
                 }
             }
 
-            Section(
-                header: Text("Current Balance"),
-                footer: Text("For spring, enter your actual live balance if fall carryover changed what you have left.")
-            ) {
+            Section(header: HStack(spacing: 6) {
+                Text("Current Balance")
+                InfoButton("Leave blank to start from your plan’s full semester amount. In spring, enter your real balance if fall carryover changed it.")
+            }) {
                 TextField("Current flex balance", text: $balanceText)
                     .keyboardType(.decimalPad)
                     .focused($balanceFieldFocused)

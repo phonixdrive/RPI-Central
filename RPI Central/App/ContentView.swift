@@ -52,6 +52,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openCalendarTab)) { _ in
             selectedTab = .calendar
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openCoursesTab)) { _ in
+            selectedTab = .courses
+        }
         .onReceive(NotificationCenter.default.publisher(for: SocialDeepLink.didChangeNotification)) { _ in
             selectedTab = .social
         }
@@ -158,6 +161,7 @@ private enum RootTab: Hashable {
 
 extension Notification.Name {
     static let openCalendarTab = Notification.Name("openCalendarTab")
+    static let openCoursesTab = Notification.Name("openCoursesTab")
 }
 
 #Preview {

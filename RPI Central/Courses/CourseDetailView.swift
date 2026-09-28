@@ -82,14 +82,17 @@ struct CourseDetailView: View {
                                         .font(.caption)
                                         .foregroundStyle(.red)
                                 } else {
-                                    Text("You’re still missing one valid prerequisite path. The satisfied option is highlighted in green.")
+                                    Text("No prerequisite path is complete yet.")
                                         .font(.caption)
                                         .foregroundStyle(.red)
                                 }
 
-                                Text("Tap a missing prerequisite to mark it as already taken if you’ve already completed it.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("Already took one? Tap it to mark it done.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    InfoButton("A course can have several prerequisite paths; completing any one is enough. Completed options are highlighted in green.")
+                                }
                             }
                         }
                         .padding(.top, 8)
@@ -218,12 +221,11 @@ struct CourseDetailView: View {
 
     private var meetingBlocksEditor: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Meeting Blocks")
-                .font(.headline)
-
-            Text("Mark meeting blocks as exam/recitation or disable them. Exam blocks only appear on the dates you select.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("Meeting Blocks")
+                    .font(.headline)
+                InfoButton("Mark a block as an exam or recitation, or turn it off. Exam blocks only appear on the dates you pick.")
+            }
 
             ForEach(enrollmentsForThisCourse) { enrollment in
                 VStack(alignment: .leading, spacing: 8) {
@@ -253,12 +255,11 @@ struct CourseDetailView: View {
 
     private var friendsInCourseCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Friends in this course")
-                .font(.headline)
-
-            Text("Shown from friends who are sharing their schedule for \(Semester(rawValue: sharingSemesterCode)?.displayName ?? sharingSemesterCode).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("Friends in this course")
+                    .font(.headline)
+                InfoButton("Friends who share their \(Semester(rawValue: sharingSemesterCode)?.displayName ?? sharingSemesterCode) schedule with you.")
+            }
 
             LazyVGrid(columns: friendChipColumns, alignment: .leading, spacing: 8) {
                 ForEach(friendsInCourse) { friend in
@@ -466,21 +467,21 @@ struct CourseDetailView: View {
                         .foregroundStyle(.red)
                 }
 
-                Text("Tap Add again to bypass, or mark the prerequisite as already taken above.")
+                Text("Tap Add again to add it anyway.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if isFullForRegistration {
                 Text(armed
-                     ? "Bypass armed. Tap Add anyway if SIS already has you registered for this section."
-                     : "This section is full in the course data. Tap Full to open a bypass if SIS already has you registered.")
+                     ? "Tap Add anyway if SIS already has you in this section."
+                     : "Full. Tap Full if SIS already has you in this section.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if isRegistrationClosed {
-                Text("This section is marked closed in the course data and can’t be added.")
+                Text("Closed for registration.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -772,17 +773,16 @@ struct CourseDetailView: View {
 
     private var courseDiscussionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Class Discussion")
-                .font(.headline)
-
-            Text("Comments here are shared with the overall class group, separate from the semester-specific section group.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("Class Discussion")
+                    .font(.headline)
+                InfoButton("Everyone taking this course sees these comments, across sections and terms.")
+            }
 
             if !socialManager.isAuthenticated {
-                discussionPlaceholder("Sign in on the Social tab to unlock class discussion.")
+                discussionPlaceholder("Sign in on the Social tab to join.")
             } else if enrollmentsForThisCourse.isEmpty {
-                discussionPlaceholder("Add one of this course’s sections to join the discussion.")
+                discussionPlaceholder("Add a section of this course to join.")
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     commentComposerCard
@@ -1011,7 +1011,7 @@ private struct ExamDatesEditorSheet: View {
                     }
                 }
 
-                Text("Only dates selected here will show the exam block on your calendar.")
+                Text("The exam block shows only on these dates.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

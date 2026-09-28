@@ -24,8 +24,8 @@ enum Semester: String, CaseIterable, Identifiable, Codable {
 
     var displayName: String {
         switch self {
-        case .fall2026:   return "Fall 2026 (current term)"
-        case .summer2026: return "Summer 2026 (previous term)"
+        case .fall2026:   return "Fall 2026"
+        case .summer2026: return "Summer 2026"
         case .spring2026: return "Spring 2026"
         case .fall2025:   return "Fall 2025"
         case .spring2025: return "Spring 2025"

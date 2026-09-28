@@ -517,6 +517,11 @@ final class SocialManager: ObservableObject {
         objectWillChange.send()
     }
 
+    /// When the chat last had a message, for sorting the chat list.
+    func lastActivityDate(in reference: SocialGroupChatReference) -> Date? {
+        groupChatThreadStates[reference.id].flatMap { isoDate($0.updatedAt) }
+    }
+
     func hasUnreadMessages(in reference: SocialGroupChatReference) -> Bool {
         guard let viewer = currentUser,
               let threadState = groupChatThreadStates[reference.id],

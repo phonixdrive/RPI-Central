@@ -299,6 +299,19 @@ struct SharingAndLocationTests {
         #expect(items.contains { labeledPinID($0) == "crowd3" })
     }
 
+    @Test func compactTimesStayShort() throws {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        #expect(RelativeTimeText.compact(now.addingTimeInterval(-30), now: now) == "now")
+        #expect(RelativeTimeText.compact(now.addingTimeInterval(-4 * 60), now: now) == "4m")
+        #expect(RelativeTimeText.compact(now.addingTimeInterval(-3 * 3600), now: now) == "3h")
+        #expect(RelativeTimeText.compact(now.addingTimeInterval(-50 * 3600), now: now) == "2d")
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
+        let noon = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 12)))
+        #expect(ChatTimeText.short(noon.addingTimeInterval(-24 * 3600), now: noon, calendar: calendar) == "Yesterday")
+    }
+
     // MARK: - Helpers
 
     private func pin(_ id: String, at coordinate: CLLocationCoordinate2D) -> FriendMapPinModel {
