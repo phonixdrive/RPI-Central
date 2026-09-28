@@ -2,10 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>phonix.RPI-Central.refresh</string>
+	</array>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>RPI Central uses calendar access to mirror events from selected Google, Outlook, and other calendars into your RPI Central calendar.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>With background sharing on, RPI Central updates the location you share with friends after you move a significant distance or arrive at a part of campus, even when the app is closed. Turn it off anytime in Social › Map.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>FriendsMap</key>
+		<string>Precise location lets friends see which campus building you are in.</string>
+	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RPI Central shows where you are on the friends map and, only when you turn on location sharing, shares it with the friends you choose.</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
 </dict>
