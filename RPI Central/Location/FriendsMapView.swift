@@ -215,20 +215,33 @@ enum FriendAvatarStyle {
 }
 
 enum DistanceText {
-    private static let formatter: MeasurementFormatter = {
-        let formatter = MeasurementFormatter()
-        formatter.unitOptions = .naturalScale
-        formatter.unitStyle = .short
-        formatter.numberFormatter.maximumFractionDigits = 1
-        return formatter
-    }()
+    /// Beyond this, a walking distance isn't useful (you're off campus).
+    static let maximumWalkingMeters: CLLocationDistance = 5_000
 
+    /// "0.2 mi", "Nearby", or nil when either spot is unknown or too far to walk.
     static func between(_ origin: CLLocation?, _ coordinate: CLLocationCoordinate2D?) -> String? {
         guard let origin, let coordinate else { return nil }
         let meters = origin.distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-        guard meters.isFinite else { return nil }
+        guard meters.isFinite, meters <= maximumWalkingMeters else { return nil }
         if meters < 40 { return "Nearby" }
-        return formatter.string(from: Measurement(value: meters, unit: UnitLength.meters))
+        return format(meters: meters)
+    }
+
+    /// Walking-scale distances the way Maps shows them: "200 ft" / "0.3 mi",
+    /// or "150 m" / "1.2 km" in metric regions.
+    static func format(meters: CLLocationDistance, locale: Locale = .current) -> String {
+        let oneDecimal = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(1)).locale(locale)
+        if locale.measurementSystem == .metric {
+            if meters < 1_000 {
+                return "\(Int((meters / 10).rounded()) * 10) m"
+            }
+            return "\((meters / 1_000).formatted(oneDecimal)) km"
+        }
+        let miles = meters / 1_609.344
+        if miles >= 0.1 {
+            return "\(miles.formatted(oneDecimal)) mi"
+        }
+        return "\(Int((meters * 3.28084 / 50).rounded()) * 50) ft"
     }
 }
 
@@ -715,7 +728,7 @@ struct FriendsMapSection: View {
                     }
                 }
 
-                if snapshot.hiddenFriendCount > 0 {
+                if !snapshot.presences.isEmpty && snapshot.hiddenFriendCount > 0 {
                     Text(
                         snapshot.hiddenFriendCount == 1
                             ? "1 friend isn’t sharing right now"

@@ -17,10 +17,16 @@ struct AddFriendsSheet: View {
     var body: some View {
         let incoming = socialManager.overview?.incomingRequests ?? []
         let outgoing = socialManager.overview?.outgoingRequests ?? []
+        let outgoingIDs = Set(outgoing.compactMap { $0.toUser?.id })
+        // Someone you've already asked moves from Suggested to Sent.
+        let suggestions = socialManager.quickAddSuggestions.filter {
+            !$0.hasPendingOutgoing && !outgoingIDs.contains($0.id)
+        }
+        let showsResults = searchedQuery != nil && searchedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         NavigationStack {
             List {
-                if let searchedQuery, searchedQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) {
+                if let searchedQuery, showsResults {
                     Section("Results") {
                         if socialManager.searchResults.isEmpty {
                             Text("No one found for “\(searchedQuery)”.")
@@ -37,7 +43,7 @@ struct AddFriendsSheet: View {
                     }
                 }
 
-                if !incoming.isEmpty {
+                if !showsResults && !incoming.isEmpty {
                     Section("Requests") {
                         ForEach(incoming) { request in
                             FriendRequestRow(request: request)
@@ -45,9 +51,9 @@ struct AddFriendsSheet: View {
                     }
                 }
 
-                if !socialManager.quickAddSuggestions.isEmpty {
+                if !showsResults && !suggestions.isEmpty {
                     Section {
-                        ForEach(socialManager.quickAddSuggestions) { result in
+                        ForEach(suggestions) { result in
                             personRow(
                                 id: result.id,
                                 name: result.displayName,
@@ -63,7 +69,7 @@ struct AddFriendsSheet: View {
                     }
                 }
 
-                if !outgoing.isEmpty {
+                if !showsResults && !outgoing.isEmpty {
                     Section("Sent") {
                         ForEach(outgoing) { request in
                             if let user = request.toUser {

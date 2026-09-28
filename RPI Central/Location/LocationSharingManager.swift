@@ -55,6 +55,7 @@ final class LocationSharingManager: NSObject, ObservableObject {
     private var lastPublishedPlaceID: String?
     private var lastPublishedViewerIDs: [String]?
     private var expiryTimer: Timer?
+    private var heartbeatTimer: Timer?
     private var knownFriendIDs: [String]?
 
 #if canImport(FirebaseAuth) && canImport(FirebaseFirestore)
@@ -206,11 +207,8 @@ final class LocationSharingManager: NSObject, ObservableObject {
             settings.isEnabled = true
             settings.expiresAt = duration.expiration()
             saveSettings()
-            lastPublishedLocation = nil
             refreshLocationServices()
-            if isAuthorized {
-                locationManager.requestLocation()
-            }
+            republishWithCurrentFix()
             await socialManager?.setShareLocationFlag(true)
         } else {
             settings.isEnabled = false
@@ -320,6 +318,7 @@ final class LocationSharingManager: NSObject, ObservableObject {
         }
 
         scheduleExpiryTimer()
+        scheduleHeartbeat()
     }
 
     private func startMonitoringCampusZones() {
@@ -370,6 +369,21 @@ final class LocationSharingManager: NSObject, ObservableObject {
         }
     }
 
+    /// With a distance filter, a phone that isn't moving gets no new fixes.
+    /// Republish on a timer while the app is open so friends don't see an
+    /// old time for someone who is still sharing.
+    private func scheduleHeartbeat() {
+        heartbeatTimer?.invalidate()
+        heartbeatTimer = nil
+        guard isAppActive, isSharingActive, isAuthorized else { return }
+
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: Self.foregroundHeartbeat, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.republishWithCurrentFix()
+            }
+        }
+    }
+
     private func expireSharingIfNeeded() {
         guard settings.isEnabled, settings.isExpired() else { return }
         Task { await setSharingEnabled(false) }
@@ -409,7 +423,12 @@ final class LocationSharingManager: NSObject, ObservableObject {
     private func republishWithCurrentFix() {
         guard isSharingActive else { return }
         lastPublishedLocation = nil
-        if let lastLocation, Date().timeIntervalSince(lastLocation.timestamp) < 5 * 60 {
+        // While foreground updates stream, iOS reports any real movement, so
+        // an older fix is still where we are. requestLocation() is ignored
+        // during streaming anyway.
+        let isStreaming = isAppActive && isAuthorized
+        let maximumAge: TimeInterval = isStreaming ? 60 * 60 : 5 * 60
+        if let lastLocation, Date().timeIntervalSince(lastLocation.timestamp) < maximumAge {
             handle(location: lastLocation, trigger: .manual)
         } else if isAuthorized {
             locationManager.requestLocation()
@@ -679,8 +698,8 @@ final class LocationSharingManager: NSObject, ObservableObject {
             return
         }
         refreshLocationServices()
-        if isSharingActive, isAuthorized, lastPublishedLocation == nil {
-            locationManager.requestLocation()
+        if lastPublishedLocation == nil {
+            republishWithCurrentFix()
         }
     }
 

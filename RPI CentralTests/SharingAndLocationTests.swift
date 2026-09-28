@@ -312,6 +312,19 @@ struct SharingAndLocationTests {
         #expect(ChatTimeText.short(noon.addingTimeInterval(-24 * 3600), now: noon, calendar: calendar) == "Yesterday")
     }
 
+    @Test func walkingDistancesReadLikeMaps() {
+        let us = Locale(identifier: "en_US")
+        #expect(DistanceText.format(meters: 60, locale: us) == "200 ft")
+        #expect(DistanceText.format(meters: 402, locale: us) == "0.2 mi")
+        #expect(DistanceText.format(meters: 148, locale: Locale(identifier: "en_CA")) == "150 m")
+        #expect(DistanceText.format(meters: 1_500, locale: Locale(identifier: "de_DE")) == "1,5 km")
+
+        let dcc = CLLocation(latitude: 42.729311, longitude: -73.679292)
+        #expect(DistanceText.between(dcc, CLLocationCoordinate2D(latitude: 42.72932, longitude: -73.67930)) == "Nearby")
+        // Someone across the country isn't a walking distance.
+        #expect(DistanceText.between(dcc, CLLocationCoordinate2D(latitude: 37.33, longitude: -122.01)) == nil)
+    }
+
     // MARK: - Helpers
 
     private func pin(_ id: String, at coordinate: CLLocationCoordinate2D) -> FriendMapPinModel {

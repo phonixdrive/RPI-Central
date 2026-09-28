@@ -70,7 +70,7 @@ struct SocialHubView: View {
                 pendingChat = socialManager.directMessageReference(with: friend)
             }
         }
-        .sheet(isPresented: $showNewGroup) { newGroupSheet }
+        .sheet(isPresented: $showNewGroup, onDismiss: openPendingChat) { newGroupSheet }
         .sheet(isPresented: $showNewPlan) { newPlanSheet }
         .task {
             if socialManager.isAuthenticated && socialManager.overview == nil {
@@ -219,6 +219,11 @@ struct SocialHubView: View {
             let created = await socialManager.createFriendGroup(name: name, memberIDs: memberIDs)
             if created {
                 socialManager.requestScheduleSync()
+                // Open the new group's chat once the editor closes.
+                let viewerID = socialManager.currentUser?.id
+                if let group = socialManager.friendGroups.last(where: { $0.name == name && $0.ownerID == viewerID }) {
+                    pendingChat = socialManager.chatReference(for: group)
+                }
             }
             return created
         }
