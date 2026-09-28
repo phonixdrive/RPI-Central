@@ -772,9 +772,10 @@ struct GradeBreakdownView: View {
                         .buttonStyle(.themedPill())
                     }
                 } header: {
-                    Text("Credits (GPA weight)")
-                } footer: {
-                    Text("Pass/No Pass grades count toward credits earned but not toward GPA.")
+                    HStack(spacing: 6) {
+                        Text("Credits (GPA weight)")
+                        InfoButton("Pass/No Pass grades count toward credits earned but not toward GPA.")
+                    }
                 }
 
                 Section("Override (for GPA)") {

@@ -44,7 +44,6 @@ struct SettingsView: View {
                             "Terms & Courses",
                             systemImage: "graduationcap.fill",
                             value: calendarViewModel.currentSemester.displayName
-                                .replacingOccurrences(of: " (current term)", with: "")
                         )
                     }
 
@@ -192,6 +191,14 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
+    /// A section title with an ⓘ that explains it, instead of a footer paragraph.
+    private func infoHeader(_ title: String, _ info: String) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+            InfoButton(info)
+        }
+    }
+
     private var appearanceSection: some View {
         Section(header: Text("Appearance")) {
             Picker("Mode", selection: $selectedAppearance) {
@@ -215,10 +222,10 @@ struct SettingsView: View {
     }
 
     private var homeDashboardSection: some View {
-        Section(
-            header: Text("Home Dashboard"),
-            footer: Text("Choose visibility and size here. To reorder, tap Edit on Home and drag the widget cards themselves. Sizes are rows × columns: 1×1 is small, 1×2 is wide, and 2×2 is large.")
-        ) {
+        Section(header: infoHeader(
+            "Home Dashboard",
+            "Choose which cards show and how big they are (rows × columns). To reorder them, tap Edit on Home."
+        )) {
             ForEach(calendarViewModel.homeSectionOrder) { section in
                 HStack(spacing: 12) {
                     Toggle(
@@ -255,19 +262,21 @@ struct SettingsView: View {
 
     private var coursesSection: some View {
         Section(header: Text("Courses")) {
-            Toggle("Enforce prerequisites", isOn: $calendarViewModel.enforcePrerequisites)
+            Toggle(isOn: $calendarViewModel.enforcePrerequisites) {
+                HStack(spacing: 6) {
+                    Text("Enforce prerequisites")
+                    InfoButton("Adding a course you’re missing prerequisites for takes a second tap.")
+                }
+            }
             Toggle("Auto-collapse prerequisites", isOn: $autoCollapseCoursePrerequisites)
-            Text("If enabled, courses with missing prerequisites require a second tap to bypass.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
     private var currentTermSection: some View {
-        Section(
-            header: Text("Current Term"),
-            footer: Text("This is the term the app treats as happening now. Upcoming assignments, reminders, and Flex Dollars use this term.")
-        ) {
+        Section(header: infoHeader(
+            "Current Term",
+            "The term the app treats as now. Reminders, upcoming assignments, and Flex Dollars use it."
+        )) {
             Picker(
                 "Current term",
                 selection: Binding(
@@ -283,10 +292,10 @@ struct SettingsView: View {
     }
 
     private var visibleTermsSection: some View {
-        Section(
-            header: Text("Show Terms Through"),
-            footer: Text("This controls how far ahead Home and the calendar can display terms. Use it to preview future schedules without changing the current term.")
-        ) {
+        Section(header: infoHeader(
+            "Show Terms Through",
+            "How far ahead Home and the calendar show terms, so you can preview a future schedule without changing the current term."
+        )) {
             Picker(
                 "Latest term shown",
                 selection: Binding(
@@ -312,10 +321,10 @@ struct SettingsView: View {
     }
 
     private var phoneWebSyncSection: some View {
-        Section(
-            header: Text("Phone and Web Sync"),
-            footer: Text("RPI Central creates a cloud recovery backup automatically about once a week while you are signed in. Your saved copy is private to your account.")
-        ) {
+        Section(header: infoHeader(
+            "Phone and Web Sync",
+            "RPI Central backs up your setup about once a week while you’re signed in. Only you can see your saved copy."
+        )) {
             LabeledContent("Automatic backups", value: "Weekly")
 
             if let lastBackup = appStateSyncManager.lastWeeklyBackupAt {
@@ -389,10 +398,10 @@ struct SettingsView: View {
     }
 
     private var lmsCalendarSection: some View {
-        Section(
-            header: Text("LMS Calendar"),
-            footer: Text("Paste your Blackboard calendar feed URL here to import LMS events into your calendar. The link is private to your account, so don’t share it.")
-        ) {
+        Section(header: infoHeader(
+            "Blackboard Calendar",
+            "Paste the iCal (.ics) link from Blackboard’s calendar to import due dates. The link is private to you, so don’t share it."
+        )) {
             Toggle("Auto daily sync", isOn: $calendarViewModel.lmsCalendarAutoDailySyncEnabled)
 
             TextField("https://lms.rpi.edu/.../learn.ics", text: $calendarViewModel.lmsCalendarFeedURL)
@@ -436,10 +445,10 @@ struct SettingsView: View {
     }
 
     private var externalCalendarsSection: some View {
-        Section(
-            header: Text("Google & Outlook Calendars"),
-            footer: Text("RPI Central mirrors events from calendars already connected to Apple Calendar. Add Google or Outlook under iPhone Settings › Apps › Calendar › Calendar Accounts, then choose calendars here.")
-        ) {
+        Section(header: infoHeader(
+            "Google & Outlook Calendars",
+            "Shows events from calendars already on this iPhone. Add Google or Outlook in iPhone Settings › Apps › Calendar › Calendar Accounts, then pick them here."
+        )) {
             if externalCalendarSyncManager.needsPermission {
                 Button {
                     Task {
@@ -522,10 +531,7 @@ struct SettingsView: View {
     }
 
     private var socialSection: some View {
-        Section(
-            header: Text("Social & Privacy"),
-            footer: Text("Location is shared only with friends you choose, and only while sharing is on.")
-        ) {
+        Section(header: Text("Social & Privacy")) {
             Button {
                 showingLocationSettings = true
             } label: {
@@ -537,7 +543,7 @@ struct SettingsView: View {
                         Image(systemName: "location.fill")
                     }
                     Spacer()
-                    Text(locationSharingManager.isSharingActive ? "On" : "Ghost mode")
+                    Text(locationSharingManager.isSharingActive ? "Sharing" : "Ghost Mode")
                         .foregroundStyle(Color.secondary)
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
@@ -557,9 +563,9 @@ struct SettingsView: View {
 
     private var notificationsSection: some View {
         Section(header: Text("Notifications")) {
-            Toggle("Calendar notifications", isOn: $calendarViewModel.notificationsEnabled)
-            Toggle("Live activity notifications", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
-            Toggle("Group chat notifications", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
+            Toggle("Class and task reminders", isOn: $calendarViewModel.notificationsEnabled)
+            Toggle("Friends’ plans", isOn: $calendarViewModel.socialFeedNotificationsEnabled)
+            Toggle("Chat messages", isOn: $calendarViewModel.socialGroupNotificationsEnabled)
 
             if calendarViewModel.notificationsEnabled {
                 Stepper(
@@ -586,10 +592,7 @@ struct SettingsView: View {
     }
 
     private var shuttleSection: some View {
-        Section(
-            header: Text("Shuttle Tracker"),
-            footer: Text("Shorter refresh intervals feel more live, but they use more battery and network.")
-        ) {
+        Section(header: Text("Shuttle Tracker")) {
             Picker("Refresh interval", selection: $shuttleTrackerRefreshIntervalSeconds) {
                 Text("1 second").tag(1)
                 Text("2 seconds").tag(2)
@@ -671,9 +674,7 @@ struct SettingsView: View {
     private var recoveryBackupsView: some View {
         NavigationStack {
             List {
-                Section(
-                    footer: Text("Save This Phone makes two safety backups: one of your current iPhone before the save, and one of the saved copy that gets replaced.")
-                ) {
+                Section {
                     Button {
                         Task {
                             _ = await appStateSyncManager.createCloudBackup(
@@ -707,7 +708,7 @@ struct SettingsView: View {
 
                 Section(header: Text("Saved backups")) {
                     if appStateSyncManager.cloudBackups.isEmpty {
-                        Text("No recovery backups yet. Your first save, update, or restore will create them automatically.")
+                        Text("No backups yet. Saving, updating, or restoring creates them.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {

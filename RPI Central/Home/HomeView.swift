@@ -1247,6 +1247,8 @@ struct HomeView: View {
             upcoming.first { $0.enrollmentID == event.enrollmentID }
         }
         let fallbackDeadline = upcoming.first
+        let currentTerm = calendarViewModel.currentSemester.rawValue
+        let hasCoursesThisTerm = calendarViewModel.enrolledCourses.contains { $0.semesterCode == currentTerm }
 
         VStack(alignment: .leading, spacing: 6) {
             if let nextClass {
@@ -1316,6 +1318,14 @@ struct HomeView: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
+            } else if !hasCoursesThisTerm {
+                Label("No courses added yet", systemImage: "book.closed")
+                    .font(.subheadline.weight(.semibold))
+                Button("Add Courses") {
+                    NotificationCenter.default.post(name: .openCoursesTab, object: nil)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             } else {
                 Label("No class in the next two weeks", systemImage: "calendar.badge.checkmark")
                     .font(.subheadline.weight(.semibold))
@@ -2063,7 +2073,7 @@ struct HomeView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Set your dining plan or current balance to start tracking flex dollars.")
+                        Text("Set your meal plan to track Flex Dollars.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -3397,11 +3407,6 @@ private struct PomodoroTimerView: View {
                 }
                 .disabled(isRunning)
 
-                Section {
-                    Text("You'll get a notification when a session ends, even if you leave the app. Closing the timer stops it.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
         }
         .navigationTitle("Study Timer")

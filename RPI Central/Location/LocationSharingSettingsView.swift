@@ -31,15 +31,6 @@ struct LocationSharingSettingsView: View {
                 }
 
                 permissionSection
-
-                Section {
-                    Text("Your location is stored only while sharing is on and is readable only by the friends you choose. Turning on Ghost mode deletes it immediately. Removing a friend stops sharing with them.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(CampusDirectory.shared.attribution)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
             }
             .navigationTitle("Location Sharing")
             .navigationBarTitleDisplayMode(.inline)
@@ -88,13 +79,14 @@ struct LocationSharingSettingsView: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Sharing")
+            HStack(spacing: 6) {
+                Text("Sharing")
+                InfoButton("Your location is saved only while sharing is on, and only the friends you choose can read it. Ghost Mode deletes it right away.")
+            }
         } footer: {
-            Text(
-                locationManager.isSignedIn
-                    ? "When sharing is off (Ghost mode), no friend can see where you are."
-                    : "Sign in on the Social tab to share your location with friends."
-            )
+            if !locationManager.isSignedIn {
+                Text("Sign in on the Social tab to share.")
+            }
         }
     }
 
@@ -123,27 +115,24 @@ struct LocationSharingSettingsView: View {
                             locationManager.setFriend(friend.id, selected: !isSelected)
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(isSelected ? calendarViewModel.themeColor : .secondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(friend.displayName)
-                                        .foregroundStyle(.primary)
-                                    Text("@\(friend.username)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+                                SocialAvatar(id: friend.id, name: friend.displayName, size: 32)
+                                Text(friend.displayName)
+                                    .foregroundStyle(Color.primary)
                                 Spacer()
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.title3)
+                                    .foregroundStyle(isSelected ? calendarViewModel.themeColor : Color.secondary)
                             }
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
         } header: {
-            Text("Who can see you")
-        } footer: {
-            Text("Only accepted friends can ever see your location. New friends are included automatically only when you choose All friends.")
+            HStack(spacing: 6) {
+                Text("Who can see you")
+                InfoButton("Only friends can ever see your location. New friends are added automatically only with All friends.")
+            }
         }
     }
 
@@ -190,9 +179,10 @@ struct LocationSharingSettingsView: View {
                 }
             }
         } header: {
-            Text("Background updates")
-        } footer: {
-            Text("Like Find My, RPI Central updates your shared location only after you move a significant distance or arrive at a part of campus, so battery use stays low. This needs “Always” location access; without it, friends see where you were when you last opened the app.")
+            HStack(spacing: 6) {
+                Text("Background updates")
+                InfoButton("Like Find My, your location updates only after you move a good distance or reach another part of campus, so battery use stays low. Needs “Always” location access; otherwise friends see where you were when you last opened the app.")
+            }
         }
     }
 

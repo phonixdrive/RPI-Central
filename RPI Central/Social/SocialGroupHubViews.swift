@@ -114,12 +114,10 @@ struct GroupHubSheet: View {
         SocialCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
                         Text("Pinned Resources")
                             .font(.headline)
-                        Text("Keep the syllabus, office hours, Discord links, and exam dates in one place.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        InfoButton("Syllabus, office hours, Discord links, and exam dates, shared with the class.")
                     }
 
                     Spacer()

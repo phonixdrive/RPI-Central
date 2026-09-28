@@ -201,4 +201,15 @@ enum RelativeTimeText {
         }
         return formatter.localizedString(for: date, relativeTo: now)
     }
+
+    /// "now", "4m", "2h", "3d" for tight spaces.
+    static func compact(_ date: Date, now: Date = Date()) -> String {
+        let minutes = Int(now.timeIntervalSince(date) / 60)
+        switch minutes {
+        case ..<1: return "now"
+        case ..<60: return "\(minutes)m"
+        case ..<(24 * 60): return "\(minutes / 60)h"
+        default: return "\(minutes / (24 * 60))d"
+        }
+    }
 }

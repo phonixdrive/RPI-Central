@@ -89,7 +89,7 @@ enum FriendPresenceResolver {
             coordinate: current.building?.center,
             building: current.building,
             headline: activityHeadline(current),
-            detail: [place, "until \(timeFormatter.string(from: current.end))", "from schedule"]
+            detail: [place, "until \(timeFormatter.string(from: current.end))"]
                 .compactMap { $0 }
                 .joined(separator: " · "),
             updatedAt: nil,

@@ -371,15 +371,9 @@ struct CoursesView: View {
                 .font(.headline)
                 .foregroundStyle(calendarViewModel.themeColor)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Browse all subjects")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text("Open the full subject list")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("Browse all subjects")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
 
             Spacer()
 

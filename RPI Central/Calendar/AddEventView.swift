@@ -112,17 +112,18 @@ struct AddEventView: View {
                     }
                 }
 
-                Section(header: Text("Share event")) {
+                Section(header: HStack(spacing: 6) {
+                    Text("Share event")
+                    if socialManager.isAuthenticated {
+                        InfoButton("People you share with see this event only while your schedule sharing is on in Social.")
+                    }
+                }) {
                     if socialManager.isAuthenticated {
                         Picker("Send to", selection: $shareMode) {
                             ForEach(PersonalEventShareMode.allCases) { mode in
                                 Text(mode.title).tag(mode)
                             }
                         }
-
-                        Text("Recipients only see this event if your schedule sharing is enabled in Social.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
 
                         if shareMode == .friends {
                             sharingSelectionList(
@@ -158,7 +159,7 @@ struct AddEventView: View {
                             )
                         }
                     } else {
-                        Text("Sign in through Social to share personal events with friends or groups.")
+                        Text("Sign in on the Social tab to share events.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

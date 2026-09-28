@@ -205,7 +205,7 @@ struct RPI_CentralTests {
         )))
 
         #expect(CalendarViewModel.defaultCurrentSemester(for: fallDate) == .fall2026)
-        #expect(Semester.fall2026.displayName == "Fall 2026 (current term)")
+        #expect(Semester.fall2026.displayName == "Fall 2026")
     }
 
     @Test func fullAndClosedSectionsHaveDifferentBypassStates() {

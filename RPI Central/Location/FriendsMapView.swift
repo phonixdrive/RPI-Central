@@ -191,11 +191,16 @@ enum FriendMapLayout {
 }
 
 enum FriendAvatarStyle {
+    private static let palette: [Color] = [
+        .blue, .purple, .pink, .red, .orange, .teal, .indigo, .mint, .cyan, .green,
+        Color(red: 0.85, green: 0.55, blue: 0.10), Color(red: 0.55, green: 0.45, blue: 0.85),
+    ]
+
     /// A stable color per friend so the same person looks the same everywhere.
     static func color(for id: String) -> Color {
         let hash = SocialHashing.fnv1a64Hex(Data(id.utf8))
         let value = UInt64(hash.prefix(8), radix: 16) ?? 0
-        return Color(hue: Double(value % 360) / 360, saturation: 0.62, brightness: 0.82)
+        return palette[Int(value % UInt64(palette.count))]
     }
 
     static func initials(for name: String) -> String {
@@ -578,7 +583,7 @@ struct FriendsMapSection: View {
 
             VStack(spacing: 16) {
                 mapCard(snapshot)
-                LocationSharingStatusCard(showSettings: $showSharingSettings, now: context.date)
+                LocationSharingStatusCard(showSettings: $showSharingSettings)
                 friendsCard(snapshot, now: context.date)
             }
         }
@@ -622,16 +627,11 @@ struct FriendsMapSection: View {
 
         return SocialCard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Label("Friends Map", systemImage: "map.fill")
-                        .font(.headline)
+                HStack(spacing: 8) {
+                    Label(liveCount == 1 ? "1 friend live" : "\(liveCount) friends live", systemImage: "circle.fill")
+                        .labelStyle(LiveCountLabelStyle(isActive: liveCount > 0))
                     Spacer()
-                    Text(liveCount == 1 ? "1 friend live" : "\(liveCount) friends live")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Color.green.opacity(liveCount > 0 ? 0.16 : 0.06)))
-                        .foregroundStyle(liveCount > 0 ? Color.green : Color.secondary)
+                    InfoButton(Self.legend)
                 }
 
                 FriendsMapCanvas(
@@ -673,9 +673,10 @@ struct FriendsMapSection: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                Text("Dashed rings show where a friend's class is, from their shared schedule. \(CampusDirectory.shared.attribution)")
+                Text("© OpenStreetMap contributors")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .onChange(of: selectedFriendID) { _, newValue in
@@ -687,14 +688,11 @@ struct FriendsMapSection: View {
     private func friendsCard(_ snapshot: FriendsMapSnapshot, now: Date) -> some View {
         SocialCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Where friends are", systemImage: "person.2.wave.2.fill")
-                    .font(.headline)
-
                 if snapshot.presences.isEmpty {
                     Text(
                         (socialManager.overview?.friends.isEmpty ?? true)
-                            ? "Add friends to see who's around campus."
-                            : "No friends are sharing right now. Friends who share their location, or whose schedule shows a class, appear here."
+                            ? "Add friends to see who’s around campus."
+                            : "No one’s sharing right now."
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -720,8 +718,8 @@ struct FriendsMapSection: View {
                 if snapshot.hiddenFriendCount > 0 {
                     Text(
                         snapshot.hiddenFriendCount == 1
-                            ? "1 friend isn't sharing a location or class right now."
-                            : "\(snapshot.hiddenFriendCount) friends aren't sharing a location or class right now."
+                            ? "1 friend isn’t sharing right now"
+                            : "\(snapshot.hiddenFriendCount) friends aren’t sharing right now"
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -740,6 +738,12 @@ struct FriendsMapSection: View {
             ))
         }
     }
+
+    private static let legend = """
+        Solid pins are live locations; faded pins haven’t updated in a while. Dashed rings show where a friend’s class is, from their shared schedule.
+
+        Building outlines © OpenStreetMap contributors, available under the Open Database License.
+        """
 
     private func mapButton(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -837,7 +841,7 @@ struct FriendsMapFullScreen: View {
                 showSharingSettings = true
             } label: {
                 Label(
-                    locationManager.isSharingActive ? "Sharing" : "Ghost mode",
+                    locationManager.isSharingActive ? "Sharing" : "Ghost Mode",
                     systemImage: locationManager.isSharingActive ? "location.fill" : "location.slash.fill"
                 )
                 .font(.subheadline.weight(.semibold))
@@ -901,31 +905,57 @@ struct FriendsMapFullScreen: View {
 
 // MARK: - Sharing status
 
+/// A green dot and "3 friends live", dimmed when nobody is live.
+private struct LiveCountLabelStyle: LabelStyle {
+    let isActive: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon
+                .font(.system(size: 8))
+                .foregroundStyle(isActive ? Color.green : Color.secondary)
+            configuration.title
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isActive ? Color.primary : Color.secondary)
+        }
+    }
+}
+
 struct LocationSharingStatusCard: View {
     @Binding var showSettings: Bool
-    let now: Date
 
     @EnvironmentObject private var locationManager: LocationSharingManager
     @EnvironmentObject private var calendarViewModel: CalendarViewModel
 
     var body: some View {
         SocialCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
                     Image(systemName: locationManager.isSharingActive ? "location.fill" : "location.slash.fill")
                         .font(.title3)
                         .foregroundStyle(locationManager.isSharingActive ? calendarViewModel.themeColor : Color.secondary)
-                        .frame(width: 30)
+                        .frame(width: 28)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(locationManager.isSharingActive ? "Sharing your location" : "Ghost mode")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(locationManager.isSharingActive ? "Sharing Location" : "Ghost Mode")
                             .font(.headline)
-                        Text(summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        if let summary {
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     Spacer(minLength: 8)
+
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Sharing options")
 
                     Toggle(
                         "Share my location",
@@ -938,17 +968,6 @@ struct LocationSharingStatusCard: View {
                     )
                     .labelsHidden()
                     .disabled(!locationManager.isSignedIn)
-                }
-
-                if locationManager.isSharingActive, let place = locationManager.currentPlace {
-                    Label(
-                        [place.label, locationManager.lastPublishedAt.map { "updated \(RelativeTimeText.since($0, now: now).lowercased())" }]
-                            .compactMap { $0 }
-                            .joined(separator: " · "),
-                        systemImage: "mappin.circle.fill"
-                    )
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
                 }
 
                 if locationManager.isAuthorizationDenied {
@@ -966,34 +985,21 @@ struct LocationSharingStatusCard: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-
-                Button {
-                    showSettings = true
-                } label: {
-                    Label("Sharing options", systemImage: "slider.horizontal.3")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
             }
         }
     }
 
-    private var summary: String {
-        guard locationManager.isSignedIn else { return "Sign in to share your location with friends." }
-        guard locationManager.isSharingActive else { return "Friends can't see where you are." }
+    /// "6 friends · until 3:00 PM · At DCC"; nil in ghost mode.
+    private var summary: String? {
+        guard locationManager.isSignedIn else { return "Sign in to share" }
+        guard locationManager.isSharingActive else { return nil }
 
         let settings = locationManager.settings
         let count = locationManager.viewerCount
-        let audience = settings.audience == .allFriends
-            ? (count == 1 ? "1 friend" : "\(count) friends")
-            : (count == 1 ? "1 chosen friend" : "\(count) chosen friends")
-        let until: String
-        if let expiresAt = settings.expiresAt {
-            until = "until \(expiresAt.formatted(date: .omitted, time: .shortened))"
-        } else {
-            until = "until you turn it off"
-        }
-        return "Visible to \(audience) · \(settings.precision.title.lowercased()) · \(until)"
+        let audience = count == 1 ? "1 friend" : "\(count) friends"
+        let until = settings.expiresAt.map { "until \($0.formatted(date: .omitted, time: .shortened))" }
+        let place = locationManager.currentPlace?.label
+        return [audience, until, place].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

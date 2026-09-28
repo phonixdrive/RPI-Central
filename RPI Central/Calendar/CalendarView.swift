@@ -222,8 +222,13 @@ struct CalendarView: View {
             }
 
         } label: {
-            Text(monthTitle(for: current))
-                .font(.title2.bold())
+            // "September 2026", or "Sep 2026" when the header is tight.
+            ViewThatFits(in: .horizontal) {
+                Text(monthTitle(for: current))
+                Text(monthTitle(for: current, abbreviated: true))
+            }
+            .font(.title2.bold())
+            .lineLimit(1)
         }
     }
 
@@ -252,10 +257,8 @@ struct CalendarView: View {
 
     // MARK: - Date helpers
 
-    private func monthTitle(for date: Date) -> String {
-        let df = DateFormatter()
-        df.dateFormat = "LLLL yyyy"
-        return df.string(from: date)
+    private func monthTitle(for date: Date, abbreviated: Bool = false) -> String {
+        date.formatted(.dateTime.month(abbreviated ? .abbreviated : .wide).year())
     }
 
     private func shift(by offset: Int) {
