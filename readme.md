@@ -49,15 +49,24 @@ open "RPI Central.xcodeproj"
 
 | Path | Purpose |
 | --- | --- |
-| `RPI Central/` | SwiftUI application source |
-| `RPI Central/Widgets/` | WidgetKit extension source |
-| `Data/semester_data/` | Bundled term catalogs and prerequisite data |
+| `RPI Central/App/` | App entry point, tab bar, notifications, background refresh |
+| `RPI Central/Calendar/` | Calendar views, the main view model, academic calendar |
+| `RPI Central/Courses/` | Course catalog and details, prerequisites, GPA |
+| `RPI Central/Home/` | Home dashboard, dining hours, flex dollars |
+| `RPI Central/Social/` | Friends, chats, groups, feed, and shared schedules |
 | `RPI Central/Location/` | Friends map, location sharing, and campus building footprints |
-| `Tools/campus_buildings/` | Regenerates `CampusBuildings.json` from OpenStreetMap |
+| `RPI Central/ShuttleTracker/` | Shuttle map and schedules |
+| `RPI Central/Settings/` | Settings screens |
+| `RPI Central/Sync/` | Phone & web sync, Google/Outlook export, Blackboard feed |
+| `RPI Central/Widgets/` | WidgetKit extension source |
+| `Data/semester_data/` | Bundled term catalogs (Spring 2022 onward) |
+| `Data/semester_data_archive/` | Older terms, kept out of the app bundle |
 | `Data/academic_calendar_26.json` | 2026–2027 academic calendar data |
-| `firebase/` | Firestore rules and notification function support |
+| `firebase/` | Firestore rules, Cloud Functions, and their tests |
+| `Tools/campus_buildings/` | Regenerates `CampusBuildings.json` from OpenStreetMap |
 | `Tools/scrapers/` | Course-data collection and transformation tools |
-| `RPI CentralTests/` | Regression tests for terms, calendar data, widgets, chat, and refresh behavior |
+| `Tools/shuttle_tracker/` | Reference data the shuttle screens were built from |
+| `RPI CentralTests/` | Regression tests for terms, calendar data, widgets, chat, sharing, and location |
 | `docs/` | GitHub Pages website |
 
 ## Configuration

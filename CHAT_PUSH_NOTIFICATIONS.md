@@ -25,10 +25,10 @@ This does **not** describe every notification in the app. It is mainly the exter
 
 Important files:
 
-- [`/Users/phonixdrive/Documents/XCode projects/RPI Central/RPI Central/SocialManager.swift`](/Users/phonixdrive/Documents/XCode%20projects/RPI%20Central/RPI%20Central/SocialManager.swift)
-- [`/Users/phonixdrive/Documents/XCode projects/RPI Central/RPI Central/NotificationManager.swift`](/Users/phonixdrive/Documents/XCode%20projects/RPI%20Central/RPI%20Central/NotificationManager.swift)
-- [`/Users/phonixdrive/Documents/XCode projects/RPI Central/RPI Central/FirebaseAppDelegate.swift`](/Users/phonixdrive/Documents/XCode%20projects/RPI%20Central/RPI%20Central/FirebaseAppDelegate.swift)
-- [`/Users/phonixdrive/Documents/XCode projects/RPI Central/RPI Central/SettingsView.swift`](/Users/phonixdrive/Documents/XCode%20projects/RPI%20Central/RPI%20Central/SettingsView.swift)
+- [`RPI Central/Social/SocialManager.swift`](RPI%20Central/Social/SocialManager.swift)
+- [`RPI Central/App/NotificationManager.swift`](RPI%20Central/App/NotificationManager.swift)
+- [`RPI Central/App/FirebaseAppDelegate.swift`](RPI%20Central/App/FirebaseAppDelegate.swift)
+- [`RPI Central/Settings/SettingsView.swift`](RPI%20Central/Settings/SettingsView.swift)
 
 What the phone app does:
 
