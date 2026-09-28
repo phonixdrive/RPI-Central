@@ -352,18 +352,32 @@ final class CalendarViewModel: ObservableObject {
         }
     }
     
+    private var notificationRefreshWorkItem: DispatchWorkItem?
+
+    /// Coalesces bursts of task edits into one reschedule.
+    private func scheduleNotificationRefresh() {
+        notificationRefreshWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.applyNotificationScheduling() }
+        notificationRefreshWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+    }
+
     private func applyNotificationScheduling() {
         if !notificationsEnabled {
             NotificationManager.clearManagedCalendarNotifications()
             return
         }
 
-        NotificationManager.requestAuthorization()
-
         let now = Date()
         let classMeetings = notificationClassMeetings(now: now)
         let storedTaskList = storedTasks()
         let lmsEvents = notificationEligibleLMSImportedEvents()
+
+        // Ask for permission once there's actually something to remind about,
+        // not on first launch.
+        if !classMeetings.isEmpty || !storedTaskList.isEmpty || !lmsEvents.isEmpty {
+            NotificationManager.requestAuthorization()
+        }
 
         NotificationManager.replaceManagedCalendarNotifications(
             classEvents: classMeetings,
@@ -483,6 +497,7 @@ final class CalendarViewModel: ObservableObject {
     private let receivedSharedEventsStorageKey = "received_shared_calendar_events_v1"
     private var receivedSharedEvents: [ReceivedSharedCalendarEvent] = []
     private var sharedEventsObserver: NSObjectProtocol?
+    private var tasksObserver: NSObjectProtocol?
 
     private let lightPalette: [Color] = [
         Color(red: 1.0,       green: 0.83529,  blue: 0.87451),
@@ -688,6 +703,14 @@ final class CalendarViewModel: ObservableObject {
         ) { [weak self] _ in
             self?.reloadReceivedSharedEventsFromStore()
         }
+        tasksObserver = NotificationCenter.default.addObserver(
+            forName: .courseTasksDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.scheduleWidgetSnapshotPublish()
+            self?.scheduleNotificationRefresh()
+        }
 
         // ✅ initial publish (coalesced; won’t re-fire during boot rebuild)
         publishWidgetSnapshot()
@@ -696,6 +719,9 @@ final class CalendarViewModel: ObservableObject {
     }
 
     deinit {
+        if let tasksObserver {
+            NotificationCenter.default.removeObserver(tasksObserver)
+        }
         if let sharedEventsObserver {
             NotificationCenter.default.removeObserver(sharedEventsObserver)
         }
@@ -1028,11 +1054,6 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Widgets (AppGroup snapshot publishing)
 
-    private let widgetKindsToReload: [String] = [
-        "RPICentralMonthWidget",
-        "RPICentralMonthAndTodayWidget"
-    ]
-
 
     private func widgetPriority(_ kind: CalendarEventKind) -> Int {
         switch kind {
@@ -1279,7 +1300,8 @@ final class CalendarViewModel: ObservableObject {
             }
             .prefix(12)
 
-        let todayEvents: [WidgetDayEvent] = todayEventsApp.map { e in
+        let enrollmentsByID = Dictionary(enrolledCourses.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        func widgetEvent(_ e: ClassEvent) -> WidgetDayEvent {
             var badge: String? = nil
             if let eventBadge = e.badge {
                 badge = eventBadge.rawValue
@@ -1290,9 +1312,10 @@ final class CalendarViewModel: ObservableObject {
                 default: badge = nil
                 }
             }
+            let course = e.enrollmentID.flatMap { enrollmentsByID[$0]?.course }
 
             return WidgetDayEvent(
-                id: e.id.uuidString,
+                id: e.interactionKey,
                 title: e.title,
                 location: e.location,
                 startDate: e.startDate,
@@ -1300,9 +1323,41 @@ final class CalendarViewModel: ObservableObject {
                 isAllDay: e.isAllDay,
                 background: RGBAColor.from(e.backgroundColor),
                 accent: RGBAColor.from(e.accentColor),
-                badge: badge
+                badge: badge,
+                courseCode: course.map { "\($0.subject) \($0.number)" }
             )
         }
+
+        let todayEvents: [WidgetDayEvent] = todayEventsApp.map(widgetEvent)
+
+        // The next week, so Up Next and Today stay right until the app runs again.
+        var upcomingEvents: [WidgetDayEvent] = []
+        for offset in 0..<8 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { continue }
+            upcomingEvents.append(contentsOf: eventsForWidget(on: day).prefix(16).map(widgetEvent))
+        }
+        var seenAllDay: Set<String> = []
+        upcomingEvents = upcomingEvents.filter { !$0.isAllDay || seenAllDay.insert($0.id).inserted }
+
+        let deadlineHorizon = calendar.date(byAdding: .day, value: 21, to: now) ?? now
+        let deadlines: [WidgetDeadline] = storedTasks()
+            .filter { $0.dueDate > now && $0.dueDate <= deadlineHorizon }
+            .sorted { $0.dueDate < $1.dueDate }
+            .prefix(12)
+            .map { task in
+                let enrollment = task.enrollmentID.flatMap { enrollmentsByID[$0] }
+                let color = enrollment.flatMap { enrollment in
+                    events.first { $0.enrollmentID == enrollment.id }?.accentColor
+                } ?? themeColor
+                return WidgetDeadline(
+                    id: task.id.uuidString,
+                    title: task.title,
+                    courseCode: enrollment.map { "\($0.course.subject) \($0.course.number)" } ?? "",
+                    kind: task.kind.rawValue,
+                    dueDate: task.dueDate,
+                    color: RGBAColor.from(color)
+                )
+            }
 
         let monthStart = now.startOfMonth(using: calendar)
         let snapYear = calendar.component(.year, from: monthStart)
@@ -1352,7 +1407,10 @@ final class CalendarViewModel: ObservableObject {
             theme: theme,
             appearance: appearance,
             todayEvents: todayEvents,
-            month: month
+            month: month,
+            upcomingEvents: upcomingEvents,
+            deadlines: deadlines,
+            accent: RGBAColor.from(themeColor)
         )
 
         do {
@@ -1362,6 +1420,7 @@ final class CalendarViewModel: ObservableObject {
 
             defaults.set(data, forKey: RPICentralWidgetShared.snapshotKey)
             defaults.set("wrote snapshot at \(now)", forKey: RPICentralWidgetShared.debugKey)
+            WatchSync.shared.send(snapshot: data)
 
             #if DEBUG
             let readBack = defaults.data(forKey: RPICentralWidgetShared.snapshotKey)
@@ -1372,9 +1431,7 @@ final class CalendarViewModel: ObservableObject {
             let t = Date()
             if t.timeIntervalSince(lastWidgetReloadAt) > widgetReloadMinInterval {
                 lastWidgetReloadAt = t
-                for kind in widgetKindsToReload {
-                    WidgetCenter.shared.reloadTimelines(ofKind: kind)
-                }
+                WidgetCenter.shared.reloadAllTimelines()
             }
         } catch {
             // ignore
