@@ -7,8 +7,10 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @EnvironmentObject var externalCalendarSyncManager: ExternalCalendarSyncManager
+    @EnvironmentObject var socialManager: SocialManager
     @ObservedObject private var courseCatalog = CourseCatalogService.shared
     @State private var selectedTab: RootTab = .home
+    @State private var showWelcomeTour = WelcomeTour.shouldShowOnLaunch
 
     var body: some View {
         #if DEBUG
@@ -68,6 +70,18 @@ struct ContentView: View {
             selectedTab = .courses
         }
         .onOpenURL(perform: handleDeepLink)
+        .task(id: socialManager.currentUser?.id) {
+            ServerSpacesModel.shared.start(userID: socialManager.currentUser?.id)
+        }
+        .fullScreenCover(isPresented: $showWelcomeTour) {
+            WelcomeTourView(accent: calendarViewModel.themeColor) { openCourses in
+                showWelcomeTour = false
+                if openCourses { selectedTab = .courses }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showWelcomeTour)) { _ in
+            showWelcomeTour = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: SocialDeepLink.didChangeNotification)) { _ in
             selectedTab = .social
         }
@@ -197,6 +211,7 @@ private enum RootTab: Hashable {
 extension Notification.Name {
     static let openCalendarTab = Notification.Name("openCalendarTab")
     static let openCoursesTab = Notification.Name("openCoursesTab")
+    static let showWelcomeTour = Notification.Name("showWelcomeTour")
 }
 
 #Preview {

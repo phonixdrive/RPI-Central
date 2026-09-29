@@ -270,3 +270,156 @@ struct MeetingBlocksCard: View {
     }
 }
 
+private struct ExamPickerTarget: Identifiable {
+    let key: String
+    let meeting: Meeting
+    let title: String
+    /// The type to go back to if no days are picked.
+    let revertTo: MeetingBlockType?
+    var id: String { key }
+}
+
+private extension MeetingBlockType {
+    var menuName: String { self == .disabled ? "Off" : displayName }
+}
+
+/// Every day this block meets, grouped by month. Tap to mark exam days.
+struct ExamDatesSheet: View {
+    let title: String
+    let meetingDates: [Date]
+    let accent: Color
+    let onSave: (Set<Date>) -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected: Set<Date>
+    @State private var otherDay = Date()
+    @State private var showEarlier = false
+
+    init(title: String, meetingDates: [Date], initial: Set<Date>, accent: Color, onSave: @escaping (Set<Date>) -> Void, onCancel: @escaping () -> Void) {
+        self.title = title
+        self.meetingDates = meetingDates
+        self.accent = accent
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _selected = State(initialValue: initial)
+    }
+
+    private var allDates: [Date] {
+        Array(Set(meetingDates).union(selected)).sorted()
+    }
+
+    /// Past days stay tucked away unless one is already picked.
+    private var visibleDates: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return allDates.filter { showEarlier || $0 >= today || selected.contains($0) }
+    }
+
+    private var hasHiddenEarlierDays: Bool {
+        let today = Calendar.current.startOfDay(for: Date())
+        return !showEarlier && allDates.contains { $0 < today && !selected.contains($0) }
+    }
+
+    private var months: [(title: String, dates: [Date])] {
+        var groups: [(String, [Date])] = []
+        for date in visibleDates {
+            let title = date.formatted(.dateTime.month(.wide).year())
+            if groups.last?.0 == title {
+                groups[groups.count - 1].1.append(date)
+            } else {
+                groups.append((title, [date]))
+            }
+        }
+        return groups.map { (title: $0.0, dates: $0.1) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Tap the days this block is an exam. On other days it won’t show up.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                if hasHiddenEarlierDays {
+                    Section {
+                        Button("Show Earlier Days") { showEarlier = true }
+                    }
+                }
+                if meetingDates.isEmpty {
+                    Section("Add a day") {
+                        DatePicker("Exam day", selection: $otherDay, displayedComponents: .date)
+                        Button("Add") { selected.insert(Calendar.current.startOfDay(for: otherDay)) }
+                    }
+                }
+                ForEach(months, id: \.title) { month in
+                    Section(month.title) {
+                        ForEach(month.dates, id: \.self) { date in
+                            dateRow(date)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(selected.isEmpty ? "Save" : "Save \(selected.count)") {
+                        onSave(selected)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private func dateRow(_ date: Date) -> some View {
+        let isSelected = selected.contains(date)
+        let isPast = date < Calendar.current.startOfDay(for: Date())
+        return Button {
+            if isSelected { selected.remove(date) } else { selected.insert(date) }
+        } label: {
+            HStack {
+                Text(date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                    .foregroundStyle(isPast ? .secondary : .primary)
+                Spacer()
+                Image(systemName: isSelected ? "star.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.orange : Color.secondary.opacity(0.5))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+extension Meeting {
+    /// "Tue, Fri · 2:00 – 3:50 PM"
+    var dayTimeSummary: String {
+        func clock(_ text: String) -> (hour: Int, minute: Int)? {
+            let parts = text.split(separator: ":").compactMap { Int($0) }
+            guard let hour = parts.first else { return nil }
+            return (hour, parts.count > 1 ? parts[1] : 0)
+        }
+        func format(_ time: (hour: Int, minute: Int), suffix: Bool) -> String {
+            let hour12 = time.hour % 12 == 0 ? 12 : time.hour % 12
+            let base = String(format: "%d:%02d", hour12, time.minute)
+            return suffix ? base + (time.hour < 12 ? " AM" : " PM") : base
+        }
+        let dayText = days.map(\.shortName).joined(separator: ", ")
+        guard let start = clock(self.start), let end = clock(self.end) else {
+            return "\(dayText) · \(self.start)–\(self.end)"
+        }
+        let sameHalf = (start.hour < 12) == (end.hour < 12)
+        return "\(dayText) · \(format(start, suffix: !sameHalf)) – \(format(end, suffix: true))"
+    }
+}
