@@ -2921,9 +2921,9 @@ struct TaskEditorView: View {
     @State private var reminderOffsets: [Int] = [10080, 1440]
 
     // add custom (days/hours/minutes)
-    @State private var customDays: String = "0"
-    @State private var customHours: String = "0"
-    @State private var customMinutes: String = "0"
+    @State private var customDays: String = ""
+    @State private var customHours: String = ""
+    @State private var customMinutes: String = ""
     
     private func defaultDueDateAt1159PM() -> Date {
         var cal = Calendar.current
@@ -3021,35 +3021,20 @@ struct TaskEditorView: View {
                 .tint(themeColor)
 
                 // Custom input
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
-                        TextField("Days", text: $customDays)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 90)
-
-                        TextField("Hours", text: $customHours)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 90)
-
-                        TextField("Minutes", text: $customMinutes)
-                            .keyboardType(.numberPad)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 100)
-
-                        Spacer()
-                    }
-
+                HStack(spacing: 8) {
+                    customField("d", text: $customDays)
+                    customField("h", text: $customHours)
+                    customField("m", text: $customMinutes)
+                    Spacer(minLength: 4)
                     Button {
                         addCustomOffsetFromInputs()
                     } label: {
-                        Label("Add reminder", systemImage: "plus.circle.fill")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .white.opacity(0.8))
+                        Label("Add", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(themeColor)
+                    .disabled(customOffsetMinutes == 0)
                 }
             }
 
@@ -3110,25 +3095,31 @@ struct TaskEditorView: View {
                 }
             )
         }
-        .onAppear {
-            if let existing {
-                title = existing.title
-                kind = existing.kind
-                dueDate = existing.dueDate
-                enrollmentID = existing.enrollmentID
-                notes = existing.notes
-                reminderOffsets = existing.reminderOffsetsMinutes
-            } else {
-                title = ""
-                kind = .assignment
-                dueDate = defaultDueDateAt1159PM()
-                enrollmentID = presetEnrollmentID
-                notes = ""
-                reminderOffsets = [10080, 1440]
-            }
+        .onAppear(perform: loadFields)
+        // Sheets can be built before the caller's `editingTask` lands, so
+        // reload when the task arrives instead of showing an empty editor.
+        .onChange(of: existing?.id) { loadFields() }
+    }
 
-            reminderOffsets = Array(Set(reminderOffsets)).sorted()
+    private func loadFields() {
+        if let existing {
+            title = existing.title
+            kind = existing.kind
+            dueDate = existing.dueDate
+            enrollmentID = existing.enrollmentID
+            notes = existing.notes
+            reminderOffsets = existing.reminderOffsetsMinutes
+        } else {
+            title = ""
+            kind = .assignment
+            dueDate = defaultDueDateAt1159PM()
+            enrollmentID = presetEnrollmentID
+            notes = ""
+            reminderOffsets = [10080, 1440]
         }
+
+        reminderOffsets = Array(Set(reminderOffsets)).sorted()
+        reminderOffsets = Array(Set(reminderOffsets)).sorted()
     }
 
     private func addOffset(_ minutes: Int) {
@@ -3137,19 +3128,33 @@ struct TaskEditorView: View {
         reminderOffsets = Array(Set(reminderOffsets)).sorted()
     }
 
-    private func addCustomOffsetFromInputs() {
-        let d = Int(customDays) ?? 0
-        let h = Int(customHours) ?? 0
-        let m = Int(customMinutes) ?? 0
+    private var customOffsetMinutes: Int {
+        (Int(customDays) ?? 0) * 1440 + (Int(customHours) ?? 0) * 60 + (Int(customMinutes) ?? 0)
+    }
 
-        let total = d * 1440 + h * 60 + m
+    private func customField(_ unit: String, text: Binding<String>) -> some View {
+        HStack(spacing: 2) {
+            TextField("0", text: text)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .focused($focused)
+                .frame(width: 34)
+            Text(unit).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.secondary.opacity(0.15), in: Capsule())
+    }
+
+    private func addCustomOffsetFromInputs() {
+        let total = customOffsetMinutes
         guard total > 0 else { return }
 
         addOffset(total)
 
-        customDays = "0"
-        customHours = "0"
-        customMinutes = "0"
+        customDays = ""
+        customHours = ""
+        customMinutes = ""
     }
 
     private func formatOffset(_ minutes: Int) -> String {

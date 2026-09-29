@@ -11,6 +11,18 @@ struct ContentView: View {
     @State private var selectedTab: RootTab = .home
 
     var body: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["RPI_WIDGET_GALLERY"] == "1" {
+            WidgetGalleryView()
+        } else {
+            tabs
+        }
+        #else
+        tabs
+        #endif
+    }
+
+    private var tabs: some View {
         TabView(selection: $selectedTab) {
             tabContent(HomeView())
                 .tag(RootTab.home)

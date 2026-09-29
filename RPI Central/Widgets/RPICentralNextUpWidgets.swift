@@ -9,6 +9,21 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - Family override
+
+/// Lets the app's debug widget gallery render each size; widgets on the
+/// Home Screen use WidgetKit's family.
+private struct WidgetFamilyOverrideKey: EnvironmentKey {
+    static let defaultValue: WidgetFamily? = nil
+}
+
+extension EnvironmentValues {
+    var widgetFamilyOverride: WidgetFamily? {
+        get { self[WidgetFamilyOverrideKey.self] }
+        set { self[WidgetFamilyOverrideKey.self] = newValue }
+    }
+}
+
 // MARK: - Provider
 
 struct ScheduleEntry: TimelineEntry {
@@ -45,6 +60,10 @@ struct ScheduleProvider: TimelineProvider {
         }
         if let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) {
             dates.insert(midnight)
+        }
+        // On days without classes, Today switches to tomorrow at 5 PM.
+        if let evening = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: now), evening > now {
+            dates.insert(evening)
         }
         let entries = dates.sorted().prefix(40).map { ScheduleEntry(date: $0, snapshot: snapshot) }
         let refresh = min(entries.last?.date ?? horizon, now.addingTimeInterval(6 * 3600))
@@ -238,6 +257,7 @@ private struct AgendaRow: View {
                 HStack(spacing: 4) {
                     Text(event.courseCode.map { "\($0) · \(event.title)" } ?? event.title)
                         .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary)
                         .lineLimit(1)
                     if event.badge == "exam" {
                         Image(systemName: "star.fill").font(.system(size: 8)).foregroundStyle(.orange)
@@ -245,7 +265,7 @@ private struct AgendaRow: View {
                 }
                 Text(subtitle)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -325,7 +345,9 @@ private struct SectionHeader: View {
 
 struct UpNextWidgetView: View {
     let entry: ScheduleEntry
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var systemFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+    private var family: WidgetFamily { familyOverride ?? systemFamily }
 
     private var upcoming: [WidgetDayEvent] { entry.snapshot.upcomingTimed(after: entry.date) }
     private var current: WidgetDayEvent? { upcoming.first { $0.startDate <= entry.date } }
@@ -537,17 +559,39 @@ struct UpNextWidgetView: View {
 
 struct TodayAgendaWidgetView: View {
     let entry: ScheduleEntry
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var systemFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+    private var family: WidgetFamily { familyOverride ?? systemFamily }
+
+    private var calendar: Calendar { .current }
+
+    private func remainingToday() -> Int {
+        entry.snapshot.events(on: entry.date).filter { !$0.isAllDay && $0.endDate > entry.date }.count
+    }
+
+    /// Once today's classes are over, the widget looks ahead to tomorrow
+    /// instead of showing a list of finished classes.
+    private var showsTomorrow: Bool {
+        let today = entry.snapshot.events(on: entry.date)
+        return (today.isEmpty && calendar.component(.hour, from: entry.date) >= 17) ||
+            (!today.isEmpty && remainingToday() == 0)
+    }
+
+    private var day: Date {
+        showsTomorrow
+            ? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: entry.date)) ?? entry.date
+            : entry.date
+    }
 
     var body: some View {
-        WidgetChrome(snapshot: entry.snapshot, url: WidgetLinks.day(entry.date)) {
+        WidgetChrome(snapshot: entry.snapshot, url: WidgetLinks.day(day)) {
             VStack(alignment: .leading, spacing: 6) {
                 header
-                let events = entry.snapshot.events(on: entry.date)
+                let events = entry.snapshot.events(on: day)
                 let visible = visibleEvents(events)
                 if events.isEmpty {
                     Spacer(minLength: 0)
-                    Label("Nothing on the calendar today", systemImage: "sun.max")
+                    Label(showsTomorrow ? "No classes tomorrow" : "Nothing on the calendar today", systemImage: showsTomorrow ? "moon.stars" : "sun.max")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
@@ -573,17 +617,26 @@ struct TodayAgendaWidgetView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(entry.date.formatted(.dateTime.weekday(.wide)))
+            Text(showsTomorrow ? "Tomorrow" : day.formatted(.dateTime.weekday(.wide)))
                 .font(.headline)
-            Text(entry.date.formatted(.dateTime.month(.abbreviated).day()))
+            Text(day.formatted(.dateTime.month(.abbreviated).day()))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer()
-            let remaining = entry.snapshot.events(on: entry.date).filter { !$0.isAllDay && $0.endDate > entry.date }.count
-            Text(remaining == 0 ? "Done for today" : "\(remaining) left")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(entry.snapshot.accentColor)
-                .widgetAccentable()
+            let timed = entry.snapshot.events(on: day).filter { !$0.isAllDay }.count
+            if showsTomorrow {
+                if timed > 0 {
+                    Text(timed == 1 ? "1 class" : "\(timed) classes")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                let remaining = remainingToday()
+                Text(remaining == 0 ? "Free today" : "\(remaining) left")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(entry.snapshot.accentColor)
+                    .widgetAccentable()
+            }
         }
     }
 
@@ -612,7 +665,9 @@ struct TodayAgendaWidgetView: View {
 
 struct DeadlinesWidgetView: View {
     let entry: ScheduleEntry
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var systemFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+    private var family: WidgetFamily { familyOverride ?? systemFamily }
 
     private var deadlines: [WidgetDeadline] { entry.snapshot.upcomingDeadlines(after: entry.date) }
 
@@ -800,7 +855,9 @@ private func monthTitle(_ month: MonthSnapshot) -> String {
 
 struct MonthWidgetView: View {
     let entry: ScheduleEntry
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var systemFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+    private var family: WidgetFamily { familyOverride ?? systemFamily }
 
     private var month: MonthSnapshot { entry.snapshot.month }
     private var accent: Color { entry.snapshot.accentColor }

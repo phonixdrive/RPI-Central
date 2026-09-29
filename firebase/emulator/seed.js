@@ -242,6 +242,18 @@ async function main() {
     });
   }
 
+  // Class ratings (averaged on each class page).
+  const ratings = [
+    ['maya', 5, 4, 8, ['greatLectures', 'toughExams']],
+    ['jordan', 4, 4, 10, ['toughExams', 'heavyWorkload']],
+    ['chris', 4, 3, 6, ['helpfulTAs', 'clearGrading']],
+    ['ava', 5, 4, 7, ['greatLectures', 'helpfulTAs']],
+    ['sam', 3, 5, 12, ['heavyWorkload', 'toughExams']],
+  ];
+  for (const [key, overall, difficulty, hoursPerWeek, tags] of ratings) {
+    set(`courseRatings/CSCI-1200/ratings/${uid(key)}`, { overall, difficulty, hoursPerWeek, tags, semesterCode: TERM, updatedAt: iso(minutes(-60 * 24)) });
+  }
+
   await batch.commit();
 
   // Activity posts live on their owners' profiles; responses on the responders'.
