@@ -206,3 +206,173 @@ enum SyllabusTextReader {
     }
 }
 
+// MARK: - Views
+
+struct SyllabusImportView: View {
+    let enrollmentID: String
+    let courseTitle: String
+    let term: DateInterval?
+    let accent: Color
+
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var tasks = TasksManager.shared
+    @State private var candidates: [SyllabusCandidate] = []
+    @State private var phase: Phase = .choose
+    @State private var showFilePicker = false
+    @State private var showScanner = false
+    @State private var showUnrecognized = false
+
+    private enum Phase: Equatable { case choose, reading, review, empty }
+
+    private var selectedCount: Int { candidates.filter(\.isSelected).count }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch phase {
+                case .choose: chooser
+                case .reading:
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Reading your syllabus…").foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .empty:
+                    ContentUnavailableView {
+                        Label("No Dates Found", systemImage: "calendar.badge.exclamationmark")
+                    } description: {
+                        Text("Try a clearer scan, or a PDF with the course schedule.")
+                    } actions: {
+                        Button("Try Another") { phase = .choose }
+                            .buttonStyle(.borderedProminent)
+                    }
+                case .review: review
+                }
+            }
+            .navigationTitle("Import Syllabus")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                if phase == .review {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add \(selectedCount)") { addSelected() }
+                            .disabled(selectedCount == 0)
+                    }
+                }
+            }
+            #if DEBUG
+            .task {
+                // Testing: RPI_SYLLABUS_TEST_PDF=/path/to/file.pdf reads that file directly.
+                if let path = ProcessInfo.processInfo.environment["RPI_SYLLABUS_TEST_PDF"], phase == .choose {
+                    process { await SyllabusTextReader.text(fromPDF: URL(fileURLWithPath: path)) }
+                }
+            }
+            #endif
+            .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.pdf]) { result in
+                if case .success(let url) = result {
+                    process { await SyllabusTextReader.text(fromPDF: url) }
+                }
+            }
+            .fullScreenCover(isPresented: $showScanner) {
+                DocumentScanner { images in
+                    showScanner = false
+                    guard !images.isEmpty else { return }
+                    process { await SyllabusTextReader.text(fromImages: images) }
+                }
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    private var chooser: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.largeTitle)
+                        .foregroundStyle(accent)
+                    Text("Find exams and due dates")
+                        .font(.title3.bold())
+                    Text("Pick your \(courseTitle) syllabus. You’ll review every date before anything is added.")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 6)
+            }
+            Section {
+                Button {
+                    showFilePicker = true
+                } label: {
+                    Label("Choose a PDF", systemImage: "doc.richtext")
+                }
+                if VNDocumentCameraViewController.isSupported {
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Label("Scan Paper Pages", systemImage: "doc.viewfinder")
+                    }
+                }
+            }
+        }
+    }
+
+    private var review: some View {
+        let important = candidates.indices.filter { candidates[$0].isImportant }
+        let other = candidates.indices.filter { !candidates[$0].isImportant }
+
+        return List {
+            Section {
+                ForEach(important, id: \.self) { index in
+                    CandidateRow(candidate: $candidates[index], accent: accent)
+                }
+            } header: {
+                Text(important.isEmpty ? "No exams or due dates found" : "\(important.count) found")
+            } footer: {
+                Text("Uncheck anything that isn’t right. Tap a row to edit it.")
+            }
+
+            if !other.isEmpty {
+                Section {
+                    DisclosureGroup("Other dated lines (\(other.count))", isExpanded: $showUnrecognized) {
+                        ForEach(other, id: \.self) { index in
+                            CandidateRow(candidate: $candidates[index], accent: accent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func process(_ read: @escaping () async -> String) {
+        phase = .reading
+        Task {
+            let text = await read()
+            var found = SyllabusDateExtractor.candidates(in: text, term: term)
+            let existing = tasks.tasks.filter { $0.enrollmentID == enrollmentID }
+            for index in found.indices {
+                let candidate = found[index]
+                if existing.contains(where: { $0.kind == candidate.kind && Calendar.current.isDate($0.dueDate, inSameDayAs: candidate.date) }) {
+                    found[index].alreadyAdded = true
+                    found[index].isSelected = false
+                }
+            }
+            candidates = found
+            phase = found.isEmpty ? .empty : .review
+        }
+    }
+
+    private func addSelected() {
+        for candidate in candidates where candidate.isSelected {
+            tasks.add(CourseTask(
+                enrollmentID: enrollmentID,
+                title: candidate.title,
+                kind: candidate.kind,
+                dueDate: candidate.date,
+                notes: "From syllabus: \(candidate.sourceLine)"
+            ))
+        }
+        dismiss()
+    }
+}
+
