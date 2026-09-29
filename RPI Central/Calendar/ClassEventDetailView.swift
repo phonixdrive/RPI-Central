@@ -72,6 +72,10 @@ struct ClassEventDetailView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(pageLabel ?? "")
             .navigationBarTitleDisplayMode(.inline)
+            // Inside the overlap pager the bar doesn't pick up the scroll
+            // edge effect, so give it a solid background.
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar { toolbar }
             .onAppear {
                 if let enrollmentID = event.enrollmentID, event.kind == .classMeeting {

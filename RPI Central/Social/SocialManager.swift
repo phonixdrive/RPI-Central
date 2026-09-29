@@ -4119,7 +4119,10 @@ final class SocialManager: ObservableObject {
                 "updatedAt": nowISO(),
             ], at: ref)
         } catch {
-            if isDocumentMissing(error) {
+            // Updating a class group that doesn't exist yet fails the rules
+            // (there is no member list to check), which Firestore reports as
+            // permission denied rather than not found. Either way, create it.
+            if isDocumentMissing(error) || isPermissionDenied(error) {
                 try await setData(courseCommunityData(community), at: ref)
             } else {
                 throw error
