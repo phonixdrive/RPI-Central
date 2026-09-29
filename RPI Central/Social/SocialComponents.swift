@@ -294,3 +294,134 @@ struct SocialCard<Content: View>: View {
         .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 6)
     }
 }
+
+// MARK: - Reporting
+
+struct SocialReportTarget: Identifiable, Equatable {
+    let userID: String
+    let displayName: String
+    let kind: SocialReportKind
+    var contextID: String? = nil
+    var excerpt: String? = nil
+
+    var id: String { "\(kind.rawValue)|\(userID)|\(contextID ?? "")" }
+}
+
+private struct SocialReportDialogModifier: ViewModifier {
+    @Binding var target: SocialReportTarget?
+    @EnvironmentObject private var socialManager: SocialManager
+    @State private var blockTarget: SocialReportTarget?
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                target.map { dialogTitle(for: $0) } ?? "",
+                isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }),
+                titleVisibility: .visible,
+                presenting: target
+            ) { target in
+                ForEach(SocialReportReason.allCases) { reason in
+                    Button(reason.title) {
+                        Task {
+                            let sent = await socialManager.report(
+                                userID: target.userID,
+                                kind: target.kind,
+                                contextID: target.contextID,
+                                excerpt: target.excerpt,
+                                reason: reason
+                            )
+                            if sent, !socialManager.isBlocked(target.userID) {
+                                blockTarget = target
+                            }
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Reports are reviewed by RPI Central moderators.")
+            }
+            .confirmationDialog(
+                blockTarget.map { "Also block \($0.displayName)?" } ?? "",
+                isPresented: Binding(get: { blockTarget != nil }, set: { if !$0 { blockTarget = nil } }),
+                titleVisibility: .visible,
+                presenting: blockTarget
+            ) { target in
+                Button("Block \(target.displayName)", role: .destructive) {
+                    Task { await socialManager.blockUser(target.userID) }
+                }
+                Button("Not Now", role: .cancel) {}
+            } message: { _ in
+                Text("You won’t see their messages or plans, and they’ll be removed from your friends.")
+            }
+    }
+
+    private func dialogTitle(for target: SocialReportTarget) -> String {
+        switch target.kind {
+        case .message: return "Report this message?"
+        case .plan: return "Report this plan?"
+        case .user: return "Report \(target.displayName)?"
+        }
+    }
+}
+
+extension View {
+    /// Asks why, sends the report, then offers to block the person.
+    func socialReportDialog(_ target: Binding<SocialReportTarget?>) -> some View {
+        modifier(SocialReportDialogModifier(target: target))
+    }
+}
+
+// MARK: - Community guidelines
+
+/// Shown once before using Social; App Review requires users to agree that
+/// abusive content isn't tolerated.
+struct SocialGuidelinesSheet: View {
+    let onAgree: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(.tint)
+                    Text("Community Guidelines")
+                        .font(.largeTitle.bold())
+                    Text("RPI Central Social is for students helping students. By continuing, you agree to:")
+                        .foregroundStyle(.secondary)
+
+                    guideline("heart.fill", "Be respectful", "No harassment, bullying, hate speech, threats, or sexual content.")
+                    guideline("lock.fill", "Respect privacy", "Don’t share other people’s personal information, locations, or schedules without their consent.")
+                    guideline("exclamationmark.bubble.fill", "Report problems", "Press and hold a message or open a profile to report or block someone.")
+                    guideline("xmark.shield.fill", "Zero tolerance", "Accounts that post objectionable content are removed. Reports are reviewed within 24 hours.")
+                }
+                .padding(24)
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: onAgree) {
+                    Text("I Agree")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding()
+                .background(.bar)
+            }
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private func guideline(_ systemImage: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail).foregroundStyle(.secondary)
+            }
+        }
+    }
+}

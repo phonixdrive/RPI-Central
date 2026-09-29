@@ -56,7 +56,16 @@ struct CourseTask: Identifiable, Codable, Equatable {
     var notes: String = ""
 }
 
+extension Notification.Name {
+    /// Tasks were added, edited, or deleted (widgets and the watch refresh).
+    static let courseTasksDidChange = Notification.Name("rpiCentral.courseTasksDidChange")
+}
+
 final class TasksManager: ObservableObject {
+    /// One store for the whole app, so Home, class pages, and syllabus
+    /// import all see the same tasks.
+    static let shared = TasksManager()
+
     @Published var tasks: [CourseTask] = [] {
         didSet { save() }
     }
@@ -67,7 +76,6 @@ final class TasksManager: ObservableObject {
 
     init() {
         load()
-        rescheduleStoredNotifications()
         syncObserver = NotificationCenter.default.addObserver(
             forName: .appStateSyncDidApplyLocalState,
             object: nil,
@@ -91,35 +99,26 @@ final class TasksManager: ObservableObject {
             .sorted { $0.dueDate < $1.dueDate }
     }
 
+    // Reminders are scheduled by CalendarViewModel, which reschedules every
+    // class, task, and Blackboard reminder together when tasks change. That
+    // keeps them under iOS's 64-notification limit and respects the
+    // notifications setting.
+
     func add(_ t: CourseTask) {
         tasks.append(t)
-        scheduleNotifications(for: t)
     }
 
     func update(_ t: CourseTask) {
         guard let idx = tasks.firstIndex(where: { $0.id == t.id }) else { return }
         tasks[idx] = t
-        NotificationManager.clearTaskNotifications(taskID: t.id)
-        scheduleNotifications(for: t)
     }
 
     func delete(_ t: CourseTask) {
         tasks.removeAll { $0.id == t.id }
-        NotificationManager.clearTaskNotifications(taskID: t.id)
     }
 
     func delete(at offsets: IndexSet) {
-        for i in offsets {
-            let t = tasks[i]
-            NotificationManager.clearTaskNotifications(taskID: t.id)
-        }
         tasks.remove(atOffsets: offsets)
-    }
-
-    private func scheduleNotifications(for t: CourseTask) {
-        for offset in t.reminderOffsetsMinutes {
-            NotificationManager.scheduleTaskReminder(task: t, minutesBefore: offset)
-        }
     }
 
     private func load() {
@@ -137,11 +136,12 @@ final class TasksManager: ObservableObject {
     private func save() {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)
+        NotificationCenter.default.post(name: .courseTasksDidChange, object: nil)
     }
 
     func reloadFromStore() {
         load()
-        rescheduleStoredNotifications()
+        NotificationCenter.default.post(name: .courseTasksDidChange, object: nil)
     }
 
     static func loadStoredTasks() -> [CourseTask] {
@@ -155,15 +155,6 @@ final class TasksManager: ObservableObject {
     static func replaceStoredTasks(_ tasks: [CourseTask]) {
         guard let data = try? JSONEncoder().encode(tasks) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
-    }
-
-    private func rescheduleStoredNotifications() {
-        NotificationManager.clearAllTaskNotifications()
-        let notificationsEnabled = UserDefaults.standard.object(forKey: Self.notificationsEnabledKey) as? Bool ?? true
-        guard notificationsEnabled else { return }
-        for task in tasks {
-            scheduleNotifications(for: task)
-        }
     }
 }
 
@@ -446,7 +437,7 @@ struct HomeView: View {
     @EnvironmentObject var calendarViewModel: CalendarViewModel
     @AppStorage(DiningFavoritesStore.storageKey) private var diningFavoriteVenueNamesStorage = "[]"
 
-    @StateObject private var tasksManager = TasksManager()
+    @ObservedObject private var tasksManager = TasksManager.shared
     @StateObject private var mealPlanManager = MealPlanManager()
     @StateObject private var flexDollarsManager = FlexDollarsManager()
     @StateObject private var pomodoroSettings = PomodoroSettingsManager()
@@ -2907,10 +2898,12 @@ private struct SemesterGPAOverrideEditorView: View {
 
 // MARK: - Task Editor
 
-private struct TaskEditorView: View {
+struct TaskEditorView: View {
     let themeColor: Color
     let enrollments: [EnrolledCourse]
     let existing: CourseTask?
+    /// Course picked for a new task (e.g. when adding from a class page).
+    var presetEnrollmentID: String? = nil
 
     let onSave: (CourseTask) -> Void
     let onCancel: () -> Void
@@ -3129,7 +3122,7 @@ private struct TaskEditorView: View {
                 title = ""
                 kind = .assignment
                 dueDate = defaultDueDateAt1159PM()
-                enrollmentID = nil
+                enrollmentID = presetEnrollmentID
                 notes = ""
                 reminderOffsets = [10080, 1440]
             }

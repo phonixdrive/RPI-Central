@@ -9,6 +9,9 @@ import SwiftUI
 @main
 struct RPICentralWidgetsExtensionBundle: WidgetBundle {
     var body: some Widget {
+        RPICentralUpNextWidget()
+        RPICentralTodayWidget()
+        RPICentralDeadlinesWidget()
         RPICentralMonthWidget()
         RPICentralMonthAndTodayWidget()
     }

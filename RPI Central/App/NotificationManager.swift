@@ -466,9 +466,17 @@ enum NotificationManager {
         guard deliveryDate > now else { return nil }
 
         let content = UNMutableNotificationContent()
-        content.title = event.title
-        content.body = "Starts at \(timeString(event.startDate))"
+        let code = courseCode(fromEnrollmentID: event.enrollmentID)
+        let name = event.title.replacingOccurrences(of: "★ ", with: "")
+        let isExam = event.badge == .exam || event.title.hasPrefix("★")
+        content.title = [isExam ? "Exam" : nil, code, name].compactMap { $0 }.joined(separator: " · ")
+        let when = minutesBefore == 0
+            ? "Starting now"
+            : "Starts in \(durationText(minutes: minutesBefore)) at \(timeString(event.startDate))"
+        content.body = event.location.isEmpty ? when : "\(when) · \(event.location)"
         content.sound = .default
+        content.threadIdentifier = "classes"
+        content.userInfo = ["deeplink": "rpicentral://calendar?date=\(Int(event.startDate.timeIntervalSince1970))"]
 
         let request = UNNotificationRequest(
             identifier: classNotificationID(for: event, minutesBefore: minutesBefore),
@@ -493,13 +501,12 @@ enum NotificationManager {
 
         let kindText = task.kind.label
         let dueText = dateTimeString(task.dueDate)
-        if minutesBefore >= 1440 {
-            content.body = "\(kindText) due in \(minutesBefore / 1440)d • \(dueText)"
-        } else if minutesBefore >= 60 {
-            content.body = "\(kindText) due in \(minutesBefore / 60)h • \(dueText)"
-        } else {
-            content.body = "\(kindText) due soon • \(dueText)"
-        }
+        let prefix = courseCode(fromEnrollmentID: task.enrollmentID).map { "\($0) · " } ?? ""
+        content.body = minutesBefore == 0
+            ? "\(prefix)\(kindText) due now · \(dueText)"
+            : "\(prefix)\(kindText) due in \(durationText(minutes: minutesBefore)) · \(dueText)"
+        content.threadIdentifier = "tasks"
+        content.userInfo = ["deeplink": "rpicentral://tasks"]
 
         let request = UNNotificationRequest(
             identifier: taskNotificationID(taskID: task.id, minutesBefore: minutesBefore),
@@ -526,13 +533,11 @@ enum NotificationManager {
         content.sound = .default
 
         let dueText = dateTimeString(dueDate)
-        if minutesBefore >= 1440 {
-            content.body = "Blackboard item due in \(minutesBefore / 1440)d • \(dueText)"
-        } else if minutesBefore >= 60 {
-            content.body = "Blackboard item due in \(minutesBefore / 60)h • \(dueText)"
-        } else {
-            content.body = "Blackboard item due soon • \(dueText)"
-        }
+        content.body = minutesBefore == 0
+            ? "Blackboard item due now · \(dueText)"
+            : "Blackboard item due in \(durationText(minutes: minutesBefore)) · \(dueText)"
+        content.threadIdentifier = "tasks"
+        content.userInfo = ["deeplink": "rpicentral://calendar?date=\(Int(dueDate.timeIntervalSince1970))"]
 
         let request = UNNotificationRequest(
             identifier: lmsNotificationID(sourceID: sourceID, minutesBefore: minutesBefore),
@@ -599,6 +604,22 @@ enum NotificationManager {
     private static func lmsReminderDueDate(for event: StoredPersonalEvent) -> Date {
         guard event.isAllDay ?? false else { return event.startDate }
         return Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: event.startDate) ?? event.startDate
+    }
+
+    /// "CSCI 1200" from an enrollment ID like "CSCI-1200-35222".
+    static func courseCode(fromEnrollmentID enrollmentID: String?) -> String? {
+        guard let parts = enrollmentID?.split(separator: "-"), parts.count >= 2 else { return nil }
+        return "\(parts[0]) \(parts[1])"
+    }
+
+    /// "10 minutes", "1 hour", "2 days", "1 week".
+    static func durationText(minutes: Int) -> String {
+        func unit(_ value: Int, _ name: String) -> String { "\(value) \(name)\(value == 1 ? "" : "s")" }
+        if minutes % 10_080 == 0 && minutes >= 10_080 { return unit(minutes / 10_080, "week") }
+        if minutes >= 1440 { return unit(Int((Double(minutes) / 1440).rounded()), "day") }
+        if minutes >= 60 && minutes % 60 == 0 { return unit(minutes / 60, "hour") }
+        if minutes >= 60 { return "\(minutes / 60) hr \(minutes % 60) min" }
+        return unit(minutes, "minute")
     }
 
     private static func stableNotificationToken(from value: String) -> String {

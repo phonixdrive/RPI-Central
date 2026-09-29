@@ -325,6 +325,93 @@ struct SharingAndLocationTests {
         #expect(DistanceText.between(dcc, CLLocationCoordinate2D(latitude: 37.33, longitude: -122.01)) == nil)
     }
 
+    // MARK: - Syllabus import
+
+    @Test func syllabusDatesAreFoundAndClassified() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
+        let term = DateInterval(
+            start: try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 31))),
+            end: try #require(calendar.date(from: DateComponents(year: 2026, month: 12, day: 23)))
+        )
+        let text = """
+        CSCI 1200 — Data Structures — Fall 2026
+        Course Schedule (revised Aug 15, 2025)
+        Week 2   Fri Sep 11   HW 1 due at 11:59pm
+        Week 4   Fri Sep 25   Lab quiz 1
+        Week 6   Tue Oct 6    Test 1, 6:00pm in DCC 308
+        Week 9   Oct 27       Project proposal due
+                 Dec 16       Final exam, 3:00pm
+        Week 1   Tue Sep 1    Introduction, C++ review
+        """
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 1)))
+        let found = SyllabusDateExtractor.candidates(in: text, term: term, calendar: calendar, now: now)
+
+        // The revision date is outside the term, so it's skipped.
+        #expect(!found.contains { calendar.component(.year, from: $0.date) == 2025 })
+        #expect(found.first { $0.title.contains("HW 1") }?.kind == .assignment)
+        #expect(found.first { $0.title.contains("quiz") }?.kind == .quiz)
+        #expect(found.first { $0.title.contains("Test 1") }?.kind == .exam)
+        #expect(found.first { $0.title.contains("proposal") }?.kind == .project)
+        #expect(found.first { $0.title.contains("Final exam") }?.kind == .exam)
+        // A lecture topic has a date but isn't pre-selected.
+        let intro = try #require(found.first { $0.title.contains("Introduction") })
+        #expect(!intro.isImportant && !intro.isSelected)
+        let test = try #require(found.first { $0.title.contains("Test 1") })
+        #expect(calendar.component(.month, from: test.date) == 10 && calendar.component(.day, from: test.date) == 6)
+        // "Week 9  Oct 27": the week number isn't the day.
+        let proposal = try #require(found.first { $0.title.contains("proposal") })
+        #expect(calendar.component(.day, from: proposal.date) == 27)
+        #expect(proposal.title == "Project proposal due")
+        #expect(found.first { $0.title.hasPrefix("HW 1") }?.title == "HW 1 due")
+    }
+
+    @Test func instructorListsSplitIntoRateMyProfessorsNames() {
+        #expect(RateMyProfessors.instructors(from: "Barbara Cutler, Shianne M. Hulbert") == ["Barbara Cutler", "Shianne M. Hulbert"])
+        #expect(RateMyProfessors.searchName(for: "Shianne M. Hulbert") == "Shianne Hulbert")
+        #expect(RateMyProfessors.instructors(from: "TBA").isEmpty)
+        #expect(RateMyProfessors.isProfessorPage(URL(string: "https://www.ratemyprofessors.com/professor/123456")))
+        #expect(!RateMyProfessors.isProfessorPage(URL(string: "https://www.ratemyprofessors.com/search/professors/795?q=x")))
+    }
+
+    @Test func overlappingEventsGetSeparateLanes() {
+        func event(_ title: String, _ startHour: Double, _ endHour: Double) -> ClassEvent {
+            let base = Date(timeIntervalSince1970: 1_790_000_000)
+            return ClassEvent(
+                title: title, location: "",
+                startDate: base.addingTimeInterval(startHour * 3600), endDate: base.addingTimeInterval(endHour * 3600),
+                backgroundColor: .blue, accentColor: .blue, enrollmentID: nil, semesterCode: nil,
+                seriesID: nil, isAllDay: false, kind: .personal, badge: nil, meetingKey: nil
+            )
+        }
+        let a = event("A", 0, 2), b = event("B", 1, 3), c = event("C", 2, 4)
+        let lanes = OverlapLayout.lanes(for: [a, b, c])
+        #expect(lanes[a.interactionKey] == 0)
+        #expect(lanes[b.interactionKey] == 1)
+        // C starts when A ends, so it reuses A's lane.
+        #expect(lanes[c.interactionKey] == 0)
+    }
+
+    @Test func courseRatingsAverageValidRatingsOnly() throws {
+        let summary = try #require(CourseRatingSummary.summarize([
+            CourseRating(overall: 5, difficulty: 4, hoursPerWeek: 8, tags: [.toughExams, .curve], semesterCode: "202609"),
+            CourseRating(overall: 3, difficulty: 2, hoursPerWeek: 4, tags: [.toughExams], semesterCode: "202609"),
+            CourseRating(overall: 9, difficulty: 2, hoursPerWeek: 4, tags: [], semesterCode: "202609"),
+        ]))
+        #expect(summary.count == 2)
+        #expect(summary.overall == 4)
+        #expect(summary.hoursPerWeek == 6)
+        #expect(summary.topTags.first?.tag == .toughExams)
+    }
+
+    @Test func notificationTextReadsNaturally() {
+        #expect(NotificationManager.durationText(minutes: 10) == "10 minutes")
+        #expect(NotificationManager.durationText(minutes: 60) == "1 hour")
+        #expect(NotificationManager.durationText(minutes: 1440) == "1 day")
+        #expect(NotificationManager.durationText(minutes: 10_080) == "1 week")
+        #expect(NotificationManager.courseCode(fromEnrollmentID: "CSCI-1200-77023") == "CSCI 1200")
+    }
+
     // MARK: - Helpers
 
     private func pin(_ id: String, at coordinate: CLLocationCoordinate2D) -> FriendMapPinModel {

@@ -18,6 +18,8 @@
 		7A1E10022FD1000100A10001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 7A1E10122FD1000100A10001 /* FirebaseAuth */; };
 		7A1E10032FD1000100A10001 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 7A1E10132FD1000100A10001 /* FirebaseFirestore */; };
 		7A1E10042FD1000100A10001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 7A1E10142FD1000100A10001 /* FirebaseMessaging */; };
+		A7C0DE000000000000000116 /* RPI Central Watch Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A7C0DE00000000000000010D /* RPI Central Watch Widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A7C0DE00000000000000011A /* RPI Central Watch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7C0DE000000000000000102 /* RPI Central Watch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,6 +44,20 @@
 			remoteGlobalIDString = 0DE6D50A2F140E1700388178;
 			remoteInfo = WidgetsExtension;
 		};
+		A7C0DE000000000000000117 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0D3BAF0C2E909BB3006793BF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7C0DE00000000000000010C;
+			remoteInfo = "RPI Central Watch Widgets";
+		};
+		A7C0DE00000000000000011B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0D3BAF0C2E909BB3006793BF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7C0DE000000000000000101;
+			remoteInfo = "RPI Central Watch";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,6 +70,28 @@
 				0DE6D51D2F140E1900388178 /* WidgetsExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE000000000000000107 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A7C0DE000000000000000116 /* RPI Central Watch Widgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE000000000000000119 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				A7C0DE00000000000000011A /* RPI Central Watch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -78,6 +116,8 @@
 		0DE6D50D2F140E1700388178 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		0DE6D50F2F140E1700388178 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		0DE6D5282F1411CF00388178 /* WidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WidgetsExtension.entitlements; sourceTree = "<group>"; };
+		A7C0DE000000000000000102 /* RPI Central Watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "RPI Central Watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7C0DE00000000000000010D /* RPI Central Watch Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "RPI Central Watch Widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -105,6 +145,20 @@
 			);
 			target = 0DE6D50A2F140E1700388178 /* WidgetsExtension */;
 		};
+		A7C0DE00000000000000010B /* Exceptions for "RPI Central" folder in "RPI Central Watch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Widgets/WidgetSharedModels.swift,
+			);
+			target = A7C0DE000000000000000101 /* RPI Central Watch */;
+		};
+		A7C0DE000000000000000115 /* Exceptions for "RPI Central" folder in "RPI Central Watch Widgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Widgets/WidgetSharedModels.swift,
+			);
+			target = A7C0DE00000000000000010C /* RPI Central Watch Widgets */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -113,6 +167,8 @@
 			exceptions = (
 				0D8E96122EF8706900B6269D /* Exceptions for "RPI Central" folder in "RPI Central" target */,
 				0DE6D52A2F144BFD00388178 /* Exceptions for "RPI Central" folder in "WidgetsExtension" target */,
+				A7C0DE00000000000000010B /* Exceptions for "RPI Central" folder in "RPI Central Watch" target */,
+				A7C0DE000000000000000115 /* Exceptions for "RPI Central" folder in "RPI Central Watch Widgets" target */,
 			);
 			path = "RPI Central";
 			sourceTree = "<group>";
@@ -138,6 +194,16 @@
 				0DE6D5212F140E1900388178 /* Exceptions for "Widgets" folder in "WidgetsExtension" target */,
 			);
 			path = Widgets;
+			sourceTree = "<group>";
+		};
+		A7C0DE000000000000000103 /* RPI Central Watch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "RPI Central Watch";
+			sourceTree = "<group>";
+		};
+		A7C0DE00000000000000010E /* RPI Central Watch Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "RPI Central Watch Widgets";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -177,6 +243,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7C0DE000000000000000105 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE000000000000000110 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -194,6 +274,8 @@
 				0D3BAF272E909BB5006793BF /* RPI CentralTests */,
 				0D3BAF312E909BB5006793BF /* RPI CentralUITests */,
 				0DE6D5112F140E1700388178 /* Widgets */,
+				A7C0DE000000000000000103 /* RPI Central Watch */,
+				A7C0DE00000000000000010E /* RPI Central Watch Widgets */,
 				0DE6D50C2F140E1700388178 /* Frameworks */,
 				0D3BAF152E909BB3006793BF /* Products */,
 				0D8E73122EF7B88300B6269D /* Data */,
@@ -208,6 +290,8 @@
 				0D3BAF242E909BB5006793BF /* RPI CentralTests.xctest */,
 				0D3BAF2E2E909BB5006793BF /* RPI CentralUITests.xctest */,
 				0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */,
+				A7C0DE000000000000000102 /* RPI Central Watch.app */,
+				A7C0DE00000000000000010D /* RPI Central Watch Widgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -245,11 +329,13 @@
 				0D3BAF112E909BB3006793BF /* Frameworks */,
 				0D8E96112EF8706900B6269D /* Resources */,
 				0DE6D5222F140E1900388178 /* Embed Foundation Extensions */,
+				A7C0DE000000000000000119 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				0DE6D51C2F140E1900388178 /* PBXTargetDependency */,
+				A7C0DE00000000000000011C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0D3BAF162E909BB3006793BF /* RPI Central */,
@@ -333,6 +419,52 @@
 			productReference = 0DE6D50B2F140E1700388178 /* WidgetsExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		A7C0DE000000000000000101 /* RPI Central Watch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7C0DE000000000000000108 /* Build configuration list for PBXNativeTarget "RPI Central Watch" */;
+			buildPhases = (
+				A7C0DE000000000000000104 /* Sources */,
+				A7C0DE000000000000000105 /* Frameworks */,
+				A7C0DE000000000000000106 /* Resources */,
+				A7C0DE000000000000000107 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A7C0DE000000000000000118 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A7C0DE000000000000000103 /* RPI Central Watch */,
+			);
+			name = "RPI Central Watch";
+			packageProductDependencies = (
+			);
+			productName = "RPI Central Watch";
+			productReference = A7C0DE000000000000000102 /* RPI Central Watch.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A7C0DE00000000000000010C /* RPI Central Watch Widgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7C0DE000000000000000112 /* Build configuration list for PBXNativeTarget "RPI Central Watch Widgets" */;
+			buildPhases = (
+				A7C0DE00000000000000010F /* Sources */,
+				A7C0DE000000000000000110 /* Frameworks */,
+				A7C0DE000000000000000111 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A7C0DE00000000000000010E /* RPI Central Watch Widgets */,
+			);
+			name = "RPI Central Watch Widgets";
+			packageProductDependencies = (
+			);
+			productName = "RPI Central Watch Widgets";
+			productReference = A7C0DE00000000000000010D /* RPI Central Watch Widgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -357,6 +489,12 @@
 					0DE6D50A2F140E1700388178 = {
 						CreatedOnToolsVersion = 16.0;
 					};
+					A7C0DE000000000000000101 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					A7C0DE00000000000000010C = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 0D3BAF0F2E909BB3006793BF /* Build configuration list for PBXProject "RPI Central" */;
@@ -380,6 +518,8 @@
 				0D3BAF232E909BB5006793BF /* RPI CentralTests */,
 				0D3BAF2D2E909BB5006793BF /* RPI CentralUITests */,
 				0DE6D50A2F140E1700388178 /* WidgetsExtension */,
+				A7C0DE000000000000000101 /* RPI Central Watch */,
+				A7C0DE00000000000000010C /* RPI Central Watch Widgets */,
 			);
 		};
 /* End PBXProject section */
@@ -417,6 +557,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7C0DE000000000000000106 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE000000000000000111 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -448,6 +602,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7C0DE000000000000000104 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE00000000000000010F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -465,6 +633,16 @@
 			isa = PBXTargetDependency;
 			target = 0DE6D50A2F140E1700388178 /* WidgetsExtension */;
 			targetProxy = 0DE6D51B2F140E1900388178 /* PBXContainerItemProxy */;
+		};
+		A7C0DE000000000000000118 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7C0DE00000000000000010C /* RPI Central Watch Widgets */;
+			targetProxy = A7C0DE000000000000000117 /* PBXContainerItemProxy */;
+		};
+		A7C0DE00000000000000011C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7C0DE000000000000000101 /* RPI Central Watch */;
+			targetProxy = A7C0DE00000000000000011B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -595,7 +773,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RPI Central/RPI Central.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "\"RPI Central/Preview Content\"";
 				DEVELOPMENT_TEAM = 25CGW6Z4PB;
 				ENABLE_PREVIEWS = YES;
@@ -611,7 +789,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -627,7 +805,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RPI Central/RPI Central.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "\"RPI Central/Preview Content\"";
 				DEVELOPMENT_TEAM = 25CGW6Z4PB;
 				ENABLE_PREVIEWS = YES;
@@ -643,7 +821,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -727,7 +905,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = WidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = 25CGW6Z4PB;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Widgets/Info.plist;
@@ -739,7 +917,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.Widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -756,7 +934,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = WidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = 25CGW6Z4PB;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Widgets/Info.plist;
@@ -768,13 +946,131 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.4;
+				MARKETING_VERSION = 2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.Widgets";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A7C0DE000000000000000109 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RPICentralWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RPI Central";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "phonix.RPI-Central";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.5;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		A7C0DE00000000000000010A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RPICentralWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RPI Central";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "phonix.RPI-Central";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.5;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.watchkitapp";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Release;
+		};
+		A7C0DE000000000000000113 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RPICentralWatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "RPI-Central-Watch-Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RPI Central";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.5;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.watchkitapp.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Debug;
+		};
+		A7C0DE000000000000000114 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RPICentralWatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = 25CGW6Z4PB;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "RPI-Central-Watch-Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "RPI Central";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.5;
+				PRODUCT_BUNDLE_IDENTIFIER = "phonix.RPI-Central.watchkitapp.widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
 			};
 			name = Release;
 		};
@@ -822,6 +1118,24 @@
 			buildConfigurations = (
 				0DE6D51F2F140E1900388178 /* Debug */,
 				0DE6D5202F140E1900388178 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7C0DE000000000000000108 /* Build configuration list for PBXNativeTarget "RPI Central Watch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7C0DE000000000000000109 /* Debug */,
+				A7C0DE00000000000000010A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7C0DE000000000000000112 /* Build configuration list for PBXNativeTarget "RPI Central Watch Widgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7C0DE000000000000000113 /* Debug */,
+				A7C0DE000000000000000114 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

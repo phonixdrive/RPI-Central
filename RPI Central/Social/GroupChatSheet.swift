@@ -26,6 +26,7 @@ struct GroupChatSheet: View {
     @State private var participantsByID: [String: SocialUser] = [:]
     @State private var selectedProfileUser: SocialUser?
     @State private var showParticipants = false
+    @State private var reportTarget: SocialReportTarget?
 #if canImport(FirebaseFirestore)
     @State private var chatListener: ListenerRegistration?
 #endif
@@ -192,6 +193,7 @@ struct GroupChatSheet: View {
                 }
             }
         }
+        .socialReportDialog($reportTarget)
         .sheet(item: $selectedProfileUser) { user in
             SocialUserProfileSheet(user: user)
         }
@@ -341,6 +343,23 @@ struct GroupChatSheet: View {
                     )
                     .textSelection(.enabled)
                     .contextMenu {
+                        Button("Copy", systemImage: "doc.on.doc") {
+                            UIPasteboard.general.string = message.body
+                        }
+                        if !isMine {
+                            Button("Report Message", systemImage: "exclamationmark.bubble") {
+                                reportTarget = SocialReportTarget(
+                                    userID: message.userID,
+                                    displayName: message.displayName,
+                                    kind: .message,
+                                    contextID: "\(reference.id)/\(message.id)",
+                                    excerpt: message.body
+                                )
+                            }
+                            Button("Block \(message.displayName)", systemImage: "hand.raised", role: .destructive) {
+                                Task { await socialManager.blockUser(message.userID) }
+                            }
+                        }
                         if socialManager.canDeleteGroupChatMessage(message) {
                             Button(role: .destructive) {
                                 Task {
@@ -369,7 +388,7 @@ struct GroupChatSheet: View {
         await refreshParticipants(using: initialMessages)
         try? await minimumLoadingDelay
         await MainActor.run {
-            messages = initialMessages
+            messages = initialMessages.filter { !socialManager.isBlocked($0.userID) }
             isLoadingMessages = false
             socialManager.markGroupChatSeen(
                 reference,
@@ -389,7 +408,7 @@ struct GroupChatSheet: View {
         chatListener?.remove()
         chatListener = await socialManager.observeGroupChatMessages(for: reference) { updatedMessages in
             let shouldScroll = updatedMessages.last?.id != messages.last?.id
-            messages = updatedMessages
+            messages = updatedMessages.filter { !socialManager.isBlocked($0.userID) }
             isLoadingMessages = false
             socialManager.markGroupChatSeen(
                 reference,
