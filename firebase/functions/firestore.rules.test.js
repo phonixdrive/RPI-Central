@@ -336,3 +336,41 @@ test("poll voters can change only their own vote", async () => {
   await assertFails(updateDoc(doc(bob, "groupChats/manualGroup_g1/polls/p1"), {"votesByUserID.alice": "no"}));
   await assertFails(updateDoc(doc(bob, "groupChats/manualGroup_g1/polls/p1"), {isClosed: true}));
 });
+
+test("students rate a course once, within the allowed ranges", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const bob = testEnvironment.authenticatedContext("bob").firestore();
+  const rating = {overall: 4, difficulty: 3, hoursPerWeek: 6, tags: ["greatLectures"], semesterCode: "202609"};
+
+  await assertSucceeds(setDoc(doc(alice, "courseRatings/CSCI-1200/ratings/alice"), rating));
+  await assertSucceeds(getDoc(doc(bob, "courseRatings/CSCI-1200/ratings/alice")));
+  await assertFails(setDoc(doc(bob, "courseRatings/CSCI-1200/ratings/alice"), rating));
+  await assertFails(setDoc(doc(bob, "courseRatings/CSCI-1200/ratings/bob"), {...rating, overall: 9}));
+  await assertFails(setDoc(doc(bob, "courseRatings/CSCI-1200/ratings/bob"), {...rating, comment: "hi"}));
+  await assertFails(getDoc(doc(testEnvironment.unauthenticatedContext().firestore(), "courseRatings/CSCI-1200/ratings/alice")));
+});
+
+test("anyone can report, but only moderators read reports", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const report = {
+    reporterID: "alice",
+    reportedUserID: "bob",
+    kind: "message",
+    contextID: "directMessage_x/m1",
+    excerpt: "rude",
+    reason: "harassment",
+  };
+
+  await assertSucceeds(setDoc(doc(alice, "reports/r1"), report));
+  await assertFails(setDoc(doc(alice, "reports/r2"), {...report, reporterID: "bob"}));
+  await assertFails(setDoc(doc(alice, "reports/r3"), {...report, reportedUserID: "alice"}));
+  await assertFails(getDoc(doc(alice, "reports/r1")));
+});
+
+test("a user's block list is private", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const bob = testEnvironment.authenticatedContext("bob").firestore();
+
+  await assertSucceeds(setDoc(doc(alice, "users/alice/private/blocks"), {userIDs: ["bob"]}));
+  await assertFails(getDoc(doc(bob, "users/alice/private/blocks")));
+});
