@@ -17,6 +17,7 @@ struct SocialChatsView: View {
     @AppStorage("social_class_term_filter") private var classTermFilter = "current"
     @AppStorage("social_class_include_sections") private var includeSectionChats = false
     @State private var groupPendingRemoval: SocialFriendGroup?
+    @ObservedObject private var serverSpaces = ServerSpacesModel.shared
 
     var body: some View {
         let conversations = conversationItems()
@@ -40,6 +41,11 @@ struct SocialChatsView: View {
                 }
                 .listRowBackground(Color.clear)
             } else {
+                if !serverSpaces.spaces.isEmpty {
+                    Section {
+                        ServerSpacesStrip(accent: calendarViewModel.themeColor)
+                    }
+                }
                 if !conversations.isEmpty {
                     Section {
                         ForEach(conversations) { item in
@@ -271,10 +277,20 @@ struct SocialChatsView: View {
         let reference = socialManager.chatReference(for: community)
         let memberCount = community.memberIDs.count
         let code = "\(community.courseSubject) \(community.courseNumber)"
-        let detail = community.kind == .section ? (community.sectionLabel ?? code) : code
+        let members = "\(memberCount) \(memberCount == 1 ? "member" : "members")"
+        // The course chat and the section chat share a course title, so say
+        // which is which in the title itself.
+        let sectionNumber = community.sectionLabel?.components(separatedBy: "Sec ").last?.trimmingCharacters(in: .whitespaces)
+        let title = community.kind == .section
+            ? "\(community.courseTitle) · Sec \(sectionNumber ?? "")"
+            : community.courseTitle
+        let term = community.semesterCode.flatMap(Semester.init(rawValue:))?.displayName
+        let detail = community.kind == .section
+            ? "\(code) · \(term.map { "\($0) section" } ?? "Section") · \(members)"
+            : "\(code) · Everyone · \(members)"
 
         return ChatRow(
-            title: community.courseTitle,
+            title: title,
             lastActivity: socialManager.lastActivityDate(in: reference),
             isUnread: socialManager.hasUnreadMessages(in: reference),
             accent: calendarViewModel.themeColor,
@@ -285,7 +301,7 @@ struct SocialChatsView: View {
                 color: .indigo
             )
         } subtitle: {
-            subtitleText("\(detail) · \(memberCount) \(memberCount == 1 ? "member" : "members")")
+            subtitleText(detail)
         }
         .contextMenu {
             Button("Class Page", systemImage: "rectangle.grid.2x2") {
@@ -328,11 +344,29 @@ struct SocialChatsView: View {
                 .filter { $0.semesterCode >= earliest }
                 .map { courseToken(subject: $0.course.subject, number: $0.course.number) }
         )
-        let visible = socialManager.courseCommunities.filter { group in
-            if group.kind == .section {
-                return group.semesterCode.map { $0 >= earliest } ?? false
+        // Section chats only for sections you're in now (an old section you
+        // switched out of would look like a duplicate).
+        let enrolledSections = Set(
+            calendarViewModel.enrolledCourses.map {
+                "\(courseToken(subject: $0.course.subject, number: $0.course.number))|\($0.semesterCode)|\($0.section.section)"
             }
-            return enrolledTokens.contains(courseToken(subject: group.courseSubject, number: group.courseNumber))
+        )
+        // The same course can exist twice (older IDs, or created by the web
+        // app); show one, the busiest.
+        var seen: Set<String> = []
+        let busiestFirst = socialManager.courseCommunities.sorted { $0.memberIDs.count > $1.memberIDs.count }
+        let visible = busiestFirst.filter { group in
+            let token = courseToken(subject: group.courseSubject, number: group.courseNumber)
+            let sectionNumber = group.sectionLabel?.components(separatedBy: "Sec ").last?.trimmingCharacters(in: .whitespaces) ?? ""
+            let identity = group.kind == .course
+                ? "course|\(token)"
+                : "section|\(token)|\(group.semesterCode ?? "")|\(sectionNumber)"
+            guard seen.insert(identity).inserted else { return false }
+            if group.kind == .section {
+                guard let code = group.semesterCode, code >= earliest else { return false }
+                return enrolledSections.contains("\(token)|\(code)|\(sectionNumber)")
+            }
+            return enrolledTokens.contains(token)
         }
 
         let semesterCode: String?
@@ -374,7 +408,7 @@ struct SocialChatsView: View {
     }
 
     private func courseToken(subject: String, number: String) -> String {
-        "\(subject.uppercased())-\(number)"
+        "\(subject.uppercased().trimmingCharacters(in: .whitespaces))-\(number.trimmingCharacters(in: .whitespaces))"
     }
 }
 
@@ -396,16 +430,14 @@ struct ChatRow<Avatar: View, Subtitle: View>: View {
                 avatar()
 
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(title)
-                            .font(.body.weight(isUnread ? .semibold : .regular))
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        MarqueeText(text: title, font: .body.weight(isUnread ? .semibold : .regular))
                             .foregroundStyle(Color.primary)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
                         if let lastActivity {
                             Text(ChatTimeText.short(lastActivity))
                                 .font(.caption)
                                 .foregroundStyle(isUnread ? accent : Color.secondary)
+                                .fixedSize()
                         }
                     }
 
@@ -433,7 +465,7 @@ enum ChatTimeText {
         if calendar.isDate(date, inSameDayAs: now) {
             return date.formatted(date: .omitted, time: .shortened)
         }
-        if calendar.isDateInYesterday(date) {
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
             return "Yesterday"
         }
         if let days = calendar.dateComponents([.day], from: date, to: now).day, days < 7 {

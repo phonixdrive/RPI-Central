@@ -614,6 +614,11 @@ struct SettingsView: View {
             ) {
                 Label("Invite friends to test", systemImage: "square.and.arrow.up")
             }
+            Button {
+                NotificationCenter.default.post(name: .showWelcomeTour, object: nil)
+            } label: {
+                Label("Show the Tour", systemImage: "sparkles")
+            }
             Link(destination: Self.privacyURL) {
                 Label("Privacy Policy", systemImage: "hand.raised")
             }
