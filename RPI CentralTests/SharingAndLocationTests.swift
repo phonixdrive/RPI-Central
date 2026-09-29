@@ -271,14 +271,23 @@ struct SharingAndLocationTests {
         #expect(abs(FriendMapLayout.metersPerPoint(in: CampusDirectory.campusRegion, width: 346) - 3.9) < 0.1)
         let items = FriendMapLayout.items(for: pins, metersPerPoint: 4, selectedFriendID: nil)
 
+        // DCC and Folsom are neighbors, so at this zoom all three pins would
+        // touch; they spread into one ring instead.
         let spread = items.compactMap { item -> CLLocationCoordinate2D? in
-            if case .friend(let pin, false) = item, pin.id != "jordan" { return pin.coordinate }
+            if case .friend(let pin, false) = item { return pin.coordinate }
             return nil
         }
         #expect(items.count == 3)
-        #expect(spread.count == 2)
-        #expect(FriendMapLayout.meters(from: spread[0], to: spread[1]) / 4 >= FriendMapLayout.spreadSpacing - 0.5)
-        #expect(items.contains { labeledPinID($0) == "jordan" })
+        #expect(spread.count == 3)
+        for i in spread.indices {
+            for j in spread.indices where j > i {
+                #expect(FriendMapLayout.meters(from: spread[i], to: spread[j]) / 4 >= FriendMapLayout.spreadSpacing - 0.5)
+            }
+        }
+
+        // Zoomed in, the buildings are far enough apart to keep their labels.
+        let zoomed = FriendMapLayout.items(for: pins, metersPerPoint: 0.5, selectedFriendID: nil)
+        #expect(zoomed.contains { labeledPinID($0) == "jordan" })
     }
 
     @Test func crowdsCollapseIntoOneBubbleExceptTheSelectedFriend() throws {

@@ -400,13 +400,15 @@ private struct CandidateRow: View {
                     Label(candidate.kind.label, systemImage: candidate.kind.systemImage)
                     Text("·")
                     Text(candidate.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                    if candidate.alreadyAdded {
-                        Text("· Already added")
-                            .foregroundStyle(.green)
-                    }
                 }
+                .lineLimit(1)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if candidate.alreadyAdded {
+                    Label("Already in your tasks", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
             }
             Spacer(minLength: 0)
         }

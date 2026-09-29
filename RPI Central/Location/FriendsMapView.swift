@@ -106,7 +106,7 @@ enum FriendMapLayout {
     }
 
     /// Pins closer than this many points are treated as overlapping.
-    static let minimumSpacing: Double = 56
+    static let minimumSpacing: Double = 80
     /// Distance between neighbors when a small group spreads out, in points.
     static let spreadSpacing: Double = 48
     /// Groups larger than this show as a single bubble.
