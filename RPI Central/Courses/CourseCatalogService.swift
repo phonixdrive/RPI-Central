@@ -5,13 +5,57 @@
 
 import Foundation
 
+/// Decodes each term's catalog once, even when several callers ask at the
+/// same time (the Courses tab and the saved-classes refresh both need it at
+/// launch). Keeps the two most recent terms in memory.
+actor QuACSCourseCache {
+    static let shared = QuACSCourseCache()
+    private static let launchedAt = Date()
+
+    private var built: [String: [Course]] = [:]
+    private var order: [String] = []
+    private var inFlight: [String: Task<[Course], Error>] = [:]
+
+    func courses(termCode: String) async throws -> [Course] {
+        if let cached = built[termCode] { return cached }
+        if let task = inFlight[termCode] { return try await task.value }
+
+        // Utility priority keeps the decode on the efficiency cores so it
+        // never competes with scrolling, and it waits for the first screens
+        // to draw before starting.
+        let launchDelay = max(0, 1.0 - Date().timeIntervalSince(Self.launchedAt))
+        let task = Task.detached(priority: .utility) {
+            if launchDelay > 0 {
+                try? await Task.sleep(for: .seconds(launchDelay))
+            }
+            return try QuACSLoader.buildCourses(termCode: termCode)
+                .sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
+        }
+        inFlight[termCode] = task
+        defer { inFlight[termCode] = nil }
+
+        let courses = try await task.value
+        built[termCode] = courses
+        order.removeAll { $0 == termCode }
+        order.append(termCode)
+        if order.count > 2 {
+            built[order.removeFirst()] = nil
+        }
+        return courses
+    }
+}
+
 @MainActor
 final class CourseCatalogService: ObservableObject {
     static let shared = CourseCatalogService()
     private let selectedCatalogSemesterKey = "courses.selectedCatalogSemester.v1"
     private let fall2026CatalogMigrationKey = "courses.selectedCatalogSemester.migratedToFall2026.v1"
 
+    /// Sorted by subject and number.
     @Published private(set) var courses: [Course] = []
+    /// Lowercased "subject number code title instructors" per course ID.
+    private(set) var searchIndex: [String: String] = [:]
+    private(set) var subjectCodes: Set<String> = []
     @Published private(set) var loadingSemester: Semester?
     private var activeLoadID = UUID()
 
@@ -58,25 +102,44 @@ final class CourseCatalogService: ObservableObject {
         print("🟦 Loading QuACS term:", term, "semester:", semester)
         #endif
 
-        Task.detached(priority: .userInitiated) { [term] in
+        Task { [term] in
             do {
-                let built = try QuACSLoader.buildCourses(termCode: term)
-                await MainActor.run {
-                    guard self.activeLoadID == loadID else { return }
-                    self.courses = built
-                    self.loadingSemester = nil
-                }
+                let built = try await QuACSCourseCache.shared.courses(termCode: term)
+                let (index, subjects) = await Task.detached(priority: .utility) {
+                    (
+                        Dictionary(built.map { ($0.id, Self.searchText(for: $0)) }, uniquingKeysWith: { first, _ in first }),
+                        Set(built.map(\.subject))
+                    )
+                }.value
+                guard self.activeLoadID == loadID else { return }
+                self.searchIndex = index
+                self.subjectCodes = subjects
+                self.courses = built
+                self.loadingSemester = nil
             } catch {
                 #if DEBUG
                 print("❌ QuACS load failed:", error)
                 #endif
-                await MainActor.run {
-                    guard self.activeLoadID == loadID else { return }
-                    self.courses = []
-                    self.loadingSemester = nil
-                }
+                guard self.activeLoadID == loadID else { return }
+                self.searchIndex = [:]
+                self.subjectCodes = []
+                self.courses = []
+                self.loadingSemester = nil
             }
         }
+    }
+
+    nonisolated static func searchText(for course: Course) -> String {
+        let instructors = Set(course.sections.map(\.instructor)).sorted().joined(separator: " ")
+        return [
+            course.subject,
+            course.number,
+            "\(course.subject)\(course.number)",
+            course.title,
+            instructors,
+        ]
+        .joined(separator: " ")
+        .lowercased()
     }
 }
 
