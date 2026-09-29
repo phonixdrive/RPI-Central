@@ -376,3 +376,102 @@ struct SyllabusImportView: View {
     }
 }
 
+private struct CandidateRow: View {
+    @Binding var candidate: SyllabusCandidate
+    let accent: Color
+    @State private var isEditing = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                candidate.isSelected.toggle()
+            } label: {
+                Image(systemName: candidate.isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(candidate.isSelected ? accent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(candidate.isSelected ? "Selected" : "Not selected")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(candidate.title)
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Label(candidate.kind.label, systemImage: candidate.kind.systemImage)
+                    Text("·")
+                    Text(candidate.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                    if candidate.alreadyAdded {
+                        Text("· Already added")
+                            .foregroundStyle(.green)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { isEditing = true }
+        .sheet(isPresented: $isEditing) {
+            NavigationStack {
+                Form {
+                    TextField("Title", text: $candidate.title)
+                    Picker("Type", selection: $candidate.kind) {
+                        ForEach(CourseTaskKind.allCases) { kind in
+                            Label(kind.label, systemImage: kind.systemImage).tag(kind)
+                        }
+                    }
+                    DatePicker("Due", selection: $candidate.date)
+                    Section("From the syllabus") {
+                        Text(candidate.sourceLine)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("Edit Date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            candidate.isSelected = true
+                            isEditing = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+/// VisionKit's document camera: edge detection, perspective correction, multiple pages.
+struct DocumentScanner: UIViewControllerRepresentable {
+    let onFinish: ([UIImage]) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
+
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let controller = VNDocumentCameraViewController()
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: VNDocumentCameraViewController, context: Context) {}
+
+    final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        let onFinish: ([UIImage]) -> Void
+        init(onFinish: @escaping ([UIImage]) -> Void) { self.onFinish = onFinish }
+
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
+            onFinish((0..<scan.pageCount).map(scan.imageOfPage(at:)))
+        }
+
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+            onFinish([])
+        }
+
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
+            onFinish([])
+        }
+    }
+}

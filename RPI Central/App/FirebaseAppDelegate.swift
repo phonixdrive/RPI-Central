@@ -46,6 +46,7 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         // iOS relaunches the app in the background for shared-location
         // events; the location manager must exist to receive them.
         LocationSharingManager.shared.handleLaunch()
+        WatchSync.shared.activate()
         return true
     }
 
@@ -90,6 +91,10 @@ final class FirebaseAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
            payload.type == "groupMessage",
            !payload.contextID.isEmpty {
             SocialDeepLink.open(contextID: payload.contextID)
+        } else if let link = userInfo["deeplink"] as? String, let url = URL(string: link) {
+            DispatchQueue.main.async {
+                UIApplication.shared.open(url)
+            }
         }
         completionHandler()
     }

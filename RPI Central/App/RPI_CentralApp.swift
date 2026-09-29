@@ -2,6 +2,7 @@
 //  RPI Central
 
 import SwiftUI
+import UserNotifications
 #if canImport(FirebaseCore)
 import FirebaseCore
 #endif
@@ -46,6 +47,9 @@ struct RPI_CentralApp: App {
                     // every change, no matter which tab is open.
                     socialManager.attachScheduleSource(calendarViewModel)
                     locationSharingManager.configure(socialManager: socialManager)
+                    #if DEBUG
+                    DemoSemester.loadIfRequested(into: calendarViewModel)
+                    #endif
                     await externalCalendarSyncManager.autoSyncIfNeeded(into: calendarViewModel)
                     await appStateSyncManager.createWeeklyBackupIfNeeded(calendarViewModel: calendarViewModel)
                 }
@@ -60,6 +64,7 @@ struct RPI_CentralApp: App {
                         return
                     }
                     guard phase == .active else { return }
+                    UNUserNotificationCenter.current().setBadgeCount(0)
                     socialManager.requestScheduleSync()
                     Task {
                         externalCalendarSyncManager.reloadAvailableCalendars()
