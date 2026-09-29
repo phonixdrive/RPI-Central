@@ -438,6 +438,7 @@ struct HomeView: View {
     @AppStorage(DiningFavoritesStore.storageKey) private var diningFavoriteVenueNamesStorage = "[]"
 
     @ObservedObject private var tasksManager = TasksManager.shared
+    @ObservedObject private var serverSpaces = ServerSpacesModel.shared
     @StateObject private var mealPlanManager = MealPlanManager()
     @StateObject private var flexDollarsManager = FlexDollarsManager()
     @StateObject private var pomodoroSettings = PomodoroSettingsManager()
@@ -445,6 +446,9 @@ struct HomeView: View {
     @State private var showAllTasks = false
     @State private var showTaskEditor = false
     @State private var editingTask: CourseTask? = nil
+    /// Tapping a class opens the same class page as the calendar.
+    @State private var classPageEvent: ClassEvent?
+    @State private var catalogPageCourse: HomeCatalogPage?
 
     @State private var showMealSettings = false
     @State private var showFlexDollarPlanner = false
@@ -520,6 +524,13 @@ struct HomeView: View {
                         }
                     }
 
+                    // Invite-only server status, only for members.
+                    if !serverSpaces.spaces.isEmpty {
+                        Section {
+                            ServerSpacesStrip(accent: calendarViewModel.themeColor)
+                        }
+                    }
+
                     dashboardWidgetsGrid
 
                     // Your existing per-semester enrollment list
@@ -531,9 +542,8 @@ struct HomeView: View {
                         Section {
                             ForEach(enrollments, id: \.id) { enrollment in
                                 HStack(spacing: 12) {
-                                    NavigationLink {
-                                        CourseDetailView(course: enrollment.course, displaySemester: semester)
-                                            .environmentObject(calendarViewModel)
+                                    Button {
+                                        openClassPage(enrollment, semester: semester)
                                     } label: {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("\(enrollment.course.subject) \(enrollment.course.number)")
@@ -559,7 +569,9 @@ struct HomeView: View {
                                             }
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
                                     .layoutPriority(1)
 
                                     GradeBreakdownButton(enrollmentID: enrollment.id)
@@ -665,6 +677,21 @@ struct HomeView: View {
             .task(id: calendarViewModel.currentSemester.rawValue) {
                 calendarViewModel.ensureTermBoundsLoaded(for: calendarViewModel.currentSemester)
                 normalizeExistingExamTasksIfNeeded()
+            }
+            .sheet(item: $classPageEvent) { event in
+                ClassEventDetailView(event: event)
+                    .environmentObject(calendarViewModel)
+            }
+            .sheet(item: $catalogPageCourse) { page in
+                NavigationStack {
+                    CourseDetailView(course: page.course, displaySemester: page.semester)
+                        .environmentObject(calendarViewModel)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { catalogPageCourse = nil }
+                            }
+                        }
+                }
             }
 
             // Prevent “View all” closing from auto-opening the task editor
@@ -1843,6 +1870,17 @@ struct HomeView: View {
         return "\(dayFormatter.string(from: event.startDate)) at \(time)"
     }
 
+    /// The class page for this class's next meeting; classes with no
+    /// meetings coming up (past terms) open the course page instead.
+    private func openClassPage(_ enrollment: EnrolledCourse, semester: Semester) {
+        if enrollment.semesterCode == calendarViewModel.currentSemester.rawValue,
+           let event = calendarViewModel.nextClassEvent(forEnrollmentID: enrollment.id) {
+            classPageEvent = event
+        } else {
+            catalogPageCourse = HomeCatalogPage(course: enrollment.course, semester: semester)
+        }
+    }
+
     private var upcomingSection: some View {
         Section {
             let upcoming = Array(combinedUpcomingItems(days: 14).prefix(4))
@@ -2894,6 +2932,12 @@ private struct SemesterGPAOverrideEditorView: View {
             }
         }
     }
+}
+
+struct HomeCatalogPage: Identifiable {
+    let course: Course
+    let semester: Semester
+    var id: String { "\(course.id)-\(semester.rawValue)" }
 }
 
 // MARK: - Task Editor
