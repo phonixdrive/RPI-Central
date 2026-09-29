@@ -4,6 +4,7 @@
 //
 
 import Combine
+import CryptoKit
 import Foundation
 import SwiftUI
 import WidgetKit
@@ -89,6 +90,12 @@ enum HomeDashboardSection: String, CaseIterable, Identifiable, Codable {
 
     var id: String { rawValue }
 
+    /// Shuttle and Dining side by side, Next and Upcoming full width, then
+    /// Meal Swipes and Study Timer side by side, so every row is filled.
+    static let defaultOrder: [HomeDashboardSection] = [
+        .shuttleTracker, .diningHours, .next, .upcoming, .mealSwipes, .studyTimer, .flexDollars,
+    ]
+
     var title: String {
         switch self {
         case .shuttleTracker: return "Shuttle Tracker"
@@ -150,6 +157,7 @@ final class CalendarViewModel: ObservableObject {
     // ✅ publish widgets when schedule changes
     @Published var events: [ClassEvent] {
         didSet {
+            dayEventsCache.removeAll()
             guard !suppressWidgetPublishes else { return }
             scheduleWidgetSnapshotPublish()
             applyNotificationScheduling()
@@ -159,6 +167,7 @@ final class CalendarViewModel: ObservableObject {
     // ✅ publish widgets when enrollments change
     @Published var enrolledCourses: [EnrolledCourse] = [] {
         didSet {
+            dayEventsCache.removeAll()
             guard !suppressWidgetPublishes else { return }
             scheduleWidgetSnapshotPublish()
             applyNotificationScheduling()
@@ -263,7 +272,7 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    @Published private(set) var homeSectionOrder: [HomeDashboardSection] = HomeDashboardSection.allCases {
+    @Published private(set) var homeSectionOrder: [HomeDashboardSection] = HomeDashboardSection.defaultOrder {
         didSet {
             guard !suppressHomeDashboardPersistence else { return }
             saveHomeSectionPreferences()
@@ -325,7 +334,7 @@ final class CalendarViewModel: ObservableObject {
     }
 
     @Published private(set) var academicEventsLoaded: Bool = false
-    @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:]
+    @Published private(set) var termBoundsBySemesterCode: [String: DateInterval] = [:] { didSet { dayEventsCache.removeAll() } }
     @Published private(set) var loadingAcademicYearStarts: Set<Int> = []
     @Published private(set) var loadingTermBoundsSemesterCodes: Set<String> = []
     @Published private(set) var refreshingEnrollmentSemesterCodes: Set<String> = []
@@ -437,11 +446,11 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Meeting overrides + exam dates storage
 
     // meetingKey -> override
-    @Published private(set) var meetingOverridesByKey: [String: MeetingOverride] = [:]
+    @Published private(set) var meetingOverridesByKey: [String: MeetingOverride] = [:] { didSet { dayEventsCache.removeAll() } }
     private let meetingOverridesStorageKey = "meeting_overrides_v2"
 
     // meetingKey -> [timeIntervalSince1970 (startOfDay)]
-    @Published private(set) var examDatesByMeetingKey: [String: [Double]] = [:]
+    @Published private(set) var examDatesByMeetingKey: [String: [Double]] = [:] { didSet { dayEventsCache.removeAll() } }
     private let examDatesStorageKey = "exam_dates_by_meeting_key_v2"
 
     private let calendar = Calendar.current
@@ -467,18 +476,19 @@ final class CalendarViewModel: ObservableObject {
 
     private var academicEventKeys: Set<String> = []
     /// Days (start of day) when the academic calendar cancels regular classes.
-    private var noClassDays: Set<Date> = []
+    private var noClassDays: Set<Date> = [] { didSet { dayEventsCache.removeAll() } }
     /// Days that run another weekday's class schedule ("Follow a Monday…").
-    private var followedWeekdayByDay: [Date: Int] = [:]
+    private var followedWeekdayByDay: [Date: Int] = [:] { didSet { dayEventsCache.removeAll() } }
 
     private let hiddenOccurrencesKey = "hidden_class_occurrences_v1"
-    private var hiddenClassOccurrences: Set<String> = []
+    private var hiddenClassOccurrences: Set<String> = [] { didSet { dayEventsCache.removeAll() } }
 
     private let hiddenAllDayKey = "hidden_all_day_events_v1"
-    private var hiddenAllDayEvents: Set<String> = []
+    private var hiddenAllDayEvents: Set<String> = [] { didSet { dayEventsCache.removeAll() } }
     private let personalEventsStorageKey = "personal_events_v2"
     private var personalEvents: [StoredPersonalEvent] = [] {
         didSet {
+            dayEventsCache.removeAll()
             personalEventsByID = Dictionary(
                 personalEvents.map { ($0.id, $0) },
                 uniquingKeysWith: { first, _ in first }
@@ -886,7 +896,8 @@ final class CalendarViewModel: ObservableObject {
             ?? replicaDefaults?.stringArray(forKey: "settings_home_section_order_v1")
             ?? []
         let saved = rawOrder.compactMap(HomeDashboardSection.init(rawValue:))
-        guard !saved.isEmpty else { return HomeDashboardSection.allCases }
+        // Never customized (still the old default): use the new default.
+        guard !saved.isEmpty, saved != HomeDashboardSection.allCases else { return HomeDashboardSection.defaultOrder }
 
         var merged: [HomeDashboardSection] = []
         for section in saved where !merged.contains(section) {
@@ -1196,7 +1207,7 @@ final class CalendarViewModel: ObservableObject {
                     if ov.type == .disabled { continue }
 
                     if ov.type == .exam {
-                        let allowedDays = Set((examDatesByMeetingKey[key] ?? []).map {
+                        let allowedDays = Set((examDatesByMeetingKey[normalizeMeetingKey(key)] ?? []).map {
                             calendar.startOfDay(for: Date(timeIntervalSince1970: $0))
                         })
                         if !allowedDays.contains(dayStart) { continue }
@@ -1463,6 +1474,7 @@ final class CalendarViewModel: ObservableObject {
         }
 
         objectWillChange.send()
+        syncExamBlockTasks(for: k)
         scheduleWidgetSnapshotPublish()
     }
 
@@ -1502,7 +1514,129 @@ final class CalendarViewModel: ObservableObject {
         }
 
         objectWillChange.send()
+        syncExamBlockTasks(for: k)
         scheduleWidgetSnapshotPublish()
+    }
+
+    /// The class's next meeting (or its weekly template if none is coming up),
+    /// so any screen can open the class page.
+    func nextClassEvent(forEnrollmentID enrollmentID: String, from start: Date = Date()) -> ClassEvent? {
+        let today = calendar.startOfDay(for: start)
+        for offset in 0..<28 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            if let event = events(on: day).first(where: {
+                $0.kind == .classMeeting && $0.enrollmentID == enrollmentID && $0.endDate > start
+            }) {
+                return event
+            }
+        }
+        return events.first { $0.kind == .classMeeting && $0.enrollmentID == enrollmentID }
+    }
+
+    /// When imported exams land on a dedicated test block (a once-a-week
+    /// evening meeting, like RPI's Tuesday 6 PM slot), that block becomes an
+    /// exam block for those days, so it only shows on exam weeks. Regular
+    /// lectures are never changed.
+    func markTestBlockExams(forEnrollmentID enrollmentID: String, examStarts: [Date]) {
+        guard let enrollment = enrolledCourses.first(where: { $0.id == enrollmentID }) else { return }
+        for meeting in enrollment.section.meetings {
+            let parts = meeting.start.split(separator: ":").compactMap { Int($0) }
+            guard let hour = parts.first else { continue }
+            let minute = parts.count > 1 ? parts[1] : 0
+            let key = meetingOverrideKey(enrollmentID: enrollment.id, course: enrollment.course, section: enrollment.section, meeting: meeting)
+            let isTestBlock = meetingOverride(for: key).type == .exam || (meeting.days.count == 1 && hour >= 17)
+            guard isTestBlock else { continue }
+
+            let weekdays = Set(meeting.days.map(\.calendarWeekday))
+            let days = examStarts.filter { start in
+                weekdays.contains(calendar.component(.weekday, from: start)) &&
+                    calendar.component(.hour, from: start) == hour &&
+                    calendar.component(.minute, from: start) == minute
+            }
+            guard !days.isEmpty else { continue }
+            setExamDates(Set(examDates(for: key)).union(days.map { calendar.startOfDay(for: $0) }), for: key)
+        }
+    }
+
+    /// Days this meeting happens during its term, skipping days without
+    /// classes and following "Monday schedule" days.
+    func meetingDates(for enrollment: EnrolledCourse, meeting: Meeting) -> [Date] {
+        guard let term = termBoundsBySemesterCode[enrollment.semesterCode] else { return [] }
+        let weekdays = Set(meeting.days.map(\.calendarWeekday))
+        var dates: [Date] = []
+        var day = calendar.startOfDay(for: term.start)
+        let end = calendar.startOfDay(for: term.end)
+        while day <= end {
+            let scheduleWeekday = followedWeekdayByDay[day] ?? calendar.component(.weekday, from: day)
+            if weekdays.contains(scheduleWeekday), !noClassDays.contains(day) {
+                dates.append(day)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return dates
+    }
+
+    /// The enrollment and meeting a meeting-override key belongs to.
+    func enrollmentAndMeeting(forMeetingKey key: String) -> (EnrolledCourse, Meeting)? {
+        let k = normalizeMeetingKey(key)
+        for enrollment in enrolledCourses {
+            for meeting in enrollment.section.meetings {
+                let candidate = meetingOverrideKey(enrollmentID: enrollment.id, course: enrollment.course, section: enrollment.section, meeting: meeting)
+                if normalizeMeetingKey(candidate) == k { return (enrollment, meeting) }
+            }
+        }
+        return nil
+    }
+
+    /// Keeps one exam task per exam date on a meeting block, so exam blocks
+    /// show up on the class page, in widgets, on the watch, and in reminders
+    /// like any other exam. Task IDs come from the block and the day, so the
+    /// same exam is never added twice (even after syncing with the web app).
+    func syncExamBlockTasks(for key: String) {
+        let k = normalizeMeetingKey(key)
+        guard let (enrollment, meeting) = enrollmentAndMeeting(forMeetingKey: k) else { return }
+        let tasks = TasksManager.shared
+        let chosen = Set(examDates(for: k).map { calendar.startOfDay(for: $0) })
+        let candidateDays = Set(meetingDates(for: enrollment, meeting: meeting)).union(chosen)
+
+        // Remove exams for days that are no longer picked.
+        let chosenIDs = Set(chosen.map { Self.examBlockTaskID(key: k, day: $0) })
+        let allIDs = Set(candidateDays.map { Self.examBlockTaskID(key: k, day: $0) })
+        for task in tasks.tasks where allIDs.contains(task.id) && !chosenIDs.contains(task.id) {
+            tasks.delete(task)
+        }
+
+        let startParts = meeting.start.split(separator: ":").compactMap { Int($0) }
+        let code = "\(enrollment.course.subject) \(enrollment.course.number)"
+        for day in chosen.sorted() {
+            let id = Self.examBlockTaskID(key: k, day: day)
+            guard !tasks.tasks.contains(where: { $0.id == id }) else { continue }
+            // Skip days that already have an exam the student added by hand.
+            if tasks.tasks.contains(where: { $0.enrollmentID == enrollment.id && $0.kind == .exam && calendar.isDate($0.dueDate, inSameDayAs: day) }) {
+                continue
+            }
+            let start = calendar.date(bySettingHour: startParts.first ?? 9, minute: startParts.count > 1 ? startParts[1] : 0, second: 0, of: day) ?? day
+            tasks.add(CourseTask(
+                id: id,
+                enrollmentID: enrollment.id,
+                title: "\(code) exam",
+                kind: .exam,
+                dueDate: start,
+                reminderOffsetsMinutes: [1440, 60],
+                notes: "Exam block, \(meeting.start)–\(meeting.end)\(meeting.location.isEmpty ? "" : " in \(meeting.location)")."
+            ))
+        }
+    }
+
+    static func examBlockTaskID(key: String, day: Date) -> UUID {
+        let text = "exam-block|\(key)|\(Int(day.timeIntervalSince1970))"
+        let digest = Array(SHA256.hash(data: Data(text.utf8)))
+        var bytes = Array(digest.prefix(16))
+        bytes[6] = (bytes[6] & 0x0F) | 0x50 // name-based UUID
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
     // For class template instances: find the matching meeting key from the enrolledCourse meeting list.
@@ -1801,7 +1935,26 @@ final class CalendarViewModel: ObservableObject {
 
     // MARK: - Events per day (UPDATED for meeting overrides + exam dates)
 
+    /// Events per day, reused across the many places a render asks for the
+    /// same days (Home, widgets, notifications). Every input to
+    /// `computeEvents(on:)` clears it when it changes, and so do stored tasks.
+    private var dayEventsCache: [Date: [ClassEvent]] = [:]
+    private var dayEventsCacheTasksData: Data?
+
     func events(on date: Date) -> [ClassEvent] {
+        let tasksData = UserDefaults.standard.data(forKey: TasksManager.storageKey)
+        if tasksData != dayEventsCacheTasksData {
+            dayEventsCache.removeAll()
+            dayEventsCacheTasksData = tasksData
+        }
+        let dayStart = calendar.startOfDay(for: date)
+        if let cached = dayEventsCache[dayStart] { return cached }
+        let computed = computeEvents(on: date)
+        dayEventsCache[dayStart] = computed
+        return computed
+    }
+
+    private func computeEvents(on date: Date) -> [ClassEvent] {
         var result: [ClassEvent] = []
         let dayStart = calendar.startOfDay(for: date)
         let tasks = storedTasks()
@@ -2370,65 +2523,43 @@ final class CalendarViewModel: ObservableObject {
             .joined(separator: "|")
     }
 
+    /// Updates saved sections (rooms, instructors, times) from the bundled
+    /// catalog. The catalog decode is shared with the Courses tab and the
+    /// comparison runs in the background, so launch stays responsive.
     func refreshCurrentSemesterEnrollmentDetails() {
         let semester = currentSemester
         let semesterCode = semester.rawValue
         guard !refreshingEnrollmentSemesterCodes.contains(semesterCode) else { return }
 
         refreshingEnrollmentSemesterCodes.insert(semesterCode)
+        let snapshot = enrolledCourses
 
-        Task.detached(priority: .utility) { [weak self, semester, semesterCode] in
+        Task { @MainActor [weak self] in
+            defer { self?.refreshingEnrollmentSemesterCodes.remove(semesterCode) }
             do {
-                let catalogCourses = try QuACSLoader.buildCourses(termCode: semester.rawValue)
-                guard !Task.isCancelled else {
-                    await MainActor.run { [weak self] in
-                        _ = self?.refreshingEnrollmentSemesterCodes.remove(semesterCode)
-                    }
-                    return
-                }
+                let catalogCourses = try await QuACSCourseCache.shared.courses(termCode: semesterCode)
+                guard !catalogCourses.isEmpty else { return }
+                let refreshed = await Task.detached(priority: .utility) { () -> [EnrolledCourse]? in
+                    let updated = Self.refreshedEnrollmentSnapshots(snapshot, from: catalogCourses, for: semester)
+                    return updated == snapshot ? nil : updated
+                }.value
 
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    defer { self.refreshingEnrollmentSemesterCodes.remove(semesterCode) }
-                    guard self.currentSemester == semester else { return }
-                    self.refreshCurrentSemesterEnrollmentDetails(from: catalogCourses, for: semester)
+                // Skip if nothing changed, or the user edited their classes meanwhile.
+                guard let self, let refreshed,
+                      self.currentSemester == semester,
+                      self.enrolledCourses == snapshot else { return }
+                self.withWidgetPublishingSuppressed {
+                    self.enrolledCourses = refreshed
+                    self.saveEnrollment()
+                    self.rebuildEventsFromEnrollment()
                 }
+                self.applyNotificationScheduling()
             } catch {
                 #if DEBUG
                 print("Could not refresh saved \(semester.displayName) course details:", error)
                 #endif
-                await MainActor.run { [weak self] in
-                    _ = self?.refreshingEnrollmentSemesterCodes.remove(semesterCode)
-                }
             }
         }
-    }
-
-    func refreshCurrentSemesterEnrollmentDetails(
-        from catalogCourses: [Course],
-        for semester: Semester
-    ) {
-        guard semester == currentSemester, !catalogCourses.isEmpty else { return }
-
-        let refreshed = Self.refreshedEnrollmentSnapshots(
-            enrolledCourses,
-            from: catalogCourses,
-            for: semester
-        )
-        let encoder = JSONEncoder()
-        guard let oldData = try? encoder.encode(enrolledCourses),
-              let refreshedData = try? encoder.encode(refreshed),
-              oldData != refreshedData
-        else {
-            return
-        }
-
-        withWidgetPublishingSuppressed {
-            enrolledCourses = refreshed
-            saveEnrollment()
-            rebuildEventsFromEnrollment()
-        }
-        applyNotificationScheduling()
     }
 
     private func enrollmentID(for course: Course, section: CourseSection) -> String {
