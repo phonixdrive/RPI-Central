@@ -6,8 +6,21 @@
 	<array>
 		<string>phonix.RPI-Central.refresh</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>phonix.RPI-Central</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>rpicentral</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>RPI Central uses calendar access to mirror events from selected Google, Outlook, and other calendars into your RPI Central calendar.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>RPI Central uses the camera to scan paper syllabi so it can find exam and due dates. Scans stay on your iPhone.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>With background sharing on, RPI Central updates the location you share with friends after you move a significant distance or arrive at a part of campus, even when the app is closed. Turn it off anytime in Social › Map.</string>
 	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
