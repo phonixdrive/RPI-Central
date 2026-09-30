@@ -20,8 +20,11 @@ enum DemoSemester {
               let courses = try? QuACSLoader.buildCourses(termCode: Semester.fall2026.rawValue) else { return }
 
         viewModel.changeSemester(to: .fall2026)
+        // RPI_DEMO_PSOFT=1 swaps Data Structures for Principles of Software
+        // (same time slot), for trying the syllabus import on its syllabus.
+        let psoft = ProcessInfo.processInfo.environment["RPI_DEMO_PSOFT"] == "1"
         let picks: [(subject: String, number: String, section: String)] = [
-            ("CSCI", "1200", "01"),
+            psoft ? ("CSCI", "2600", "01") : ("CSCI", "1200", "01"),
             ("CSCI", "2200", "03"),
             ("PSYC", "1200", "01"),
             ("BIOL", "1010", "01"),
