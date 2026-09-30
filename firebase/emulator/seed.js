@@ -254,6 +254,26 @@ async function main() {
     set(`courseRatings/CSCI-1200/ratings/${uid(key)}`, { overall, difficulty, hoursPerWeek, tags, semesterCode: TERM, updatedAt: iso(minutes(-60 * 24)) });
   }
 
+  // An invite-only server space (Social → Chats and Home show it to members).
+  set('serverSpaces/minecraft', {
+    name: 'Minecraft SMP',
+    address: 'smp.example.net',
+    ownerID: uid('alex'),
+    ownerName: 'Alex Kim',
+    memberIDs: ['alex', 'maya', 'jordan', 'chris'].map(uid),
+    serverOnline: true,
+    statusUpdatedAt: Timestamp.fromDate(minutes(-40)),
+    statusUpdatedByName: 'Alex Kim',
+    createdAt: Timestamp.fromDate(minutes(-60 * 24 * 7)),
+  });
+  for (const [key, name, since] of [['maya', 'Maya Patel', -35], ['jordan', 'Jordan Lee', -12]]) {
+    set(`serverSpaces/minecraft/presence/${uid(key)}`, {
+      displayName: name,
+      since: Timestamp.fromDate(minutes(since)),
+      expiresAt: Timestamp.fromDate(minutes(since + 24 * 60)),
+    });
+  }
+
   await batch.commit();
 
   // Activity posts live on their owners' profiles; responses on the responders'.
