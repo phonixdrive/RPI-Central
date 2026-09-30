@@ -1168,14 +1168,30 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    private func hasExamTask(for enrollmentID: String?, on date: Date, tasks: [CourseTask]? = nil) -> Bool {
-        guard let enrollmentID else { return false }
+    /// Stars a class meeting when an exam is due that day. If the exam's time
+    /// matches one of the class's meetings that day (a lecture and a test
+    /// block on the same Tuesday), only that meeting gets the star.
+    private func hasExamTask(for template: ClassEvent, on date: Date, tasks: [CourseTask]? = nil) -> Bool {
+        guard let enrollmentID = template.enrollmentID else { return false }
         let dayStart = calendar.startOfDay(for: date)
         let sourceTasks = tasks ?? storedTasks()
-        return sourceTasks.contains { task in
+        let exams = sourceTasks.filter { task in
             task.kind == .exam &&
             task.enrollmentID == enrollmentID &&
-            calendar.isDate(calendar.startOfDay(for: task.dueDate), inSameDayAs: dayStart)
+            calendar.isDate(task.dueDate, inSameDayAs: dayStart)
+        }
+        guard !exams.isEmpty else { return false }
+
+        func minutes(_ date: Date) -> Int {
+            calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+        }
+        let meetingStarts = Set(events.filter {
+            $0.kind == .classMeeting && $0.enrollmentID == enrollmentID && classTemplateMeets($0, on: date)
+        }.map { minutes($0.startDate) })
+        let start = minutes(template.startDate)
+        return exams.contains { exam in
+            let time = minutes(exam.dueDate)
+            return time == start || !meetingStarts.contains(time)
         }
     }
 
@@ -1234,7 +1250,7 @@ final class CalendarViewModel: ObservableObject {
 
                 let hasExamBadge = {
                     if let key = base.meetingKey, meetingOverride(for: key).type == .exam { return true }
-                    return hasExamTask(for: base.enrollmentID, on: date, tasks: tasks)
+                    return hasExamTask(for: base, on: date, tasks: tasks)
                 }()
 
                 var title = base.title
@@ -2017,7 +2033,7 @@ final class CalendarViewModel: ObservableObject {
                         let ov = meetingOverride(for: key)
                         if ov.type == .exam { return true }
                     }
-                    return hasExamTask(for: base.enrollmentID, on: date, tasks: tasks)
+                    return hasExamTask(for: base, on: date, tasks: tasks)
                 }()
 
                 var title = base.title
