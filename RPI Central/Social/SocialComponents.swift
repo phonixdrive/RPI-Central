@@ -425,3 +425,71 @@ struct SocialGuidelinesSheet: View {
         }
     }
 }
+
+// MARK: - Scrolling title
+
+/// One line of text. If it doesn't fit, it waits, slowly slides to show the
+/// end, waits, and slides back, so long chat names can be read in full.
+/// Stays still with Reduce Motion on (the full text is still read aloud).
+struct MarqueeText: View {
+    let text: String
+    var font: Font = .body
+    /// Points per second.
+    var speed: CGFloat = 28
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var textWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var offset: CGFloat = 0
+
+    private var overflow: CGFloat { max(0, textWidth - containerWidth) }
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .lineLimit(1)
+            .fixedSize()
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { textWidth = proxy.size.width }
+                        .onChange(of: proxy.size.width) { _, width in textWidth = width }
+                }
+            }
+            .offset(x: offset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { containerWidth = proxy.size.width }
+                        .onChange(of: proxy.size.width) { _, width in containerWidth = width }
+                }
+            }
+            .clipped()
+            .mask {
+                // Fade the cut-off edge so it reads as "there's more".
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [offset < 0 ? .clear : .black, .black], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: overflow > 0 ? 10 : 0)
+                    Rectangle()
+                    LinearGradient(colors: [.black, offset > -overflow + 1 ? .clear : .black], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: overflow > 0 ? 14 : 0)
+                }
+            }
+            .accessibilityLabel(text)
+            .task(id: "\(text)|\(Int(textWidth))|\(Int(containerWidth))|\(reduceMotion)") {
+                offset = 0
+                guard overflow > 1, !reduceMotion else { return }
+                let duration = Double(overflow / speed)
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.linear(duration: duration)) { offset = -overflow }
+                    try? await Task.sleep(for: .seconds(duration + 1.6))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.linear(duration: duration)) { offset = 0 }
+                    try? await Task.sleep(for: .seconds(duration))
+                }
+            }
+    }
+}

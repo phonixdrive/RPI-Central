@@ -452,6 +452,69 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Invite-only spaces for a game server (or anything with an on/off
+    // status). The owner invites people and sets the status; members can ask
+    // for it to be started, leave, and say they're on for up to 24 hours.
+    match /serverSpaces/{spaceID} {
+      function spaceKeys() {
+        return ["name", "address", "ownerID", "ownerName", "memberIDs", "serverOnline",
+                "statusUpdatedAt", "statusUpdatedByName", "requestedByID", "requestedByName",
+                "requestedAt", "createdAt"];
+      }
+
+      function validSpace(data) {
+        return data.keys().hasOnly(spaceKeys()) &&
+          data.name is string && data.name.size() > 0 && data.name.size() <= 40 &&
+          data.address is string && data.address.size() <= 100 &&
+          data.memberIDs is list && data.memberIDs.size() <= 50 &&
+          data.ownerID in data.memberIDs &&
+          data.serverOnline is bool;
+      }
+
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIDs;
+      allow create: if signedIn() &&
+        request.resource.data.ownerID == request.auth.uid &&
+        validSpace(request.resource.data);
+      allow update: if signedIn() && (
+        (
+          // The owner can change anything but who owns it.
+          resource.data.ownerID == request.auth.uid &&
+          request.resource.data.ownerID == request.auth.uid &&
+          validSpace(request.resource.data)
+        ) || (
+          // Members can ask for the server to be started.
+          request.auth.uid in resource.data.memberIDs &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["requestedByID", "requestedByName", "requestedAt"]) &&
+          request.resource.data.requestedByID == request.auth.uid
+        ) || (
+          // Members can leave, removing only themselves.
+          request.auth.uid in resource.data.memberIDs &&
+          request.auth.uid != resource.data.ownerID &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["memberIDs"]) &&
+          resource.data.memberIDs.toSet().difference(request.resource.data.memberIDs.toSet()) == [request.auth.uid].toSet() &&
+          request.resource.data.memberIDs.toSet().difference(resource.data.memberIDs.toSet()).size() == 0
+        )
+      );
+      allow delete: if signedIn() && resource.data.ownerID == request.auth.uid;
+
+      // "I'm on the server", which expires within a day.
+      match /presence/{userID} {
+        function space() {
+          return get(/databases/$(database)/documents/serverSpaces/$(spaceID)).data;
+        }
+
+        allow read: if signedIn() && request.auth.uid in space().memberIDs;
+        allow create, update: if isSelf(userID) &&
+          request.auth.uid in space().memberIDs &&
+          request.resource.data.keys().hasOnly(["displayName", "since", "expiresAt"]) &&
+          request.resource.data.displayName is string &&
+          request.resource.data.displayName.size() <= 60 &&
+          request.resource.data.expiresAt is timestamp &&
+          request.resource.data.expiresAt <= request.time + duration.value(24, "h") + duration.value(5, "m");
+        allow delete: if isSelf(userID) || (signedIn() && space().ownerID == request.auth.uid);
+      }
+    }
+
     match /sharedSchedules/{ownerID} {
       allow read: if isSelf(ownerID) || (
         signedIn() &&

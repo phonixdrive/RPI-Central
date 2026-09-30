@@ -12,9 +12,6 @@ struct CoursesView: View {
     @State private var searchText: String = ""
     @State private var selectedSubjectFilter: SubjectOption? = nil
     @State private var subjectBrowserPresentation: SubjectBrowserPresentation?
-    /// Lowercased "subject number code title instructors" per course, rebuilt
-    /// when the catalog changes rather than on every keystroke.
-    @State private var searchIndex: [String: String] = [:]
 
     private let filterColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -26,7 +23,7 @@ struct CoursesView: View {
     }
 
     private var availableSubjectCodes: Set<String> {
-        Set(catalog.courses.map(\.subject))
+        catalog.subjectCodes
     }
 
     private var visibleSubjectCategories: [SubjectCategory] {
@@ -60,9 +57,8 @@ struct CoursesView: View {
             return allCourses.filter { $0.subject == selectedSubjectFilter.subjectCode }
         }()
 
-        guard !trimmedQuery.isEmpty else {
-            return baseCourses.sorted { ($0.subject, $0.number) < ($1.subject, $1.number) }
-        }
+        // The catalog is already sorted by subject and number.
+        guard !trimmedQuery.isEmpty else { return baseCourses }
 
         // "CSCI 1200", "csci-1200", "data structures", or an instructor name.
         let tokens = trimmedQuery
@@ -72,7 +68,7 @@ struct CoursesView: View {
 
         return allCourses
             .compactMap { course -> (course: Course, rank: Int)? in
-                let haystack = searchIndex[course.id] ?? Self.searchText(for: course)
+                let haystack = catalog.searchIndex[course.id] ?? CourseCatalogService.searchText(for: course)
                 guard tokens.allSatisfy({ haystack.contains($0) }) else { return nil }
                 let code = "\(course.subject)\(course.number)".lowercased()
                 let rank: Int
@@ -92,19 +88,6 @@ struct CoursesView: View {
                 return (lhs.course.subject, lhs.course.number) < (rhs.course.subject, rhs.course.number)
             }
             .map(\.course)
-    }
-
-    private static func searchText(for course: Course) -> String {
-        let instructors = Set(course.sections.map(\.instructor)).sorted().joined(separator: " ")
-        return [
-            course.subject,
-            course.number,
-            "\(course.subject)\(course.number)",
-            course.title,
-            instructors,
-        ]
-        .joined(separator: " ")
-        .lowercased()
     }
 
     private var enrolledCourseIDsInCatalogTerm: Set<String> {
@@ -155,16 +138,8 @@ struct CoursesView: View {
         .onAppear {
             clearUnavailableSubjectFilterIfNeeded()
         }
-        .onReceive(catalog.$courses) { courses in
-            searchIndex = Dictionary(
-                courses.map { ($0.id, Self.searchText(for: $0)) },
-                uniquingKeysWith: { first, _ in first }
-            )
+        .onReceive(catalog.$courses) { _ in
             clearUnavailableSubjectFilterIfNeeded()
-            calendarViewModel.refreshCurrentSemesterEnrollmentDetails(
-                from: courses,
-                for: catalog.semester
-            )
         }
         .onChange(of: calendarViewModel.academicHistoryStartSemester) { _, newStart in
             if catalog.semester.rawValue < newStart.rawValue {

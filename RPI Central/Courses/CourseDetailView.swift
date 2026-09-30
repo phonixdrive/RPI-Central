@@ -12,15 +12,13 @@ struct CourseDetailView: View {
 
     let course: Course
     var displaySemester: Semester? = nil
+    /// Off when this page is opened from the class page itself.
+    var showsClassPageLink = true
 
     // Per-section prerequisite/full-section bypass arming.
     @State private var bypassArmed: Set<String> = []
 
-    // exam-date picker sheet state
-    @State private var showExamPicker: Bool = false
-    @State private var examPickerTitle: String = ""
-    @State private var examPickerKey: String = ""
-    @State private var examPickerDates: Set<Date> = []   // ✅ replaces Set<DateComponents>
+    @State private var classPageEvent: ClassEvent?
     @State private var courseCommentDraft: String = ""
     @State private var selectedPrerequisiteID: String?
     @State private var isPrerequisitesExpanded: Bool = false
@@ -48,15 +46,38 @@ struct CourseDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if showsClassPageLink, let enrollment = activeEnrollment,
+                   let event = calendarViewModel.nextClassEvent(forEnrollmentID: enrollment.id) {
+                    Button {
+                        classPageEvent = event
+                    } label: {
+                        Label("Open Class Page", systemImage: "rectangle.stack.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(calendarViewModel.themeColor)
+                }
+
+                ProfessorsCard(instructors: instructors, accent: calendarViewModel.themeColor)
+
+                CourseRatingsCard(
+                    subject: course.subject,
+                    number: course.number,
+                    courseTitle: course.title,
+                    semesterCode: activeSemester.rawValue,
+                    accent: calendarViewModel.themeColor
+                )
+
                 if socialManager.isFirebaseAvailable,
                    socialManager.isAuthenticated,
                    !friendsInCourse.isEmpty {
                     friendsInCourseCard
                 }
 
-                // Meeting Blocks (only if enrolled)
-                if !enrollmentsForThisCourse.isEmpty {
-                    meetingBlocksEditor
+                ForEach(enrollmentsForThisCourse) { enrollment in
+                    MeetingBlocksCard(enrollment: enrollment, accent: calendarViewModel.themeColor)
                 }
 
                 // Prereqs (metadata)
@@ -154,19 +175,10 @@ struct CourseDetailView: View {
             await socialManager.syncCourseCommunities(for: enrollmentsForThisCourse)
             await socialManager.refreshCourseComments(for: course)
         }
-        .sheet(isPresented: $showExamPicker) {
-            ExamDatesEditorSheet(
-                title: examPickerTitle,
-                dates: $examPickerDates,
-                onSave: { pickedDates in
-                    // ✅ Normalize to NY start-of-day before saving
-                    var cal = Calendar.current
-                    cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
-
-                    let normalized = Set(pickedDates.map { cal.startOfDay(for: $0) })
-                    calendarViewModel.setExamDates(normalized, for: examPickerKey)
-                }
-            )
+        .sheet(item: $classPageEvent) { event in
+            ClassEventDetailView(event: event)
+                .environmentObject(calendarViewModel)
+                .environmentObject(socialManager)
         }
         .alert(item: selectedPrerequisiteDetails) { prereq in
             prerequisiteAlert(for: prereq)
@@ -193,6 +205,18 @@ struct CourseDetailView: View {
         }
     }
 
+    private var activeEnrollment: EnrolledCourse? {
+        enrollmentsForThisCourse.first { $0.semesterCode == activeSemester.rawValue }
+    }
+
+    /// Everyone teaching a section, without repeats.
+    private var instructors: [String] {
+        var seen: Set<String> = []
+        return course.sections
+            .flatMap { RateMyProfessors.instructors(from: $0.instructor) }
+            .filter { seen.insert($0).inserted }
+    }
+
     private var sharingSemesterCode: String {
         activeSemester.rawValue
     }
@@ -215,42 +239,6 @@ struct CourseDetailView: View {
             section: section,
             semesterCode: sharingSemesterCode
         )
-    }
-
-    // MARK: - Meeting Blocks UI
-
-    private var meetingBlocksEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Text("Meeting Blocks")
-                    .font(.headline)
-                InfoButton("Mark a block as an exam or recitation, or turn it off. Exam blocks only appear on the dates you pick.")
-            }
-
-            ForEach(enrollmentsForThisCourse) { enrollment in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("CRN \(enrollment.section.crn.map(String.init) ?? "N/A") • \(Semester(rawValue: enrollment.semesterCode)?.displayName ?? enrollment.semesterCode)")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.secondary)
-
-                    if enrollment.section.meetings.isEmpty {
-                        Text("No scheduled meeting time")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(enrollment.section.meetings.indices, id: \.self) { idx in
-                            let m = enrollment.section.meetings[idx]
-                            meetingRow(enrollment: enrollment, meeting: m)
-                        }
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.secondarySystemBackground))
-                )
-            }
-        }
     }
 
     private var friendsInCourseCard: some View {
@@ -279,86 +267,6 @@ struct CourseDetailView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemBackground))
         )
-    }
-
-    private func meetingRow(enrollment: EnrolledCourse, meeting: Meeting) -> some View {
-        let key = calendarViewModel.meetingOverrideKey(
-            enrollmentID: enrollment.id,
-            course: enrollment.course,
-            section: enrollment.section,
-            meeting: meeting
-        )
-
-        let ov = calendarViewModel.meetingOverride(for: key)
-
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(meeting.days.map { $0.shortName }.joined()) \(meeting.start) – \(meeting.end)")
-                        .font(.subheadline.bold())
-
-                    Text(meeting.location.isEmpty ? "Location TBA" : meeting.location)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Picker("", selection: Binding(
-                    get: { ov.type },
-                    set: { newType in
-                        calendarViewModel.setMeetingOverrideType(newType, for: key)
-                    }
-                )) {
-                    ForEach(MeetingBlockType.allCases) { t in
-                        Text(t.displayName).tag(t)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            if ov.type == .exam {
-                HStack(spacing: 10) {
-                    let count = calendarViewModel.examDates(for: key).count
-                    Text(count == 0 ? "No exam dates selected" : "\(count) exam date\(count == 1 ? "" : "s") selected")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        calendarViewModel.setExamDates([], for: key)
-                    } label: {
-                        Text("Remove exam")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        // ✅ seed editor with existing dates (normalized)
-                        var cal = Calendar.current
-                        cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
-
-                        let existingDates = calendarViewModel.examDates(for: key)
-                        examPickerDates = Set(existingDates.map { cal.startOfDay(for: $0) })
-
-                        examPickerTitle = "\(course.subject) \(course.number) • \(meeting.days.map { $0.shortName }.joined()) \(meeting.start)–\(meeting.end)"
-                        examPickerKey = key
-                        showExamPicker = true
-                    } label: {
-                        Text("Edit dates")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-
-            if ov.type == .disabled {
-                Text("This block will not appear on your calendar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 
     // MARK: - Section card
@@ -932,106 +840,3 @@ private struct PrerequisiteAlertItem: Identifiable {
     var id: String { courseID }
 }
 
-// MARK: - Exam dates editor sheet (no MultiDatePicker)
-
-private struct ExamDatesEditorSheet: View {
-    let title: String
-    @Binding var dates: Set<Date>
-    let onSave: (Set<Date>) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var candidateDate: Date = Date()
-
-    private var sortedDates: [Date] {
-        dates.sorted()
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Select exam dates")
-                    .font(.headline)
-
-                // ✅ Graphical date picker (single-day selection)
-                DatePicker(
-                    "Exam date",
-                    selection: $candidateDate,
-                    displayedComponents: [.date]
-                )
-                .datePickerStyle(.graphical)
-
-                HStack {
-                    Button("Add date") {
-                        var cal = Calendar.current
-                        cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
-                        dates.insert(cal.startOfDay(for: candidateDate))
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Spacer()
-
-                    if !dates.isEmpty {
-                        Button(role: .destructive) {
-                            dates.removeAll()
-                        } label: {
-                            Text("Clear all")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-
-                if dates.isEmpty {
-                    Text("No exam dates selected.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Selected dates")
-                            .font(.subheadline.bold())
-
-                        // ✅ Individually deletable list
-                        List {
-                            ForEach(sortedDates, id: \.self) { d in
-                                HStack {
-                                    Text(d.formatted(date: .abbreviated, time: .omitted))
-                                    Spacer()
-                                    Button(role: .destructive) {
-                                        dates.remove(d)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .frame(minHeight: 160)
-                    }
-                }
-
-                Text("The exam block shows only on these dates.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Exam Dates")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        onSave(dates)
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-}

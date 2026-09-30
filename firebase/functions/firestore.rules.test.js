@@ -16,6 +16,7 @@ const {
   getDocs,
   query,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
 } = require("firebase/firestore");
@@ -373,4 +374,57 @@ test("a user's block list is private", async () => {
 
   await assertSucceeds(setDoc(doc(alice, "users/alice/private/blocks"), {userIDs: ["bob"]}));
   await assertFails(getDoc(doc(bob, "users/alice/private/blocks")));
+});
+
+test("server spaces are invite-only and only the owner sets the status", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const bob = testEnvironment.authenticatedContext("bob").firestore();
+  const carol = testEnvironment.authenticatedContext("carol").firestore();
+  const space = {
+    name: "Minecraft SMP",
+    address: "play.example.com",
+    ownerID: "alice",
+    ownerName: "Alice",
+    memberIDs: ["alice", "bob"],
+    serverOnline: false,
+  };
+
+  await assertSucceeds(setDoc(doc(alice, "serverSpaces/s1"), space));
+  await assertFails(setDoc(doc(carol, "serverSpaces/s2"), space));
+  await assertSucceeds(getDoc(doc(bob, "serverSpaces/s1")));
+  await assertFails(getDoc(doc(carol, "serverSpaces/s1")));
+
+  // Only the owner turns it on or invites people.
+  await assertFails(updateDoc(doc(bob, "serverSpaces/s1"), {serverOnline: true}));
+  await assertFails(updateDoc(doc(bob, "serverSpaces/s1"), {memberIDs: arrayUnion("carol")}));
+  await assertSucceeds(updateDoc(doc(alice, "serverSpaces/s1"), {serverOnline: true, statusUpdatedByName: "Alice"}));
+
+  // Members can ask for it to be started, as themselves.
+  await assertSucceeds(updateDoc(doc(bob, "serverSpaces/s1"), {requestedByID: "bob", requestedByName: "Bob"}));
+  await assertFails(updateDoc(doc(bob, "serverSpaces/s1"), {requestedByID: "alice", requestedByName: "Alice"}));
+});
+
+test("server presence is your own and lasts at most a day", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const bob = testEnvironment.authenticatedContext("bob").firestore();
+  const carol = testEnvironment.authenticatedContext("carol").firestore();
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "serverSpaces/s1"), {
+      name: "SMP", address: "", ownerID: "alice", ownerName: "Alice", memberIDs: ["alice", "bob"], serverOnline: true,
+    });
+  });
+  const now = Date.now();
+  const inHours = (h) => Timestamp.fromMillis(now + h * 3600 * 1000);
+
+  await assertSucceeds(setDoc(doc(bob, "serverSpaces/s1/presence/bob"), {displayName: "Bob", since: inHours(0), expiresAt: inHours(24)}));
+  await assertFails(setDoc(doc(bob, "serverSpaces/s1/presence/bob"), {displayName: "Bob", since: inHours(0), expiresAt: inHours(48)}));
+  await assertFails(setDoc(doc(bob, "serverSpaces/s1/presence/alice"), {displayName: "Alice", since: inHours(0), expiresAt: inHours(1)}));
+  await assertFails(setDoc(doc(carol, "serverSpaces/s1/presence/carol"), {displayName: "Carol", since: inHours(0), expiresAt: inHours(1)}));
+  await assertFails(getDoc(doc(carol, "serverSpaces/s1/presence/bob")));
+  // The owner can mark someone offline.
+  await assertSucceeds(deleteDoc(doc(alice, "serverSpaces/s1/presence/bob")));
+
+  // Members can leave, but can't remove others.
+  await assertFails(updateDoc(doc(bob, "serverSpaces/s1"), {memberIDs: ["bob"]}));
+  await assertSucceeds(updateDoc(doc(bob, "serverSpaces/s1"), {memberIDs: arrayRemove("bob")}));
 });

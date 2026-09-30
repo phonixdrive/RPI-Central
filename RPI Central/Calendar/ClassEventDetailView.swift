@@ -31,19 +31,12 @@ struct ClassEventDetailView: View {
     @State private var showSyllabusImport = false
     @State private var showGrades = false
     @State private var showCourseInfo = false
-    @State private var showRateSheet = false
     @State private var classChat: SocialGroupChatReference?
-    @StateObject private var ratings: CourseRatingsModel
     @State private var copiedCRN = false
 
     init(event: ClassEvent, pageLabel: String? = nil) {
         self.event = event
         self.pageLabel = pageLabel
-        let parts = (event.enrollmentID ?? "").split(separator: "-")
-        _ratings = StateObject(wrappedValue: CourseRatingsModel(
-            subject: parts.count > 0 ? String(parts[0]) : "",
-            number: parts.count > 1 ? String(parts[1]) : ""
-        ))
     }
 
     private var enrollment: EnrolledCourse? {
@@ -82,9 +75,6 @@ struct ClassEventDetailView: View {
                     notesText = viewModel.notes(for: enrollmentID)
                 }
             }
-            .task(id: socialManager.currentUser?.id) {
-                if enrollment != nil { await ratings.load() }
-            }
             .modifier(RemovalDialogs(
                 event: event,
                 confirmHideAllDay: $confirmHideAllDay,
@@ -122,6 +112,7 @@ struct ClassEventDetailView: View {
                         enrollmentID: enrollment.id,
                         courseTitle: "\(enrollment.course.subject) \(enrollment.course.number)",
                         term: viewModel.termBoundsBySemesterCode[enrollment.semesterCode].map(SyllabusDateExtractor.importWindow),
+                        classTimes: SyllabusImportView.classTimes(for: enrollment.section),
                         accent: viewModel.themeColor
                     )
                 }
@@ -137,7 +128,7 @@ struct ClassEventDetailView: View {
             .sheet(isPresented: $showCourseInfo) {
                 if let enrollment {
                     NavigationStack {
-                        CourseDetailView(course: enrollment.course, displaySemester: Semester(rawValue: enrollment.semesterCode))
+                        CourseDetailView(course: enrollment.course, displaySemester: Semester(rawValue: enrollment.semesterCode), showsClassPageLink: false)
                             .environmentObject(viewModel)
                             .environmentObject(socialManager)
                             .toolbar {
@@ -146,17 +137,6 @@ struct ClassEventDetailView: View {
                                 }
                             }
                     }
-                }
-            }
-            .sheet(isPresented: $showRateSheet) {
-                if let enrollment {
-                    RateClassSheet(
-                        courseTitle: enrollment.course.title,
-                        existing: ratings.myRating,
-                        semesterCode: enrollment.semesterCode,
-                        accent: viewModel.themeColor,
-                        model: ratings
-                    )
                 }
             }
             .sheet(item: $classChat) { GroupChatSheet(reference: $0) }
@@ -306,10 +286,17 @@ struct ClassEventDetailView: View {
         dueCard(enrollment)
         nextMeetingsCard(enrollment)
         gradeCard(enrollment)
-        professorCard(enrollment)
-        ratingsCard(enrollment)
+        ProfessorsCard(instructors: RateMyProfessors.instructors(from: enrollment.section.instructor), accent: accent)
+        CourseRatingsCard(
+            subject: enrollment.course.subject,
+            number: enrollment.course.number,
+            courseTitle: enrollment.course.title,
+            semesterCode: enrollment.semesterCode,
+            accent: accent
+        )
         friendsCard(enrollment)
         notesCard(enrollmentID: enrollment.id)
+        MeetingBlocksCard(enrollment: enrollment, accent: accent)
         infoCard(enrollment)
     }
 
@@ -459,75 +446,6 @@ struct ClassEventDetailView: View {
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func professorCard(_ enrollment: EnrolledCourse) -> some View {
-        let instructors = RateMyProfessors.instructors(from: enrollment.section.instructor)
-        if !instructors.isEmpty {
-            card(title: instructors.count == 1 ? "Professor" : "Professors", systemImage: "person.fill") {
-                EmptyView()
-            } content: {
-                VStack(spacing: 12) {
-                    ForEach(instructors, id: \.self) { name in
-                        ProfessorRatingRow(instructor: name, accent: accent)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func ratingsCard(_ enrollment: EnrolledCourse) -> some View {
-        card(title: "Class Ratings", systemImage: "star.leadinghalf.filled") {
-            if socialManager.isAuthenticated {
-                Button(ratings.myRating == nil ? "Rate" : "Edit") { showRateSheet = true }
-                    .font(.subheadline.weight(.semibold))
-                    .tint(accent)
-            }
-        } content: {
-            if !socialManager.isAuthenticated {
-                Text("Sign in on the Social tab to see and add ratings.")
-                    .foregroundStyle(.secondary)
-            } else if ratings.isLoading && ratings.summary == nil {
-                ProgressView()
-            } else if let summary = ratings.summary {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 0) {
-                        ratingStat(String(format: "%.1f", summary.overall), label: "Overall", systemImage: "star.fill", color: .yellow)
-                        Divider().frame(height: 36)
-                        ratingStat(String(format: "%.1f", summary.difficulty), label: "Difficulty", systemImage: "flame.fill", color: .orange)
-                        Divider().frame(height: 36)
-                        ratingStat(String(format: "%.0f h", summary.hoursPerWeek), label: "Per week", systemImage: "hourglass", color: accent)
-                    }
-                    if !summary.topTags.isEmpty {
-                        FlowTags(tags: summary.topTags.prefix(5).map { "\($0.tag.title) · \($0.count)" }, accent: accent)
-                    }
-                    Text(summary.count == 1 ? "1 rating from RPI students" : "\(summary.count) ratings from RPI students")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No ratings yet. Be the first.")
-                        .foregroundStyle(.secondary)
-                    Button("Rate This Class") { showRateSheet = true }
-                        .buttonStyle(.borderedProminent)
-                        .tint(accent)
-                }
-            }
-        }
-    }
-
-    private func ratingStat(_ value: String, label: String, systemImage: String, color: Color) -> some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage).foregroundStyle(color).font(.caption)
-                Text(value).font(.title3.bold()).monospacedDigit()
-            }
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -891,7 +809,7 @@ private struct StarPicker: View {
 }
 
 /// Tags that wrap onto multiple lines.
-private struct FlowTags: View {
+struct FlowTags: View {
     let tags: [String]
     let accent: Color
 

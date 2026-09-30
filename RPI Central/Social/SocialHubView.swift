@@ -25,6 +25,7 @@ struct SocialHubView: View {
     @State private var showAddFriends = false
     @State private var showNewMessage = false
     @State private var showNewGroup = false
+    @State private var showNewServer = false
     @State private var showNewPlan = false
     @AppStorage("social_guidelines_accepted_v1") private var acceptedGuidelines = false
 
@@ -72,6 +73,24 @@ struct SocialHubView: View {
             }
         }
         .sheet(isPresented: $showNewGroup, onDismiss: openPendingChat) { newGroupSheet }
+        .sheet(isPresented: $showNewServer) {
+            ServerSpaceEditor(
+                title: "New Server",
+                initialName: "",
+                initialAddress: "",
+                friends: socialManager.overview?.friends ?? [],
+                accent: calendarViewModel.themeColor
+            ) { name, address, invited in
+                Task {
+                    await ServerSpacesModel.shared.create(
+                        name: name,
+                        address: address,
+                        ownerName: socialManager.currentUser?.displayName ?? "",
+                        invitedIDs: invited
+                    )
+                }
+            }
+        }
         .sheet(isPresented: $showNewPlan) { newPlanSheet }
         .sheet(isPresented: Binding(
             get: { isSignedIn && !acceptedGuidelines },
@@ -180,6 +199,9 @@ struct SocialHubView: View {
                             showNewGroup = true
                         }
                         .disabled((socialManager.overview?.friends ?? []).isEmpty)
+                        Button("New Server", systemImage: "server.rack") {
+                            showNewServer = true
+                        }
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }

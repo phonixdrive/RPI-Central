@@ -358,21 +358,129 @@ struct SharingAndLocationTests {
 
         // The revision date is outside the term, so it's skipped.
         #expect(!found.contains { calendar.component(.year, from: $0.date) == 2025 })
-        #expect(found.first { $0.title.contains("HW 1") }?.kind == .assignment)
-        #expect(found.first { $0.title.contains("quiz") }?.kind == .quiz)
-        #expect(found.first { $0.title.contains("Test 1") }?.kind == .exam)
-        #expect(found.first { $0.title.contains("proposal") }?.kind == .project)
-        #expect(found.first { $0.title.contains("Final exam") }?.kind == .exam)
+        #expect(found.first { $0.title == "HW 1" }?.kind == .assignment)
+        #expect(found.first { $0.title == "Quiz 1" }?.kind == .quiz)
+        #expect(found.first { $0.title == "Test 1" }?.kind == .exam)
+        #expect(found.first { $0.title == "Project proposal" }?.kind == .project)
+        #expect(found.first { $0.title == "Final exam" }?.kind == .exam)
         // A lecture topic has a date but isn't pre-selected.
         let intro = try #require(found.first { $0.title.contains("Introduction") })
         #expect(!intro.isImportant && !intro.isSelected)
-        let test = try #require(found.first { $0.title.contains("Test 1") })
+        let test = try #require(found.first { $0.title == "Test 1" })
         #expect(calendar.component(.month, from: test.date) == 10 && calendar.component(.day, from: test.date) == 6)
+        #expect(calendar.component(.hour, from: test.date) == 18)
         // "Week 9  Oct 27": the week number isn't the day.
-        let proposal = try #require(found.first { $0.title.contains("proposal") })
+        let proposal = try #require(found.first { $0.title == "Project proposal" })
         #expect(calendar.component(.day, from: proposal.date) == 27)
-        #expect(proposal.title == "Project proposal due")
-        #expect(found.first { $0.title.hasPrefix("HW 1") }?.title == "HW 1 due")
+    }
+
+    /// A weekly schedule table: the date column is the Monday of each week,
+    /// and the column says the day (Principles of Software, Fall 2026).
+    @Test func weeklyScheduleTablesUseTheDayColumn() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
+        let term = DateInterval(
+            start: try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))),
+            end: try #require(calendar.date(from: DateComponents(year: 2027, month: 1, day: 13)))
+        )
+        func line(_ text: String, _ x: CGFloat, _ top: CGFloat, page: Int = 0) -> SyllabusLine {
+            SyllabusLine(text: text, page: page, minX: x, maxX: x + CGFloat(text.count) * 5, top: top, height: 10)
+        }
+        let lines: [SyllabusLine] = [
+            line("Weekly Lecture Schedule:", 27, 370),
+            line("WEEK", 33, 395), line("Week of", 81, 395), line("Tue", 196, 395), line("Wed", 303, 395),
+            line("Fri", 392, 395), line("Homework", 458, 395),
+            line("(Mon)", 86, 408),
+            line("5", 40, 567), line("09/21/26", 73, 567), line("Lec 8: Specifications", 136, 567),
+            line("Q4", 284, 567), line("Lec 9:", 357, 567), line("HW2", 460, 567),
+            line("6", 40, 622), line("09/28/26", 73, 622), line("Lec 10: Abstract Data", 136, 622),
+            line("EXAM", 284, 622), line("REVIEW", 284, 635), line("Lec 11:", 357, 622),
+            line("7", 40, 677), line("10/05/26", 73, 677), line("TEST1 (during test block)", 136, 677),
+            line("Lec 12: Abstraction", 357, 677), line("HW3", 460, 677),
+            line("No Lecture", 136, 690),
+            line("Please Note: This schedule is tentative! If you regularly attend class, you'll know where we are!", 34, 744),
+            line("Tests will be given during the testing period on Tuesday's from 6PM – 7:50PM.", 27, 300, page: 3),
+        ]
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 1)))
+        let found = SyllabusDateExtractor.candidates(in: lines, term: term, classTimes: [4: DateComponents(hour: 10, minute: 0)], calendar: calendar, now: now)
+        func day(_ title: String) -> (weekday: Int, month: Int, day: Int, hour: Int)? {
+            found.first { $0.title == title }.map {
+                (calendar.component(.weekday, from: $0.date), calendar.component(.month, from: $0.date),
+                 calendar.component(.day, from: $0.date), calendar.component(.hour, from: $0.date))
+            }
+        }
+
+        // The test is on Tuesday of the week of Oct 5, in the 6 PM test block.
+        let test = try #require(day("Test 1"))
+        #expect(test.weekday == 3 && test.month == 10 && test.day == 6 && test.hour == 18)
+        // Quizzes sit in the Wednesday column, at the Wednesday class time.
+        let quiz = try #require(day("Quiz 4"))
+        #expect(quiz.weekday == 4 && quiz.month == 9 && quiz.day == 23 && quiz.hour == 10)
+        // "EXAM" and "REVIEW" on two lines is a review lecture, not an exam.
+        #expect(!found.contains { $0.kind == .exam && $0.title != "Test 1" })
+        // Homework has no day, so it lands on Friday with a note to check.
+        let hw = try #require(found.first { $0.title == "HW 3" })
+        #expect(calendar.component(.weekday, from: hw.date) == 6 && hw.note != nil)
+        // Table cells aren't read again as plain dated lines.
+        #expect(!found.contains { $0.title.contains("Lec") })
+    }
+
+    @Test func syllabusLinesHandleWeeksRangesAndAbbreviations() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/New_York"))
+        let term = DateInterval(
+            start: try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))),
+            end: try #require(calendar.date(from: DateComponents(year: 2027, month: 1, day: 13)))
+        )
+        let text = """
+        Assignment 1 Mon. Sept. 7 Due at 11:59pm
+        Week 5 (Sep 28 - Oct 2): Exam 1 on Thursday
+        Tue 9/29   Lecture 9: Midterm review
+        Mon 9/14   Recursion   Lab 3 due Wednesday
+        Mon 9/28 Lec 10    Wed 9/30 Quiz 4
+        """
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 20)))
+        let found = SyllabusDateExtractor.candidates(in: text, term: term, calendar: calendar, now: now)
+        func dayOf(_ title: String) -> Int? {
+            found.first { $0.title == title }.map { calendar.component(.day, from: $0.date) }
+        }
+
+        #expect(dayOf("Assignment 1") == 7)
+        #expect(found.first { $0.title == "Assignment 1" }.map { calendar.component(.hour, from: $0.date) } == 23)
+        // "Week of Sep 28 … on Thursday" is Oct 1.
+        #expect(dayOf("Exam 1") == 1)
+        #expect(!found.contains { $0.kind == .exam && $0.sourceLine.contains("review") })
+        #expect(dayOf("Lab 3") == 16)
+        // Each date on a row owns the text after it.
+        #expect(dayOf("Quiz 4") == 30)
+        #expect(found.filter { $0.title == "Quiz 4" }.count == 1)
+    }
+
+    @Test func scheduleCellsNameTheRightWork() {
+        #expect(SyllabusDateExtractor.events(in: "TEST1 (during test block) No Lecture").map(\.title) == ["Test 1"])
+        #expect(SyllabusDateExtractor.events(in: "TEST1 (during test block)").first?.mentionsTestBlock == true)
+        #expect(SyllabusDateExtractor.events(in: "EXAM REVIEW").isEmpty)
+        #expect(SyllabusDateExtractor.events(in: "Midterm exam").map(\.title) == ["Midterm"])
+        #expect(SyllabusDateExtractor.events(in: "Q4 Lec 9").map(\.title) == ["Quiz 4"])
+        #expect(SyllabusDateExtractor.events(in: "Final Exam Week").first?.isFinalsWeek == true)
+        #expect(SyllabusDateExtractor.weekday(named: "(Mon)") == 2)
+        #expect(SyllabusDateExtractor.weekday(named: "Monitor") == nil)
+        let block = SyllabusDateExtractor.testBlock(in: "Exam Locations: TBD\nOffice Hours: Tuesday 12:15PM – 1:45PM\nTests will be given during the testing period on Tuesday’s from 6PM – 7:50PM.")
+        #expect(block == SyllabusDateExtractor.TestBlock(weekday: 3, hour: 18, minute: 0))
+    }
+
+    @Test func meetingTimesReadNaturally() {
+        let evening = Meeting(days: [.tue], start: "18:00", end: "19:50", location: "")
+        #expect(evening.dayTimeSummary.hasSuffix("6:00 – 7:50 PM"))
+        let spansNoon = Meeting(days: [.mon, .thu], start: "11:00", end: "12:50", location: "")
+        #expect(spansNoon.dayTimeSummary.hasSuffix("11:00 AM – 12:50 PM"))
+    }
+
+    @Test func examBlockTasksHaveStableIDs() {
+        let day = Date(timeIntervalSince1970: 1_791_000_000)
+        let a = CalendarViewModel.examBlockTaskID(key: "k|3|18:00-19:50", day: day)
+        #expect(a == CalendarViewModel.examBlockTaskID(key: "k|3|18:00-19:50", day: day))
+        #expect(a != CalendarViewModel.examBlockTaskID(key: "k|3|18:00-19:50", day: day.addingTimeInterval(86_400)))
     }
 
     @Test func instructorListsSplitIntoRateMyProfessorsNames() {
