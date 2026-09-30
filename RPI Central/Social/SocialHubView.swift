@@ -26,6 +26,7 @@ struct SocialHubView: View {
     @State private var showNewMessage = false
     @State private var showNewGroup = false
     @State private var showNewServer = false
+    @ObservedObject private var serverSpaces = ServerSpacesModel.shared
     @State private var showNewPlan = false
     @AppStorage("social_guidelines_accepted_v1") private var acceptedGuidelines = false
 
@@ -73,6 +74,17 @@ struct SocialHubView: View {
             }
         }
         .sheet(isPresented: $showNewGroup, onDismiss: openPendingChat) { newGroupSheet }
+        .alert(
+            "Couldn’t Create Server",
+            isPresented: Binding(
+                get: { serverSpaces.errorMessage != nil && !showNewServer },
+                set: { if !$0 { serverSpaces.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(serverSpaces.errorMessage ?? "")
+        }
         .sheet(isPresented: $showNewServer) {
             ServerSpaceEditor(
                 title: "New Server",

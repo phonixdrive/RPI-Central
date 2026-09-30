@@ -45,6 +45,12 @@ struct SocialChatsView: View {
                     Section {
                         ServerSpacesStrip(accent: calendarViewModel.themeColor)
                     }
+                } else if let listenError = serverSpaces.listenError {
+                    Section {
+                        Label(listenError, systemImage: "server.rack")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 if !conversations.isEmpty {
                     Section {
