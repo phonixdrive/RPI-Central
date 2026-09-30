@@ -13,194 +13,81 @@ import UniformTypeIdentifiers
 import Vision
 import VisionKit
 
-// MARK: - Extraction
-
-struct SyllabusCandidate: Identifiable, Equatable {
-    let id = UUID()
-    var title: String
-    var date: Date
-    var kind: CourseTaskKind
-    /// Recognized as an exam, due date, etc. Unrecognized dated lines start unchecked.
-    var isImportant: Bool
-    var isSelected: Bool
-    let sourceLine: String
-    /// A task of the same kind is already due that day for this class.
-    var alreadyAdded = false
-}
-
-enum SyllabusDateExtractor {
-    private static let rules: [(kind: CourseTaskKind, keywords: [String])] = [
-        (.exam, ["final exam", "midterm", "exam", "test "]),
-        (.quiz, ["quiz"]),
-        (.project, ["project", "presentation", "proposal", "paper", "essay", "report"]),
-        (.assignment, ["homework", "hw", "assignment", "problem set", "pset", "lab ", "due", "deadline", "submit"]),
-    ]
-
-    /// The class term plus finals week and a little slack on each side.
-    static func importWindow(for term: DateInterval) -> DateInterval {
-        DateInterval(start: term.start.addingTimeInterval(-7 * 86_400), end: term.end.addingTimeInterval(21 * 86_400))
-    }
-
-    /// Finds dated lines in `text`. `term` keeps dates without a year inside
-    /// the semester (a spring syllabus that says "Jan 20" means next January).
-    static func candidates(in text: String, term: DateInterval?, calendar: Calendar = .current, now: Date = Date()) -> [SyllabusCandidate] {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return [] }
-
-        var results: [SyllabusCandidate] = []
-        var seen: Set<String> = []
-
-        for rawLine in text.components(separatedBy: .newlines) {
-            // "Week 9  Oct 27": drop the week number so it isn't read as a day.
-            let line = rawLine
-                .replacingOccurrences(of: #"^\s*(week|wk|lecture|lec|class|day)\s*\d+[.:)]?\s+"#, with: "", options: [.regularExpression, .caseInsensitive])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard line.count >= 4, line.count <= 240 else { continue }
-            let range = NSRange(line.startIndex..., in: line)
-
-            let matches = detector.matches(in: line, options: [], range: range)
-            // A bare time ("6:00pm") only sets the time of the line's date.
-            let timeOnly = matches.first { match in
-                Range(match.range, in: line).map { !isCalendarDate(String(line[$0])) } ?? false
-            }
-            let lineTime = timeOnly?.date.map { calendar.dateComponents([.hour, .minute], from: $0) }
-
-            for match in matches {
-                guard var date = match.date, let matchRange = Range(match.range, in: line) else { continue }
-                let matchedText = String(line[matchRange])
-                guard isCalendarDate(matchedText) else { continue }
-
-                date = adjustedYear(date, matchedText: matchedText, term: term, calendar: calendar)
-                if let term, !term.contains(date) {
-                    // Outside the semester (e.g. the syllabus revision date).
-                    continue
-                }
-
-                let lower = line.lowercased()
-                let rule = rules.first { rule in rule.keywords.contains { lower.contains($0) } }
-                var titleText = line.replacingCharacters(in: matchRange, with: " ")
-                if let timeOnly, let timeRange = Range(timeOnly.range, in: line) {
-                    titleText = titleText.replacingOccurrences(of: String(line[timeRange]), with: " ")
-                }
-                let title = cleanedTitle(titleText)
-                guard !title.isEmpty else { continue }
-
-                let dayKey = "\(calendar.startOfDay(for: date).timeIntervalSince1970)|\(title.lowercased())"
-                guard seen.insert(dayKey).inserted else { continue }
-
-                let dueDate: Date
-                if hasTime(matchedText) {
-                    dueDate = date
-                } else if let hour = lineTime?.hour {
-                    dueDate = calendar.date(bySettingHour: hour, minute: lineTime?.minute ?? 0, second: 0, of: date) ?? date
-                } else {
-                    dueDate = calendar.date(bySettingHour: 23, minute: 59, second: 0, of: date) ?? date
-                }
-
-                results.append(SyllabusCandidate(
-                    title: title,
-                    date: dueDate,
-                    kind: rule?.kind ?? .other,
-                    isImportant: rule != nil,
-                    isSelected: rule != nil && dueDate >= calendar.startOfDay(for: now),
-                    sourceLine: line
-                ))
-            }
-        }
-        return results.sorted { $0.date < $1.date }
-    }
-
-    private static let monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-
-    /// "Oct 6" or "10/6" — not a bare time like "6:00pm".
-    private static func isCalendarDate(_ text: String) -> Bool {
-        let lower = text.lowercased()
-        if monthNames.contains(where: lower.contains) { return true }
-        return lower.range(of: #"\b\d{1,2}/\d{1,2}\b"#, options: .regularExpression) != nil
-    }
-
-    private static func hasTime(_ text: String) -> Bool {
-        let lower = text.lowercased()
-        return lower.contains(":") || lower.range(of: #"\d\s*(am|pm)\b"#, options: .regularExpression) != nil
-    }
-
-    /// NSDataDetector assumes the current year when the text has none.
-    private static func adjustedYear(_ date: Date, matchedText: String, term: DateInterval?, calendar: Calendar) -> Date {
-        guard let term, matchedText.range(of: #"\b(19|20)\d{2}\b"#, options: .regularExpression) == nil else { return date }
-        if term.contains(date) { return date }
-        for offset in [-1, 1] {
-            if let shifted = calendar.date(byAdding: .year, value: offset, to: date), term.contains(shifted) {
-                return shifted
-            }
-        }
-        return date
-    }
-
-    private static func cleanedTitle(_ text: String) -> String {
-        var title = text
-            .replacingOccurrences(of: #"\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|nesday|sday|urday)?\.?\b"#, with: " ", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: #"^\s*(week\s*\d+|\d+[.)])\s*"#, with: "", options: [.regularExpression, .caseInsensitive])
-            .replacingOccurrences(of: #"[\t|•·]+"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: " -–—:,;()").union(.whitespaces))
-            // "HW 1 due at" once the time is removed.
-            .replacingOccurrences(of: #"\s+(at|by|on|@)$"#, with: "", options: [.regularExpression, .caseInsensitive])
-        if title.count > 80 {
-            title = String(title.prefix(80)).trimmingCharacters(in: .whitespaces) + "…"
-        }
-        return title
-    }
-}
-
 // MARK: - Reading documents
 
 enum SyllabusTextReader {
-    /// Text from a PDF; pages without a text layer (scans) are read with OCR.
-    static func text(fromPDF url: URL) async -> String {
+    /// Text lines with their positions. Pages without a text layer (scans)
+    /// are read with OCR.
+    static func lines(fromPDF url: URL) async -> [SyllabusLine] {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        guard let document = PDFDocument(url: url) else { return "" }
+        guard let document = PDFDocument(url: url) else { return [] }
 
-        var pages: [String] = []
+        var lines: [SyllabusLine] = []
         for index in 0..<min(document.pageCount, 40) {
             guard let page = document.page(at: index) else { continue }
+            let bounds = page.bounds(for: .mediaBox)
             let pageText = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if pageText.count > 40 {
-                pages.append(pageText)
+            if pageText.count > 40, let selection = page.selection(for: bounds) {
+                for line in selection.selectionsByLine() {
+                    let text = (line.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { continue }
+                    let box = line.bounds(for: page)
+                    lines.append(SyllabusLine(
+                        text: text,
+                        page: index,
+                        minX: box.minX - bounds.minX,
+                        maxX: box.maxX - bounds.minX,
+                        top: bounds.maxY - box.maxY,
+                        height: box.height
+                    ))
+                }
             } else {
-                let bounds = page.bounds(for: .mediaBox)
                 let scale = 2000 / max(bounds.width, bounds.height, 1)
                 let image = page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)
                 if let cgImage = image.cgImage {
-                    pages.append(await recognizeText(in: cgImage))
+                    lines += await recognizeLines(in: cgImage, page: index)
                 }
             }
         }
-        return pages.joined(separator: "\n")
+        return lines
     }
 
-    static func text(fromImages images: [UIImage]) async -> String {
-        var pages: [String] = []
-        for image in images {
+    static func lines(fromImages images: [UIImage]) async -> [SyllabusLine] {
+        var lines: [SyllabusLine] = []
+        for (index, image) in images.enumerated() {
             if let cgImage = image.cgImage {
-                pages.append(await recognizeText(in: cgImage))
+                lines += await recognizeLines(in: cgImage, page: index)
             }
         }
-        return pages.joined(separator: "\n")
+        return lines
     }
 
-    static func recognizeText(in image: CGImage) async -> String {
-        await withCheckedContinuation { continuation in
+    static func recognizeLines(in image: CGImage, page: Int) async -> [SyllabusLine] {
+        let width = CGFloat(image.width), height = CGFloat(image.height)
+        return await withCheckedContinuation { continuation in
             let request = VNRecognizeTextRequest { request, _ in
-                let lines = (request.results as? [VNRecognizedTextObservation] ?? [])
-                    .compactMap { $0.topCandidates(1).first?.string }
-                continuation.resume(returning: lines.joined(separator: "\n"))
+                let lines = (request.results as? [VNRecognizedTextObservation] ?? []).compactMap { observation -> SyllabusLine? in
+                    guard let text = observation.topCandidates(1).first?.string else { return nil }
+                    // Vision boxes are normalized with the origin at the bottom left.
+                    let box = observation.boundingBox
+                    return SyllabusLine(
+                        text: text,
+                        page: page,
+                        minX: box.minX * width,
+                        maxX: box.maxX * width,
+                        top: (1 - box.maxY) * height,
+                        height: box.height * height
+                    )
+                }
+                continuation.resume(returning: lines)
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
             do {
                 try VNImageRequestHandler(cgImage: image).perform([request])
             } catch {
-                continuation.resume(returning: "")
+                continuation.resume(returning: [])
             }
         }
     }
@@ -212,9 +99,12 @@ struct SyllabusImportView: View {
     let enrollmentID: String
     let courseTitle: String
     let term: DateInterval?
+    /// Class start time by weekday, for exams and quizzes without a time.
+    var classTimes: [Int: DateComponents] = [:]
     let accent: Color
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var viewModel: CalendarViewModel
     @ObservedObject private var tasks = TasksManager.shared
     @State private var candidates: [SyllabusCandidate] = []
     @State private var phase: Phase = .choose
@@ -225,6 +115,22 @@ struct SyllabusImportView: View {
     private enum Phase: Equatable { case choose, reading, review, empty }
 
     private var selectedCount: Int { candidates.filter(\.isSelected).count }
+
+    /// Earliest class start on each weekday ("14:00" on Tuesday → 3: 14:00).
+    static func classTimes(for section: CourseSection) -> [Int: DateComponents] {
+        var times: [Int: DateComponents] = [:]
+        for meeting in section.meetings {
+            let parts = meeting.start.split(separator: ":").compactMap { Int($0) }
+            guard let hour = parts.first else { continue }
+            let time = DateComponents(hour: hour, minute: parts.count > 1 ? parts[1] : 0)
+            for day in meeting.days {
+                let weekday = day.calendarWeekday
+                if let existing = times[weekday], (existing.hour ?? 0, existing.minute ?? 0) <= (hour, time.minute ?? 0) { continue }
+                times[weekday] = time
+            }
+        }
+        return times
+    }
 
     var body: some View {
         NavigationStack {
@@ -266,20 +172,20 @@ struct SyllabusImportView: View {
             .task {
                 // Testing: RPI_SYLLABUS_TEST_PDF=/path/to/file.pdf reads that file directly.
                 if let path = ProcessInfo.processInfo.environment["RPI_SYLLABUS_TEST_PDF"], phase == .choose {
-                    process { await SyllabusTextReader.text(fromPDF: URL(fileURLWithPath: path)) }
+                    process { await SyllabusTextReader.lines(fromPDF: URL(fileURLWithPath: path)) }
                 }
             }
             #endif
             .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.pdf]) { result in
                 if case .success(let url) = result {
-                    process { await SyllabusTextReader.text(fromPDF: url) }
+                    process { await SyllabusTextReader.lines(fromPDF: url) }
                 }
             }
             .fullScreenCover(isPresented: $showScanner) {
                 DocumentScanner { images in
                     showScanner = false
                     guard !images.isEmpty else { return }
-                    process { await SyllabusTextReader.text(fromImages: images) }
+                    process { await SyllabusTextReader.lines(fromImages: images) }
                 }
                 .ignoresSafeArea()
             }
@@ -344,11 +250,14 @@ struct SyllabusImportView: View {
         }
     }
 
-    private func process(_ read: @escaping () async -> String) {
+    private func process(_ read: @escaping () async -> [SyllabusLine]) {
         phase = .reading
         Task {
-            let text = await read()
-            var found = SyllabusDateExtractor.candidates(in: text, term: term)
+            let lines = await read()
+            let term = term, classTimes = classTimes
+            var found = await Task.detached(priority: .userInitiated) {
+                SyllabusDateExtractor.candidates(in: lines, term: term, classTimes: classTimes)
+            }.value
             let existing = tasks.tasks.filter { $0.enrollmentID == enrollmentID }
             for index in found.indices {
                 let candidate = found[index]
@@ -372,6 +281,11 @@ struct SyllabusImportView: View {
                 notes: "From syllabus: \(candidate.sourceLine)"
             ))
         }
+        // After the tasks exist, so the test block doesn't add its own copy.
+        viewModel.markTestBlockExams(
+            forEnrollmentID: enrollmentID,
+            examStarts: candidates.filter { $0.isSelected && $0.kind == .exam }.map(\.date)
+        )
         dismiss()
     }
 }
@@ -399,7 +313,7 @@ private struct CandidateRow: View {
                 HStack(spacing: 6) {
                     Label(candidate.kind.label, systemImage: candidate.kind.systemImage)
                     Text("·")
-                    Text(candidate.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                    Text(candidate.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
                 }
                 .lineLimit(1)
                 .font(.caption)
@@ -408,6 +322,10 @@ private struct CandidateRow: View {
                     Label("Already in your tasks", systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
+                } else if let note = candidate.note {
+                    Label(note, systemImage: "exclamationmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
             Spacer(minLength: 0)
@@ -424,6 +342,12 @@ private struct CandidateRow: View {
                         }
                     }
                     DatePicker("Due", selection: $candidate.date)
+                    if let note = candidate.note {
+                        Section {
+                            Label(note, systemImage: "exclamationmark.circle.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Section("From the syllabus") {
                         Text(candidate.sourceLine)
                             .font(.callout)
@@ -436,6 +360,7 @@ private struct CandidateRow: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") {
                             candidate.isSelected = true
+                            candidate.note = nil
                             isEditing = false
                         }
                     }
