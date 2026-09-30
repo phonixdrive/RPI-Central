@@ -641,3 +641,128 @@ struct ServerSpaceSheet: View {
     }
 }
 
+// MARK: - Creating and inviting
+
+struct ServerSpaceEditor: View {
+    let title: String
+    let initialName: String
+    let initialAddress: String
+    /// Friends to invite; empty when editing.
+    let friends: [SocialFriend]
+    let accent: Color
+    let onSave: (_ name: String, _ address: String, _ invited: [String]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var address = ""
+    @State private var invited: Set<String> = []
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name (like “Minecraft SMP”)", text: $name)
+                    TextField("Server address (optional)", text: $address)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                } footer: {
+                    Text("Only the people you invite can see it.")
+                }
+                if !friends.isEmpty {
+                    Section("Invite") {
+                        ForEach(friends) { friend in
+                            FriendToggleRow(friend: friend, isOn: invited.contains(friend.id), accent: accent) {
+                                if invited.contains(friend.id) { invited.remove(friend.id) } else { invited.insert(friend.id) }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines), address.trimmingCharacters(in: .whitespacesAndNewlines), Array(invited))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                name = initialName
+                address = initialAddress
+            }
+        }
+    }
+}
+
+struct FriendPickerSheet: View {
+    let title: String
+    let friends: [SocialFriend]
+    let accent: Color
+    let actionTitle: String
+    let onPick: ([String]) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: Set<String> = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if friends.isEmpty {
+                    Text("All your friends are already here.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(friends) { friend in
+                    FriendToggleRow(friend: friend, isOn: picked.contains(friend.id), accent: accent) {
+                        if picked.contains(friend.id) { picked.remove(friend.id) } else { picked.insert(friend.id) }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(picked.isEmpty ? actionTitle : "\(actionTitle) \(picked.count)") {
+                        onPick(Array(picked))
+                        dismiss()
+                    }
+                    .disabled(picked.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+private struct FriendToggleRow: View {
+    let friend: SocialFriend
+    let isOn: Bool
+    let accent: Color
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.displayName).foregroundStyle(Color.primary)
+                    Text("@\(friend.username)").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? accent : Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
