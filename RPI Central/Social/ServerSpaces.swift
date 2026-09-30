@@ -307,3 +307,337 @@ final class ServerSpacesModel: ObservableObject {
     #endif
 }
 
+// MARK: - Cards
+
+/// Every server space you're in, as compact cards. Shows nothing when you
+/// aren't in any.
+struct ServerSpacesStrip: View {
+    @EnvironmentObject private var socialManager: SocialManager
+    @ObservedObject private var model = ServerSpacesModel.shared
+    let accent: Color
+    @State private var openSpaceID: String?
+
+    var body: some View {
+        ForEach(model.spaces) { space in
+            ServerSpaceCard(space: space, online: model.onlineMembers(in: space), accent: accent) {
+                openSpaceID = space.id
+            }
+        }
+        .sheet(item: Binding(
+            get: { openSpaceID.map(IdentifiedString.init) },
+            set: { openSpaceID = $0?.value }
+        )) { item in
+            ServerSpaceSheet(spaceID: item.value, accent: accent)
+                .environmentObject(socialManager)
+        }
+        .task(id: socialManager.currentUser?.id) {
+            model.start(userID: socialManager.currentUser?.id)
+        }
+    }
+}
+
+private struct IdentifiedString: Identifiable {
+    let value: String
+    var id: String { value }
+}
+
+struct ServerSpaceCard: View {
+    let space: ServerSpace
+    let online: [ServerPresence]
+    let accent: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill((space.serverOnline ? Color.green : Color.gray).opacity(0.18))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "server.rack")
+                        .font(.title3)
+                        .foregroundStyle(space.serverOnline ? .green : .secondary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(space.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(1)
+                        StatusPill(online: space.serverOnline)
+                    }
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(uiColor: .tertiaryLabel))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detail: String {
+        if let request = space.pendingRequest() {
+            return "\(request.name) asked to start it"
+        }
+        if online.isEmpty {
+            return space.serverOnline ? "No one’s on yet" : "\(space.memberIDs.count) members"
+        }
+        let names = online.prefix(3).map { $0.displayName.components(separatedBy: " ").first ?? $0.displayName }
+        let more = online.count > 3 ? " +\(online.count - 3)" : ""
+        return "On now: \(names.joined(separator: ", "))\(more)"
+    }
+}
+
+private struct StatusPill: View {
+    let online: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(online ? Color.green : Color.gray).frame(width: 7, height: 7)
+            Text(online ? "Online" : "Offline")
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(online ? .green : .secondary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background((online ? Color.green : Color.gray).opacity(0.14), in: Capsule())
+    }
+}
+
+// MARK: - Detail
+
+struct ServerSpaceSheet: View {
+    let spaceID: String
+    let accent: Color
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @ObservedObject private var model = ServerSpacesModel.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var showInvite = false
+    @State private var showEdit = false
+    @State private var confirmLeave = false
+    @State private var confirmDelete = false
+    @State private var copied = false
+
+    private var space: ServerSpace? { model.spaces.first { $0.id == spaceID } }
+    private var myID: String? { socialManager.currentUser?.id }
+    private var myName: String { socialManager.currentUser?.displayName ?? "Someone" }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let space {
+                    content(space)
+                } else {
+                    ContentUnavailableView("Server Unavailable", systemImage: "server.rack", description: Text("It may have been deleted, or you were removed."))
+                }
+            }
+            .navigationTitle(space?.name ?? "Server")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+                if let space {
+                    ToolbarItem(placement: .topBarLeading) { menu(space) }
+                }
+            }
+            .alert("Something Went Wrong", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.errorMessage ?? "")
+            }
+        }
+    }
+
+    private func content(_ space: ServerSpace) -> some View {
+        let isOwner = space.ownerID == myID
+        let online = model.onlineMembers(in: space)
+        let amOn = model.isOn(space)
+
+        return List {
+            Section {
+                VStack(spacing: 14) {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 40))
+                        .foregroundStyle(space.serverOnline ? .green : .secondary)
+                    StatusPill(online: space.serverOnline).scaleEffect(1.2)
+                    if let updated = space.statusUpdatedAt {
+                        Text("\(space.statusUpdatedByName ?? "Owner") updated \(updated.formatted(.relative(presentation: .named)))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !space.address.isEmpty {
+                        Button {
+                            UIPasteboard.general.string = space.address
+                            copied = true
+                        } label: {
+                            Label(copied ? "Copied" : space.address, systemImage: copied ? "checkmark" : "doc.on.doc")
+                                .font(.subheadline.monospaced())
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(accent)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+
+                if isOwner {
+                    Toggle("Server is online", isOn: Binding(
+                        get: { space.serverOnline },
+                        set: { value in Task { await model.setServerOnline(value, in: space, byName: myName) } }
+                    ))
+                    .tint(.green)
+                }
+                if let request = space.pendingRequest() {
+                    Label("\(request.name) asked to start it \(request.at.formatted(.relative(presentation: .named)))", systemImage: "hand.raised.fill")
+                        .foregroundStyle(.orange)
+                        .font(.subheadline)
+                } else if !space.serverOnline, !isOwner {
+                    Button {
+                        Task { await model.requestStart(space, byName: myName) }
+                    } label: {
+                        Label("Ask to Start the Server", systemImage: "hand.raised")
+                    }
+                }
+            }
+
+            Section {
+                Toggle(isOn: Binding(
+                    get: { amOn },
+                    set: { value in Task { await model.setOnServer(value, in: space, displayName: myName) } }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("I’m on the server")
+                        Text(amOn ? "Turns off \(myExpiry(space)?.formatted(.relative(presentation: .named)) ?? "in 24 hours")" : "Turns off on its own after 24 hours")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .tint(.green)
+            }
+
+            Section {
+                if online.isEmpty {
+                    Text("No one’s on right now.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(online) { presence in
+                        HStack {
+                            Circle().fill(.green).frame(width: 8, height: 8)
+                            Text(presence.id == myID ? "\(presence.displayName) (you)" : presence.displayName)
+                            Spacer()
+                            Text(presence.since.formatted(.relative(presentation: .named)))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .swipeActions {
+                            if isOwner, presence.id != myID {
+                                Button("Mark Off", role: .destructive) {
+                                    Task { await model.removePresence(of: presence.id, in: space) }
+                                }
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("On Now · \(online.count)")
+            }
+
+            Section {
+                ForEach(space.memberIDs, id: \.self) { memberID in
+                    HStack {
+                        Text(memberName(memberID, in: space))
+                        Spacer()
+                        if memberID == space.ownerID {
+                            Text("Owner").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .swipeActions {
+                        if isOwner, memberID != space.ownerID {
+                            Button("Remove", role: .destructive) {
+                                Task { await model.removeMember(memberID, from: space) }
+                            }
+                        }
+                    }
+                }
+                if isOwner {
+                    Button {
+                        showInvite = true
+                    } label: {
+                        Label("Invite Friends", systemImage: "person.badge.plus")
+                    }
+                }
+            } header: {
+                Text("Members · \(space.memberIDs.count)")
+            } footer: {
+                Text("Only members can see this server.")
+            }
+        }
+        .sheet(isPresented: $showInvite) {
+            FriendPickerSheet(
+                title: "Invite Friends",
+                friends: (socialManager.overview?.friends ?? []).filter { !space.memberIDs.contains($0.id) },
+                accent: accent,
+                actionTitle: "Invite"
+            ) { ids in
+                Task { await model.invite(ids, to: space) }
+            }
+        }
+        .sheet(isPresented: $showEdit) {
+            ServerSpaceEditor(title: "Edit Server", initialName: space.name, initialAddress: space.address, friends: [], accent: accent) { name, address, _ in
+                Task { await model.update(space, name: name, address: address) }
+            }
+        }
+        .confirmationDialog("Leave \(space.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button("Leave", role: .destructive) {
+                Task {
+                    await model.leave(space)
+                    dismiss()
+                }
+            }
+        }
+        .confirmationDialog("Delete \(space.name) for everyone?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    await model.delete(space)
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func menu(_ space: ServerSpace) -> some View {
+        Menu {
+            if space.ownerID == myID {
+                Button("Edit Name & Address", systemImage: "pencil") { showEdit = true }
+                Button("Delete Server", systemImage: "trash", role: .destructive) { confirmDelete = true }
+            } else {
+                Button("Leave", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { confirmLeave = true }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .accessibilityLabel("More")
+    }
+
+    private func myExpiry(_ space: ServerSpace) -> Date? {
+        model.onlineMembers(in: space).first { $0.id == myID }?.expiresAt
+    }
+
+    private func memberName(_ id: String, in space: ServerSpace) -> String {
+        if id == myID { return "\(myName) (you)" }
+        if id == space.ownerID, !space.ownerName.isEmpty { return space.ownerName }
+        if let friend = socialManager.overview?.friends.first(where: { $0.id == id }) { return friend.displayName }
+        if let presence = model.presenceBySpace[space.id]?.first(where: { $0.id == id }) { return presence.displayName }
+        return "Member"
+    }
+}
+
