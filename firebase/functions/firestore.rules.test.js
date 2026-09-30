@@ -15,6 +15,7 @@ const {
   getDoc,
   getDocs,
   query,
+  serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
@@ -427,4 +428,28 @@ test("server presence is your own and lasts at most a day", async () => {
   // Members can leave, but can't remove others.
   await assertFails(updateDoc(doc(bob, "serverSpaces/s1"), {memberIDs: ["bob"]}));
   await assertSucceeds(updateDoc(doc(bob, "serverSpaces/s1"), {memberIDs: arrayRemove("bob")}));
+});
+
+test("server chat is members-only; you delete your own, the owner deletes any", async () => {
+  const alice = testEnvironment.authenticatedContext("alice").firestore();
+  const bob = testEnvironment.authenticatedContext("bob").firestore();
+  const carol = testEnvironment.authenticatedContext("carol").firestore();
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "serverSpaces/s1"), {
+      name: "SMP", address: "", ownerID: "alice", ownerName: "Alice", memberIDs: ["alice", "bob"], serverOnline: true,
+    });
+  });
+  const message = (userID, body = "gg") => ({userID, displayName: userID, body, createdAt: serverTimestamp()});
+
+  await assertSucceeds(setDoc(doc(bob, "serverSpaces/s1/messages/m1"), message("bob")));
+  await assertSucceeds(getDoc(doc(alice, "serverSpaces/s1/messages/m1")));
+  await assertFails(getDoc(doc(carol, "serverSpaces/s1/messages/m1")));
+  await assertFails(setDoc(doc(carol, "serverSpaces/s1/messages/m2"), message("carol")));
+  await assertFails(setDoc(doc(bob, "serverSpaces/s1/messages/m3"), message("alice")));
+  await assertFails(setDoc(doc(bob, "serverSpaces/s1/messages/m4"), message("bob", "")));
+  await assertFails(updateDoc(doc(bob, "serverSpaces/s1/messages/m1"), {body: "edited"}));
+
+  await assertSucceeds(setDoc(doc(alice, "serverSpaces/s1/messages/m5"), message("alice")));
+  await assertFails(deleteDoc(doc(bob, "serverSpaces/s1/messages/m5")));
+  await assertSucceeds(deleteDoc(doc(alice, "serverSpaces/s1/messages/m1")));
 });

@@ -274,6 +274,14 @@ async function main() {
     });
   }
 
+  for (const [id, key, name, body, ago] of [
+    ['m1', 'maya', 'Maya Patel', 'Anyone on tonight? Building the nether hub', -50],
+    ['m2', 'jordan', 'Jordan Lee', 'Hopping on after lab', -38],
+    ['m3', 'alex', 'Alex Kim', 'Server is up!', -35],
+  ]) {
+    set(`serverSpaces/minecraft/messages/${id}`, { userID: uid(key), displayName: name, body, createdAt: Timestamp.fromDate(minutes(ago)) });
+  }
+
   await batch.commit();
 
   // Activity posts live on their owners' profiles; responses on the responders'.
