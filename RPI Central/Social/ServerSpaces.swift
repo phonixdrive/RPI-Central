@@ -52,6 +52,9 @@ final class ServerSpacesModel: ObservableObject {
     @Published private(set) var spaces: [ServerSpace] = []
     @Published private(set) var presenceBySpace: [String: [ServerPresence]] = [:]
     @Published var errorMessage: String?
+    /// Why the list couldn't load, shown instead of an empty list.
+    @Published private(set) var listenError: String?
+    private var pendingIDs: Set<String> = []
 
     private(set) var userID: String?
 
@@ -68,19 +71,44 @@ final class ServerSpacesModel: ObservableObject {
         self.userID = userID
         guard let userID else { return }
         #if canImport(FirebaseFirestore)
+        listenForSpaces(userID: userID)
+        #endif
+    }
+
+    #if canImport(FirebaseFirestore)
+    /// A denied or dropped listener stops for good, so retry after a short
+    /// wait instead of quietly showing nothing.
+    private func listenForSpaces(userID: String) {
+        spacesListener?.remove()
         spacesListener = db.collection("serverSpaces")
             .whereField("memberIDs", arrayContains: userID)
-            .addSnapshotListener { [weak self] snapshot, _ in
+            .addSnapshotListener { [weak self] snapshot, error in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, self.userID == userID else { return }
+                    if let error {
+                        self.listenError = Self.message(for: error)
+                        #if DEBUG
+                        print("Server spaces listener failed:", error)
+                        #endif
+                        try? await Task.sleep(for: .seconds(15))
+                        if self.userID == userID { self.listenForSpaces(userID: userID) }
+                        return
+                    }
+                    self.listenError = nil
                     let spaces = (snapshot?.documents ?? []).compactMap(Self.space(from:))
                         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                    self.spaces = spaces
+                    // Keep a just-created space until the server echoes it back.
+                    let pending = self.spaces.filter { space in
+                        self.pendingIDs.contains(space.id) && !spaces.contains { $0.id == space.id }
+                    }
+                    self.pendingIDs.subtract(spaces.map(\.id))
+                    self.spaces = (spaces + pending)
+                        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                     self.syncPresenceListeners()
                 }
             }
-        #endif
     }
+    #endif
 
     func stop() {
         #if canImport(FirebaseFirestore)
@@ -91,6 +119,8 @@ final class ServerSpacesModel: ObservableObject {
         #endif
         spaces = []
         presenceBySpace = [:]
+        pendingIDs = []
+        listenError = nil
         userID = nil
     }
 
@@ -110,16 +140,34 @@ final class ServerSpacesModel: ObservableObject {
     func create(name: String, address: String, ownerName: String, invitedIDs: [String]) async {
         guard let userID else { return }
         #if canImport(FirebaseFirestore)
-        await run {
-            try await self.db.collection("serverSpaces").document().setData([
-                "name": String(name.prefix(40)),
-                "address": String(address.prefix(100)),
+        let ref = db.collection("serverSpaces").document()
+        let memberIDs = [userID] + invitedIDs.filter { $0 != userID }
+        let space = ServerSpace(
+            id: ref.documentID, name: String(name.prefix(40)), address: String(address.prefix(100)),
+            ownerID: userID, ownerName: ownerName, memberIDs: memberIDs, serverOnline: false
+        )
+        // Show it right away; it's removed again if the save fails.
+        pendingIDs.insert(space.id)
+        spaces = (spaces + [space]).sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        do {
+            try await ref.setData([
+                "name": space.name,
+                "address": space.address,
                 "ownerID": userID,
                 "ownerName": ownerName,
-                "memberIDs": [userID] + invitedIDs.filter { $0 != userID },
+                "memberIDs": memberIDs,
                 "serverOnline": false,
                 "createdAt": FieldValue.serverTimestamp(),
             ])
+            // If the list had been denied before, it can load now.
+            if listenError != nil { listenForSpaces(userID: userID) }
+        } catch {
+            pendingIDs.remove(space.id)
+            spaces.removeAll { $0.id == space.id }
+            errorMessage = Self.message(for: error)
+            #if DEBUG
+            print("Creating server space failed:", error)
+            #endif
         }
         #endif
     }
@@ -235,11 +283,21 @@ final class ServerSpacesModel: ObservableObject {
         #endif
     }
 
+    static func message(for error: Error) -> String {
+        let nsError = error as NSError
+        #if canImport(FirebaseFirestore)
+        if nsError.domain == FirestoreErrorDomain, nsError.code == FirestoreErrorCode.permissionDenied.rawValue {
+            return "Servers aren’t available yet. The app’s Firestore rules need the serverSpaces section published."
+        }
+        #endif
+        return "Couldn’t reach the server list. Check your connection and try again."
+    }
+
     private func run(_ work: @escaping () async throws -> Void) async {
         do {
             try await work()
         } catch {
-            errorMessage = "Couldn’t update the server. Check your connection and try again."
+            errorMessage = Self.message(for: error)
             #if DEBUG
             print("Server space update failed:", error)
             #endif
@@ -387,7 +445,8 @@ struct ServerSpaceCard: View {
             return "\(request.name) asked to start it"
         }
         if online.isEmpty {
-            return space.serverOnline ? "No one’s on yet" : "\(space.memberIDs.count) members"
+            let count = space.memberIDs.count
+            return space.serverOnline ? "No one’s on yet" : "\(count) \(count == 1 ? "member" : "members")"
         }
         let names = online.prefix(3).map { $0.displayName.components(separatedBy: " ").first ?? $0.displayName }
         let more = online.count > 3 ? " +\(online.count - 3)" : ""
