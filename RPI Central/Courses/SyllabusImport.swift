@@ -107,6 +107,8 @@ struct SyllabusImportView: View {
     @EnvironmentObject private var viewModel: CalendarViewModel
     @ObservedObject private var tasks = TasksManager.shared
     @State private var candidates: [SyllabusCandidate] = []
+    /// The syllabus's test block ("Tests … Tuesdays 6–7:50 PM"), if it names one.
+    @State private var testBlock: SyllabusDateExtractor.TestBlock?
     @State private var phase: Phase = .choose
     @State private var showFilePicker = false
     @State private var showScanner = false
@@ -255,9 +257,14 @@ struct SyllabusImportView: View {
         Task {
             let lines = await read()
             let term = term, classTimes = classTimes
-            var found = await Task.detached(priority: .userInitiated) {
-                SyllabusDateExtractor.candidates(in: lines, term: term, classTimes: classTimes)
+            let (parsed, block) = await Task.detached(priority: .userInitiated) {
+                (
+                    SyllabusDateExtractor.candidates(in: lines, term: term, classTimes: classTimes),
+                    SyllabusDateExtractor.testBlock(in: lines.map(\.text).joined(separator: "\n"))
+                )
             }.value
+            var found = parsed
+            testBlock = block
             let existing = tasks.tasks.filter { $0.enrollmentID == enrollmentID }
             for index in found.indices {
                 let candidate = found[index]
@@ -281,11 +288,19 @@ struct SyllabusImportView: View {
                 notes: "From syllabus: \(candidate.sourceLine)"
             ))
         }
-        // After the tasks exist, so the test block doesn't add its own copy.
-        viewModel.markTestBlockExams(
-            forEnrollmentID: enrollmentID,
-            examStarts: candidates.filter { $0.isSelected && $0.kind == .exam }.map(\.date)
-        )
+        // Only when the syllabus names a test block, and only exams at that
+        // exact day and time, so a regular evening lecture is never hidden.
+        // After the tasks exist, so the block doesn't add its own copy.
+        if let testBlock {
+            let calendar = Calendar.current
+            let blockExams = candidates.filter { candidate in
+                candidate.isSelected && candidate.kind == .exam &&
+                    calendar.component(.weekday, from: candidate.date) == testBlock.weekday &&
+                    calendar.component(.hour, from: candidate.date) == testBlock.hour &&
+                    calendar.component(.minute, from: candidate.date) == testBlock.minute
+            }
+            viewModel.markTestBlockExams(forEnrollmentID: enrollmentID, examStarts: blockExams.map(\.date))
+        }
         dismiss()
     }
 }

@@ -278,6 +278,12 @@ final class ServerSpacesModel: ObservableObject {
             for presence in self.presenceBySpace[space.id] ?? [] {
                 try? await ref.collection("presence").document(presence.id).delete()
             }
+            // Delete the chat too, while the owner still has access to it.
+            if let messages = try? await ref.collection("messages").getDocuments() {
+                for message in messages.documents {
+                    try? await message.reference.delete()
+                }
+            }
             try await ref.delete()
         }
         #endif
@@ -584,6 +590,14 @@ struct ServerSpaceSheet: View {
             }
 
             Section {
+                NavigationLink {
+                    ServerChatView(space: space, accent: accent)
+                } label: {
+                    Label("Chat", systemImage: "bubble.left.and.bubble.right.fill")
+                }
+            }
+
+            Section {
                 if online.isEmpty {
                     Text("No one’s on right now.")
                         .foregroundStyle(.secondary)
@@ -823,5 +837,243 @@ private struct FriendToggleRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+// MARK: - Chat
+
+struct ServerChatMessage: Identifiable, Equatable {
+    let id: String
+    let userID: String
+    let displayName: String
+    let body: String
+    /// Nil until the server has stamped it (just sent).
+    let createdAt: Date?
+}
+
+/// Live messages for one server's chat. Only members can read or post.
+@MainActor
+final class ServerChatModel: ObservableObject {
+    let spaceID: String
+    @Published private(set) var messages: [ServerChatMessage] = []
+    @Published private(set) var isLoading = true
+    @Published var errorMessage: String?
+
+    #if canImport(FirebaseFirestore)
+    private var listener: ListenerRegistration?
+    private var collection: CollectionReference {
+        Firestore.firestore().collection("serverSpaces").document(spaceID).collection("messages")
+    }
+    #endif
+
+    init(spaceID: String) {
+        self.spaceID = spaceID
+    }
+
+    func start() {
+        #if canImport(FirebaseFirestore)
+        guard listener == nil else { return }
+        listener = collection
+            .order(by: "createdAt", descending: true)
+            .limit(to: 200)
+            .addSnapshotListener(includeMetadataChanges: false) { [weak self] snapshot, error in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.isLoading = false
+                    if let error {
+                        self.errorMessage = ServerSpacesModel.message(for: error)
+                        return
+                    }
+                    self.messages = (snapshot?.documents ?? []).compactMap { doc in
+                        let data = doc.data(with: .estimate)
+                        guard let body = data["body"] as? String, let userID = data["userID"] as? String else { return nil }
+                        return ServerChatMessage(
+                            id: doc.documentID,
+                            userID: userID,
+                            displayName: data["displayName"] as? String ?? "Member",
+                            body: body,
+                            createdAt: (data["createdAt"] as? Timestamp)?.dateValue()
+                        )
+                    }
+                    .reversed()
+                }
+            }
+        #endif
+    }
+
+    func stop() {
+        #if canImport(FirebaseFirestore)
+        listener?.remove()
+        listener = nil
+        #endif
+    }
+
+    func send(_ text: String, userID: String, displayName: String) async {
+        let body = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2000))
+        guard !body.isEmpty else { return }
+        #if canImport(FirebaseFirestore)
+        do {
+            try await collection.document().setData([
+                "userID": userID,
+                "displayName": String(displayName.prefix(60)),
+                "body": body,
+                "createdAt": FieldValue.serverTimestamp(),
+            ])
+        } catch {
+            errorMessage = ServerSpacesModel.message(for: error)
+        }
+        #endif
+    }
+
+    func delete(_ message: ServerChatMessage) async {
+        #if canImport(FirebaseFirestore)
+        do {
+            try await collection.document(message.id).delete()
+        } catch {
+            errorMessage = "Couldn’t delete that message."
+        }
+        #endif
+    }
+}
+
+struct ServerChatView: View {
+    let space: ServerSpace
+    let accent: Color
+
+    @EnvironmentObject private var socialManager: SocialManager
+    @StateObject private var chat: ServerChatModel
+    @State private var draft = ""
+    @State private var reportTarget: SocialReportTarget?
+    @FocusState private var composerFocused: Bool
+
+    init(space: ServerSpace, accent: Color) {
+        self.space = space
+        self.accent = accent
+        _chat = StateObject(wrappedValue: ServerChatModel(spaceID: space.id))
+    }
+
+    private var myID: String? { socialManager.currentUser?.id }
+
+    private var canSend: Bool {
+        myID != nil && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var visibleMessages: [ServerChatMessage] {
+        chat.messages.filter { !socialManager.blockedUserIDs.contains($0.userID) }
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    if chat.isLoading {
+                        ProgressView().padding(.top, 40)
+                    } else if visibleMessages.isEmpty {
+                        ContentUnavailableView("No Messages Yet", systemImage: "bubble.left.and.bubble.right",
+                                               description: Text("Say hi to everyone on \(space.name)."))
+                            .padding(.top, 40)
+                    }
+                    ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
+                        let previous = index > 0 ? visibleMessages[index - 1] : nil
+                        bubble(message, showsName: previous?.userID != message.userID)
+                            .id(message.id)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .defaultScrollAnchor(.bottom)
+            .onChange(of: visibleMessages.last?.id) { _, id in
+                guard let id else { return }
+                withAnimation(.snappy) { proxy.scrollTo(id, anchor: .bottom) }
+            }
+        }
+        .safeAreaInset(edge: .bottom) { composer }
+        .navigationTitle("\(space.name) Chat")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { chat.start() }
+        .onDisappear { chat.stop() }
+        .socialReportDialog($reportTarget)
+        .alert("Something Went Wrong", isPresented: Binding(get: { chat.errorMessage != nil }, set: { if !$0 { chat.errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(chat.errorMessage ?? "")
+        }
+    }
+
+    private func bubble(_ message: ServerChatMessage, showsName: Bool) -> some View {
+        let isMine = message.userID == myID
+        let canDelete = isMine || space.ownerID == myID
+        return VStack(alignment: isMine ? .trailing : .leading, spacing: 2) {
+            if showsName && !isMine {
+                Text(message.displayName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 12)
+                    .padding(.top, 6)
+            }
+            Text(message.body)
+                .font(.subheadline)
+                .foregroundStyle(isMine ? Color.white : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(isMine ? accent : Color(.secondarySystemBackground))
+                )
+                .opacity(message.createdAt == nil ? 0.7 : 1)
+                .contextMenu {
+                    Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = message.body }
+                    if !isMine {
+                        Button("Report Message", systemImage: "exclamationmark.bubble") {
+                            reportTarget = SocialReportTarget(
+                                userID: message.userID,
+                                displayName: message.displayName,
+                                kind: .message,
+                                contextID: "serverSpaces/\(space.id)/messages/\(message.id)",
+                                excerpt: message.body
+                            )
+                        }
+                        Button("Block \(message.displayName)", systemImage: "hand.raised", role: .destructive) {
+                            Task { await socialManager.blockUser(message.userID) }
+                        }
+                    }
+                    if canDelete {
+                        Button("Delete Message", systemImage: "trash", role: .destructive) {
+                            Task { await chat.delete(message) }
+                        }
+                    }
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
+        .padding(isMine ? .leading : .trailing, 54)
+    }
+
+    private var composer: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            TextField("Message", text: $draft, axis: .vertical)
+                .lineLimit(1...5)
+                .focused($composerFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            Button {
+                let text = draft
+                draft = ""
+                Task {
+                    await chat.send(text, userID: myID ?? "", displayName: socialManager.currentUser?.displayName ?? "Member")
+                }
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(canSend ? accent : Color.secondary.opacity(0.4))
+            }
+            .disabled(!canSend)
+            .accessibilityLabel("Send")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 }

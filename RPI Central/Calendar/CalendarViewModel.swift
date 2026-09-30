@@ -1560,6 +1560,8 @@ final class CalendarViewModel: ObservableObject {
             guard let hour = parts.first else { continue }
             let minute = parts.count > 1 ? parts[1] : 0
             let key = meetingOverrideKey(enrollmentID: enrollment.id, course: enrollment.course, section: enrollment.section, meeting: meeting)
+            // A once-a-week evening meeting whose start matches the syllabus's
+            // test block exactly (callers pass only those exams).
             let isTestBlock = meetingOverride(for: key).type == .exam || (meeting.days.count == 1 && hour >= 17)
             guard isTestBlock else { continue }
 
