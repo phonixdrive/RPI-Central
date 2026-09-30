@@ -513,6 +513,32 @@ service cloud.firestore {
           request.resource.data.expiresAt <= request.time + duration.value(24, "h") + duration.value(5, "m");
         allow delete: if isSelf(userID) || (signedIn() && space().ownerID == request.auth.uid);
       }
+
+      // The server's chat. Members read and post as themselves; you can
+      // delete your own messages, and the owner can delete any.
+      match /messages/{messageID} {
+        function chatSpace() {
+          return get(/databases/$(database)/documents/serverSpaces/$(spaceID)).data;
+        }
+
+        allow read: if signedIn() && request.auth.uid in chatSpace().memberIDs;
+        allow create: if signedIn() &&
+          request.auth.uid in chatSpace().memberIDs &&
+          request.resource.data.keys().hasOnly(["userID", "displayName", "body", "createdAt"]) &&
+          request.resource.data.userID == request.auth.uid &&
+          request.resource.data.displayName is string &&
+          request.resource.data.displayName.size() <= 60 &&
+          request.resource.data.body is string &&
+          request.resource.data.body.size() > 0 &&
+          request.resource.data.body.size() <= 2000 &&
+          request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if signedIn() && (
+          resource.data.userID == request.auth.uid ||
+          chatSpace().ownerID == request.auth.uid ||
+          isModerator()
+        );
+      }
     }
 
     match /sharedSchedules/{ownerID} {
