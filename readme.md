@@ -95,6 +95,7 @@ Term folders use RPI-style semester codes such as:
 - `202601` — Spring 2026
 - `202605` — Summer 2026
 - `202609` — Fall 2026
+- `202701` — Spring 2027
 
 Each supported term is validated by the test suite to ensure bundled course data can be decoded.
 

@@ -181,6 +181,14 @@ final class AcademicCalendarService {
             else { return nil }
             return (start: start, end: end)
 
+        case .spring2027:
+            // From QuACS section dates; update once RPI publishes the 2026–27 spring calendar.
+            guard
+                let start = parseYMD("2027-01-11"),
+                let end = parseYMD("2027-05-03")
+            else { return nil }
+            return (start: start, end: end)
+
         default:
             return nil
         }
