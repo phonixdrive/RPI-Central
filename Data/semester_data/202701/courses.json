@@ -2940,8 +2940,8 @@
                 ],
                 "instructor": "Dennis Robert Shelden",
                 "location": "TBA",
-                "timeEnd": 1250,
-                "timeStart": 1000
+                "timeEnd": 1350,
+                "timeStart": 1100
               }
             ],
             "title": "Design Programming 2",
@@ -5021,6 +5021,40 @@
         "title": "Cognitive Immersive Design"
       },
       {
+        "crse": 4966,
+        "id": "ARCH-4966",
+        "sections": [
+          {
+            "act": 0,
+            "attribute": "",
+            "cap": 10,
+            "credMax": 2.0,
+            "credMin": 2.0,
+            "crn": 43996,
+            "crse": 4966,
+            "rem": 10,
+            "sec": "01",
+            "subj": "ARCH",
+            "timeslots": [
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [
+                  "M"
+                ],
+                "instructor": "Ute Christa Besenecker",
+                "location": "TBA",
+                "timeEnd": 1150,
+                "timeStart": 1000
+              }
+            ],
+            "title": "Approaches In Lighting Design"
+          }
+        ],
+        "subj": "ARCH",
+        "title": "Approaches In Lighting Design"
+      },
+      {
         "crse": 4968,
         "id": "ARCH-4968",
         "sections": [
@@ -5048,11 +5082,11 @@
                 "timeStart": 1000
               }
             ],
-            "title": "Spaces Friction/mediated Event"
+            "title": "The Formal And The Phenomenal"
           }
         ],
         "subj": "ARCH",
-        "title": "Spaces Friction/mediated Event"
+        "title": "The Formal And The Phenomenal"
       },
       {
         "crse": 4969,
@@ -5615,8 +5649,8 @@
                 ],
                 "instructor": "Dennis Robert Shelden",
                 "location": "TBA",
-                "timeEnd": 1250,
-                "timeStart": 1000
+                "timeEnd": 1350,
+                "timeStart": 1100
               }
             ],
             "title": "Design Programming 2",
@@ -5803,6 +5837,32 @@
           {
             "act": 0,
             "attribute": "",
+            "cap": 12,
+            "credMax": 2.0,
+            "credMin": 2.0,
+            "crn": 43991,
+            "crse": 6900,
+            "rem": 12,
+            "sec": "01",
+            "subj": "ARCH",
+            "timeslots": [
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [
+                  "R"
+                ],
+                "instructor": "Ute Christa Besenecker",
+                "location": "TBA",
+                "timeEnd": 1350,
+                "timeStart": 1200
+              }
+            ],
+            "title": "Graduate Thesis Smr:lighting"
+          },
+          {
+            "act": 0,
+            "attribute": "",
             "cap": 20,
             "credMax": 2.0,
             "credMin": 2.0,
@@ -5828,7 +5888,7 @@
           }
         ],
         "subj": "ARCH",
-        "title": "Graduate Thesis Seminar"
+        "title": "Graduate Thesis Smr:lighting"
       },
       {
         "crse": 6920,
@@ -5943,30 +6003,6 @@
             "cap": 15,
             "credMax": 9.0,
             "credMin": 1.0,
-            "crn": 42643,
-            "crse": 6980,
-            "rem": 15,
-            "sec": "01",
-            "subj": "ARCH",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Arta Yazdanseta",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Master's Project"
-          },
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 15,
-            "credMax": 9.0,
-            "credMin": 1.0,
             "crn": 42644,
             "crse": 6980,
             "rem": 15,
@@ -6050,6 +6086,30 @@
                 "dateStart": "01/11",
                 "days": [],
                 "instructor": "James Fleet Hower",
+                "location": "TBA",
+                "timeEnd": -1,
+                "timeStart": -1
+              }
+            ],
+            "title": "Master's Project"
+          },
+          {
+            "act": 0,
+            "attribute": "",
+            "cap": 15,
+            "credMax": 9.0,
+            "credMin": 1.0,
+            "crn": 43992,
+            "crse": 6980,
+            "rem": 15,
+            "sec": "6",
+            "subj": "ARCH",
+            "timeslots": [
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [],
+                "instructor": "Ute Christa Besenecker",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -6436,6 +6496,30 @@
           {
             "act": 0,
             "attribute": "",
+            "cap": 10,
+            "credMax": 16.0,
+            "credMin": 1.0,
+            "crn": 43993,
+            "crse": 9990,
+            "rem": 10,
+            "sec": "06",
+            "subj": "ARCH",
+            "timeslots": [
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [],
+                "instructor": "Ute Christa Besenecker",
+                "location": "TBA",
+                "timeEnd": -1,
+                "timeStart": -1
+              }
+            ],
+            "title": "Architecture Dissertation"
+          },
+          {
+            "act": 0,
+            "attribute": "",
             "cap": 20,
             "credMax": 16.0,
             "credMin": 1.0,
@@ -6794,126 +6878,6 @@
         ],
         "subj": "ARTS",
         "title": "Radical Graphics Screenprnt"
-      },
-      {
-        "crse": 2180,
-        "id": "ARTS-2180",
-        "sections": [
-          {
-            "act": 0,
-            "attribute": "Communication Intensive",
-            "cap": 20,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41558,
-            "crse": 2180,
-            "rem": 20,
-            "sec": "01",
-            "subj": "ARTS",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "M",
-                  "R"
-                ],
-                "instructor": "Stephanie D Loveless",
-                "location": "West Hall 326",
-                "timeEnd": 1150,
-                "timeStart": 1000
-              }
-            ],
-            "title": "Deep Listening",
-            "xl_rem": 19
-          },
-          {
-            "act": 0,
-            "attribute": "Communication Intensive",
-            "cap": 5,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41653,
-            "crse": 2180,
-            "rem": 5,
-            "sec": "02",
-            "subj": "ARTS",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "M",
-                  "R"
-                ],
-                "instructor": "Stephanie D Loveless",
-                "location": "West Hall 326",
-                "timeEnd": 1150,
-                "timeStart": 1000
-              }
-            ],
-            "title": "Deep Listening",
-            "xl_rem": 19
-          },
-          {
-            "act": 0,
-            "attribute": "Communication Intensive",
-            "cap": 20,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41784,
-            "crse": 2180,
-            "rem": 20,
-            "sec": "03",
-            "subj": "ARTS",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "M",
-                  "R"
-                ],
-                "instructor": "Stephanie D Loveless",
-                "location": "West Hall 326",
-                "timeEnd": 1350,
-                "timeStart": 1200
-              }
-            ],
-            "title": "Deep Listening",
-            "xl_rem": 19
-          },
-          {
-            "act": 0,
-            "attribute": "Communication Intensive",
-            "cap": 5,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41785,
-            "crse": 2180,
-            "rem": 5,
-            "sec": "04",
-            "subj": "ARTS",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "M",
-                  "R"
-                ],
-                "instructor": "Stephanie D Loveless",
-                "location": "West Hall 326",
-                "timeEnd": 1350,
-                "timeStart": 1200
-              }
-            ],
-            "title": "Deep Listening",
-            "xl_rem": 19
-          }
-        ],
-        "subj": "ARTS",
-        "title": "Deep Listening"
       },
       {
         "crse": 2230,
@@ -7920,30 +7884,6 @@
                 "dateStart": "01/11",
                 "days": [],
                 "instructor": "Robert Kyle Hamilton",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Ugrad Independent Study"
-          },
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 50,
-            "credMax": 4.0,
-            "credMin": 1.0,
-            "crn": 43432,
-            "crse": 4940,
-            "rem": 50,
-            "sec": "02",
-            "subj": "ARTS",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Brian Clyne",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -11824,6 +11764,51 @@
         ],
         "subj": "BIOL",
         "title": "Biochemistry Lab"
+      },
+      {
+        "crse": 4730,
+        "id": "BIOL-4730",
+        "sections": [
+          {
+            "act": 0,
+            "attribute": "Communication Intensive, Data Intensive II",
+            "cap": 20,
+            "credMax": 6.0,
+            "credMin": 6.0,
+            "crn": 43998,
+            "crse": 4730,
+            "rem": 20,
+            "sec": "01",
+            "subj": "BIOL",
+            "timeslots": [
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [
+                  "M"
+                ],
+                "instructor": "Keith Fraser",
+                "location": "TBA",
+                "timeEnd": 1350,
+                "timeStart": 1200
+              },
+              {
+                "dateEnd": "05/03",
+                "dateStart": "01/11",
+                "days": [
+                  "W"
+                ],
+                "instructor": "Keith Fraser",
+                "location": "TBA",
+                "timeEnd": 1650,
+                "timeStart": 1200
+              }
+            ],
+            "title": "Computational Biology Adv Lab"
+          }
+        ],
+        "subj": "BIOL",
+        "title": "Computational Biology Adv Lab"
       },
       {
         "crse": 4770,
@@ -19688,7 +19673,7 @@
                 ],
                 "instructor": "Geetu Sharma, Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1120,
+                "timeEnd": 1150,
                 "timeStart": 1000
               },
               {
@@ -19738,7 +19723,7 @@
                 ],
                 "instructor": "Geetu Sharma, Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1120,
+                "timeEnd": 1150,
                 "timeStart": 1000
               },
               {
@@ -19788,7 +19773,7 @@
                 ],
                 "instructor": "Geetu Sharma, Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1120,
+                "timeEnd": 1150,
                 "timeStart": 1000
               },
               {
@@ -19846,7 +19831,7 @@
                 ],
                 "instructor": "Alexander C. Ma",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1320,
+                "timeEnd": 1350,
                 "timeStart": 1200
               },
               {
@@ -19896,7 +19881,7 @@
                 ],
                 "instructor": "Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1320,
+                "timeEnd": 1350,
                 "timeStart": 1200
               },
               {
@@ -19946,7 +19931,7 @@
                 ],
                 "instructor": "Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Darrin Communications Center 318",
-                "timeEnd": 1320,
+                "timeEnd": 1350,
                 "timeStart": 1200
               },
               {
@@ -20004,7 +19989,7 @@
                 ],
                 "instructor": "Alexander C. Ma, Kathleen Lillian Morrissey",
                 "location": "Materials Research Center 136",
-                "timeEnd": 1320,
+                "timeEnd": 1350,
                 "timeStart": 1200
               },
               {
@@ -22017,8 +22002,7 @@
                 "timeStart": 1600
               }
             ],
-            "title": "Nmr Spectroscopy",
-            "xl_rem": 25
+            "title": "Nmr Spectroscopy"
           }
         ],
         "subj": "CHEM",
@@ -27892,7 +27876,7 @@
                   "R"
                 ],
                 "instructor": "Tamar Gordon",
-                "location": "TBA",
+                "location": "Russell Sage Laboratory 4711",
                 "timeEnd": 1550,
                 "timeStart": 1400
               }
@@ -38332,38 +38316,6 @@
         ],
         "subj": "ENGR",
         "title": "Engineering Economics"
-      },
-      {
-        "crse": 4940,
-        "id": "ENGR-4940",
-        "sections": [
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 50,
-            "credMax": 4.0,
-            "credMin": 1.0,
-            "crn": 43621,
-            "crse": 4940,
-            "rem": 50,
-            "sec": "02",
-            "subj": "ENGR",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Brian Clyne",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Ugrad Independent Study"
-          }
-        ],
-        "subj": "ENGR",
-        "title": "Ugrad Independent Study"
       },
       {
         "crse": 4941,
@@ -50278,7 +50230,7 @@
             "crn": 43759,
             "crse": 1130,
             "rem": 25,
-            "sec": "0",
+            "sec": "01",
             "subj": "INQR",
             "timeslots": [
               {
@@ -50612,7 +50564,7 @@
                   "R"
                 ],
                 "instructor": "Tamar Gordon",
-                "location": "Low Center for Industrial Inn. 3116",
+                "location": "Russell Sage Laboratory 4711",
                 "timeEnd": 1350,
                 "timeStart": 1200
               }
@@ -54312,18 +54264,18 @@
     "code": "LGHT",
     "courses": [
       {
-        "crse": 4760,
-        "id": "LGHT-4760",
+        "crse": 4960,
+        "id": "LGHT-4960",
         "sections": [
           {
             "act": 0,
             "attribute": "",
-            "cap": 20,
+            "cap": 8,
             "credMax": 4.0,
             "credMin": 4.0,
-            "crn": 42135,
-            "crse": 4760,
-            "rem": 20,
+            "crn": 43995,
+            "crse": 4960,
+            "rem": 8,
             "sec": "01",
             "subj": "LGHT",
             "timeslots": [
@@ -54334,54 +54286,18 @@
                   "M",
                   "R"
                 ],
-                "instructor": "Jean Paul Freyssinier, Indika Upendra Perera",
-                "location": "Gurley Building",
+                "instructor": "Ute Christa Besenecker",
+                "location": "TBA",
                 "timeEnd": 1150,
                 "timeStart": 1000
               }
             ],
-            "title": "Lighting Workshop",
-            "xl_rem": 30
+            "title": "Advanced Lighting Design",
+            "xl_rem": 20
           }
         ],
         "subj": "LGHT",
-        "title": "Lighting Workshop"
-      },
-      {
-        "crse": 4770,
-        "id": "LGHT-4770",
-        "sections": [
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 20,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41929,
-            "crse": 4770,
-            "rem": 20,
-            "sec": "01",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "T",
-                  "F"
-                ],
-                "instructor": "Jean Paul Freyssinier",
-                "location": "Gurley Building",
-                "timeEnd": 1150,
-                "timeStart": 1000
-              }
-            ],
-            "title": "Lighting Technologies And Applications",
-            "xl_rem": 30
-          }
-        ],
-        "subj": "LGHT",
-        "title": "Lighting Technologies And Applications"
+        "title": "Advanced Lighting Design"
       },
       {
         "crse": 6230,
@@ -54408,140 +54324,21 @@
                 ],
                 "instructor": "Ute Christa Besenecker",
                 "location": "Gurley Building",
-                "timeEnd": 1550,
-                "timeStart": 1400
+                "timeEnd": 1150,
+                "timeStart": 1000
               }
             ],
-            "title": "Advanced Lighting Design"
+            "title": "Advanced Lighting Design",
+            "xl_rem": 20
           }
         ],
         "subj": "LGHT",
         "title": "Advanced Lighting Design"
       },
       {
-        "crse": 6760,
-        "id": "LGHT-6760",
-        "sections": [
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 15,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 41927,
-            "crse": 6760,
-            "rem": 15,
-            "sec": "01",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "M",
-                  "R"
-                ],
-                "instructor": "Jean Paul Freyssinier, Indika Upendra Perera",
-                "location": "Gurley Building",
-                "timeEnd": 1150,
-                "timeStart": 1000
-              }
-            ],
-            "title": "Lighting Workshop",
-            "xl_rem": 30
-          }
-        ],
-        "subj": "LGHT",
-        "title": "Lighting Workshop"
-      },
-      {
-        "crse": 6770,
-        "id": "LGHT-6770",
-        "sections": [
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 15,
-            "credMax": 4.0,
-            "credMin": 4.0,
-            "crn": 42602,
-            "crse": 6770,
-            "rem": 15,
-            "sec": "01",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [
-                  "T",
-                  "F"
-                ],
-                "instructor": "Jean Paul Freyssinier",
-                "location": "Gurley Building",
-                "timeEnd": 1150,
-                "timeStart": 1000
-              }
-            ],
-            "title": "Lighting Tech & Applications",
-            "xl_rem": 30
-          }
-        ],
-        "subj": "LGHT",
-        "title": "Lighting Tech & Applications"
-      },
-      {
         "crse": 6980,
         "id": "LGHT-6980",
         "sections": [
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 25,
-            "credMax": 9.0,
-            "credMin": 1.0,
-            "crn": 42603,
-            "crse": 6980,
-            "rem": 25,
-            "sec": "01",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Jean Paul Freyssinier",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Master's Project"
-          },
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 15,
-            "credMax": 9.0,
-            "credMin": 1.0,
-            "crn": 42604,
-            "crse": 6980,
-            "rem": 15,
-            "sec": "03",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Indika Upendra Perera",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Master's Project"
-          },
           {
             "act": 0,
             "attribute": "",
@@ -54559,30 +54356,6 @@
                 "dateStart": "01/11",
                 "days": [],
                 "instructor": "Ute Christa Besenecker",
-                "location": "TBA",
-                "timeEnd": -1,
-                "timeStart": -1
-              }
-            ],
-            "title": "Master's Project"
-          },
-          {
-            "act": 0,
-            "attribute": "",
-            "cap": 25,
-            "credMax": 9.0,
-            "credMin": 1.0,
-            "crn": 42606,
-            "crse": 6980,
-            "rem": 25,
-            "sec": "05",
-            "subj": "LGHT",
-            "timeslots": [
-              {
-                "dateEnd": "05/03",
-                "dateStart": "01/11",
-                "days": [],
-                "instructor": "Nadarajah Narendran",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -58509,12 +58282,12 @@
           {
             "act": 0,
             "attribute": "Data Intensive II",
-            "cap": 0,
+            "cap": 10,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43964,
             "crse": 4400,
-            "rem": 0,
+            "rem": 10,
             "sec": "01",
             "subj": "MTLE",
             "timeslots": [
@@ -58547,12 +58320,12 @@
           {
             "act": 0,
             "attribute": "Data Intensive II",
-            "cap": 20,
+            "cap": 10,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43965,
             "crse": 4400,
-            "rem": 20,
+            "rem": 10,
             "sec": "02",
             "subj": "MTLE",
             "timeslots": [
@@ -61900,8 +61673,8 @@
                 ],
                 "instructor": "TBA",
                 "location": "TBA",
-                "timeEnd": 1350,
-                "timeStart": 1200
+                "timeEnd": 1150,
+                "timeStart": 1000
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
@@ -61950,8 +61723,8 @@
                 ],
                 "instructor": "TBA",
                 "location": "Darrin Communications Center 330",
-                "timeEnd": 1350,
-                "timeStart": 1200
+                "timeEnd": 1150,
+                "timeStart": 1000
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
@@ -61989,8 +61762,8 @@
                 ],
                 "instructor": "TBA",
                 "location": "Darrin Communications Center 330",
-                "timeEnd": 1350,
-                "timeStart": 1200
+                "timeEnd": 1150,
+                "timeStart": 1000
               },
               {
                 "dateEnd": "05/03",
@@ -62039,8 +61812,8 @@
                 ],
                 "instructor": "TBA",
                 "location": "Darrin Communications Center 330",
-                "timeEnd": 1350,
-                "timeStart": 1200
+                "timeEnd": 1150,
+                "timeStart": 1000
               },
               {
                 "dateEnd": "05/03",
@@ -84663,7 +84436,8 @@
                 "timeStart": 1400
               }
             ],
-            "title": "Sensation And Perception"
+            "title": "Sensation And Perception",
+            "xl_rem": 50
           },
           {
             "act": 0,
@@ -84690,7 +84464,8 @@
                 "timeStart": 1400
               }
             ],
-            "title": "Sensation And Perception"
+            "title": "Sensation And Perception",
+            "xl_rem": 50
           }
         ],
         "subj": "PSYC",
