@@ -139,7 +139,6 @@
     }
   },
   "40016": {
-    "cross_list_courses": [],
     "prerequisites": {
       "nested": [
         {
@@ -1195,6 +1194,11 @@
     }
   },
   "40064": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ISCI-1600",
+      "PHYS-1600"
+    ],
     "restrictions": {
       "major": {
         "must_be": [
@@ -1345,6 +1349,11 @@
     }
   },
   "40070": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ISCI-1600",
+      "PHYS-1600"
+    ],
     "restrictions": {
       "major": {
         "must_be": [
@@ -1367,7 +1376,6 @@
     }
   },
   "40071": {},
-  "40072": {},
   "40073": {
     "restrictions": {
       "level": {
@@ -2464,6 +2472,13 @@
       "course": "MGMT 1240",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "may_not_be": [
+          "Exchange (visiting student)"
+        ]
+      }
     }
   },
   "40174": {
@@ -2659,7 +2674,8 @@
           "Materials Engineering",
           "Mechanical Engineering",
           "Industrial & Management Engr",
-          "Nuclear Engineering"
+          "Nuclear Engineering",
+          "Robotics Engineering"
         ]
       }
     }
@@ -2698,7 +2714,8 @@
           "Engineering Science",
           "Materials Engineering",
           "Industrial & Management Engr",
-          "Nuclear Engineering"
+          "Nuclear Engineering",
+          "Robotics Engineering"
         ]
       }
     }
@@ -3202,7 +3219,6 @@
   },
   "40224": {
     "cross_list_courses": [
-      "ISYE-4270",
       "MANE-4260",
       "MTLE-4920"
     ],
@@ -3225,6 +3241,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       },
       "major": {
@@ -3299,7 +3320,8 @@
       "ARCH-2830"
     ],
     "cross_list_courses": [
-      "ARCH-2360"
+      "ARCH-2360",
+      "ARCH-5310"
     ],
     "prerequisites": {
       "course": "ARCH 2370",
@@ -3310,7 +3332,6 @@
   "40241": {
     "cross_list_courses": [
       "ECSE-4900",
-      "ISYE-4270",
       "MTLE-4920"
     ],
     "prerequisites": {
@@ -3332,6 +3353,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
@@ -3360,6 +3386,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
@@ -3508,18 +3539,8 @@
       }
     }
   },
-  "40256": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "40257": {},
   "40258": {},
-  "40259": {},
   "40260": {},
   "40261": {},
   "40262": {},
@@ -3960,6 +3981,11 @@
           "Senior"
         ]
       },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
+      },
       "major": {
         "must_be": [
           "Computer & Systems Engineering",
@@ -4064,6 +4090,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
@@ -4219,6 +4250,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       },
       "major": {
@@ -4980,15 +5016,6 @@
     }
   },
   "40509": {},
-  "40530": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "40531": {
     "restrictions": {
       "level": {
@@ -5200,7 +5227,6 @@
     }
   },
   "40581": {
-    "cross_list_courses": [],
     "restrictions": {
       "field_of_study": {
         "must_be": [
@@ -5301,6 +5327,11 @@
         "must_be": [
           "Senior"
         ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
       }
     }
   },
@@ -5329,6 +5360,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
@@ -5566,15 +5602,6 @@
         "may_not_be": [
           "Freshman",
           "Sophomore"
-        ]
-      }
-    }
-  },
-  "40611": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
         ]
       }
     }
@@ -6465,6 +6492,11 @@
         "must_be": [
           "Senior"
         ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
       }
     }
   },
@@ -6494,6 +6526,11 @@
         "must_be": [
           "Senior"
         ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
       }
     }
   },
@@ -6522,6 +6559,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
@@ -6687,7 +6729,7 @@
   "40772": {
     "prerequisites": {
       "course": "MTLE 2100",
-      "min_grade": null,
+      "min_grade": "D",
       "type": "course"
     },
     "restrictions": {
@@ -6882,7 +6924,6 @@
       }
     }
   },
-  "40804": {},
   "40805": {
     "restrictions": {
       "classification": {
@@ -7150,7 +7191,9 @@
       "major": {
         "must_be": [
           "Business Analytics",
-          "Quant Finance & Risk Analytics"
+          "Management",
+          "Quant Finance & Risk Analytics",
+          "Supply Chain Management"
         ]
       }
     }
@@ -7234,7 +7277,6 @@
   "40857": {
     "cross_list_courses": [
       "ECSE-4900",
-      "ISYE-4270",
       "MANE-4260"
     ],
     "prerequisites": {
@@ -7256,6 +7298,11 @@
       "classification": {
         "must_be": [
           "Senior"
+        ]
+      },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       },
       "major": {
@@ -7302,6 +7349,11 @@
           "Senior"
         ]
       },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
+      },
       "major": {
         "must_be": [
           "Aeronautical Engineering",
@@ -7346,6 +7398,11 @@
           "Senior"
         ]
       },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
+      },
       "major": {
         "must_be": [
           "Aeronautical Engineering",
@@ -7381,15 +7438,6 @@
           "Sophomore"
         ]
       },
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "40862": {
-    "restrictions": {
       "level": {
         "must_be": [
           "Graduate"
@@ -7528,15 +7576,6 @@
     }
   },
   "40889": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "40891": {
     "restrictions": {
       "level": {
         "must_be": [
@@ -8015,7 +8054,19 @@
       "type": "course"
     }
   },
-  "40930": {},
+  "40930": {
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Architecture",
+          "Communication, Media, & Design",
+          "Design, Innovation and Society",
+          "Electronic Arts",
+          "Games & Simulation Arts & Sci"
+        ]
+      }
+    }
+  },
   "40931": {
     "cross_list_courses": [
       "BMED-4010"
@@ -8510,7 +8561,19 @@
       }
     }
   },
-  "40990": {},
+  "40990": {
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Architecture",
+          "Communication, Media, & Design",
+          "Design, Innovation and Society",
+          "Electronic Arts",
+          "Games & Simulation Arts & Sci"
+        ]
+      }
+    }
+  },
   "40991": {
     "cross_list_courses": [
       "ARTS-6200"
@@ -9296,10 +9359,23 @@
     }
   },
   "41041": {
+    "cross_list_courses": [
+      "CSCI-4150"
+    ],
     "prerequisites": {
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "41042": {
@@ -10356,6 +10432,9 @@
       "ARCH-2360",
       "ARCH-2550"
     ],
+    "cross_list_courses": [
+      "ARCH-5210"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -10779,7 +10858,6 @@
       }
     }
   },
-  "41193": {},
   "41194": {},
   "41196": {
     "corequisites": [
@@ -10821,17 +10899,6 @@
       "classification": {
         "may_not_be": [
           "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
-  "41204": {
-    "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Freshman",
-          "Junior",
           "Sophomore"
         ]
       }
@@ -10984,6 +11051,9 @@
     }
   },
   "41231": {
+    "cross_list_courses": [
+      "MANE-4620"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -11029,6 +11099,9 @@
     }
   },
   "41232": {
+    "cross_list_courses": [
+      "MANE-4620"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -11091,6 +11164,7 @@
       "major": {
         "must_be": [
           "Business Analytics",
+          "Management",
           "Quant Finance & Risk Analytics",
           "Supply Chain Management"
         ]
@@ -11153,16 +11227,7 @@
       }
     }
   },
-  "41239": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
+  "41239": {},
   "41244": {
     "cross_list_courses": [
       "MATH-1520"
@@ -11458,6 +11523,9 @@
   "41256": {
     "corequisites": [
       "ARCH-4325"
+    ],
+    "cross_list_courses": [
+      "ARCH-6620"
     ],
     "prerequisites": {
       "course": "ARCH 4820",
@@ -12191,20 +12259,55 @@
   },
   "41346": {
     "cross_list_courses": [
-      "CSCI-6962"
+      "CSCI-6962",
+      "ECSE-6967"
     ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 2300",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "nested": [
+            {
+              "course": "CSCI 4100",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "CSCI 4160",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        }
+      ],
+      "type": "and"
+    },
     "restrictions": {
       "classification": {
         "must_be": [
           "Junior",
           "Senior"
         ]
+      },
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
       }
     }
   },
   "41347": {
     "cross_list_courses": [
-      "CSCI-4962"
+      "CSCI-4962",
+      "ECSE-6967"
     ],
     "restrictions": {
       "level": {
@@ -12280,7 +12383,7 @@
     ],
     "restrictions": {
       "major": {
-        "may_not_be": [
+        "must_be": [
           "Communication, Media, & Design",
           "Electronic Arts",
           "Games & Simulation Arts & Sci"
@@ -12424,11 +12527,41 @@
       }
     }
   },
-  "41366": {},
-  "41367": {},
-  "41368": {},
-  "41369": {},
-  "41370": {},
+  "41366": {
+    "cross_list_courses": [
+      "ENGR-1600",
+      "ISCI-1600",
+      "PHYS-1600"
+    ]
+  },
+  "41367": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ENGR-1600",
+      "PHYS-1600"
+    ]
+  },
+  "41368": {
+    "cross_list_courses": [
+      "ENGR-1600",
+      "ISCI-1600",
+      "PHYS-1600"
+    ]
+  },
+  "41369": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ENGR-1600",
+      "ISCI-1600"
+    ]
+  },
+  "41370": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ENGR-1600",
+      "PHYS-1600"
+    ]
+  },
   "41371": {
     "cross_list_courses": [
       "ENGR-1600",
@@ -12471,14 +12604,22 @@
       "PHYS-1600"
     ]
   },
-  "41377": {},
+  "41377": {
+    "cross_list_courses": [
+      "CHEM-1600",
+      "ENGR-1600",
+      "ISCI-1600"
+    ]
+  },
   "41378": {
     "cross_list_courses": [
       "GSAS-2540"
     ],
     "restrictions": {
       "major": {
-        "may_not_be": [
+        "must_be": [
+          "Communication, Media, & Design",
+          "Electronic Arts",
           "Games & Simulation Arts & Sci"
         ]
       }
@@ -12753,12 +12894,35 @@
   },
   "41418": {},
   "41420": {
+    "cross_list_courses": [
+      "ECON-4570"
+    ],
     "prerequisites": {
       "nested": [
         {
-          "course": "MATH 2010",
-          "min_grade": "D",
-          "type": "course"
+          "nested": [
+            {
+              "course": "MATH 2010",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2011",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2012",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2100",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
         },
         {
           "nested": [
@@ -12868,16 +13032,7 @@
       }
     }
   },
-  "41431": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
+  "41431": {},
   "41432": {
     "restrictions": {
       "classification": {
@@ -13616,8 +13771,7 @@
   },
   "41485": {
     "cross_list_courses": [
-      "BCBP-4710",
-      "BIOL-4710"
+      "BCBP-4710"
     ],
     "prerequisites": {
       "nested": [
@@ -13647,7 +13801,6 @@
   },
   "41486": {
     "cross_list_courses": [
-      "BCBP-4710",
       "BIOL-4710"
     ],
     "prerequisites": {
@@ -14587,7 +14740,18 @@
       }
     }
   },
-  "41556": {},
+  "41556": {
+    "cross_list_courses": [
+      "COMM-2660"
+    ],
+    "restrictions": {
+      "major": {
+        "may_not_be": [
+          "Communication, Media, & Design"
+        ]
+      }
+    }
+  },
   "41557": {
     "prerequisites": {
       "nested": [
@@ -14648,14 +14812,6 @@
         }
       ],
       "type": "and"
-    },
-    "restrictions": {
-      "major": {
-        "must_be": [
-          "Cognitive Science",
-          "Psychological Science"
-        ]
-      }
     }
   },
   "41560": {
@@ -14691,6 +14847,14 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Cognitive Science",
+          "Psychological Science"
+        ]
+      }
     }
   },
   "41561": {
@@ -14720,6 +14884,9 @@
     ]
   },
   "41564": {
+    "cross_list_courses": [
+      "CHEM-4140"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -14728,7 +14895,6 @@
       }
     }
   },
-  "41565": {},
   "41566": {
     "restrictions": {
       "campus": {
@@ -14892,7 +15058,6 @@
     "corequisites": [
       "ARCH-4325"
     ],
-    "cross_list_courses": [],
     "prerequisites": {
       "course": "ARCH 4820",
       "min_grade": "D",
@@ -14953,41 +15118,9 @@
     "restrictions": {
       "college": {
         "must_be": [
-          "School of Architecture"
-        ]
-      }
-    }
-  },
-  "41587": {
-    "restrictions": {
-      "college": {
-        "must_be": [
-          "Humanities, Arts & Soc Sci"
-        ]
-      }
-    }
-  },
-  "41588": {
-    "restrictions": {
-      "college": {
-        "must_be": [
-          "Information Technology",
-          "Undeclared School",
-          "Undergraduate Education Office"
-        ]
-      }
-    }
-  },
-  "41589": {
-    "restrictions": {
-      "college": {
-        "must_be": [
+          "School of Architecture",
+          "Humanities, Arts & Soc Sci",
           "Lally School of Mgt & Tech"
-        ]
-      },
-      "level": {
-        "must_be": [
-          "Undergraduate"
         ]
       }
     }
@@ -15083,6 +15216,20 @@
       "type": "course"
     }
   },
+  "41605": {},
+  "41606": {},
+  "41607": {},
+  "41608": {},
+  "41609": {},
+  "41610": {},
+  "41611": {},
+  "41612": {},
+  "41613": {},
+  "41614": {},
+  "41615": {},
+  "41616": {},
+  "41617": {},
+  "41618": {},
   "41619": {},
   "41620": {
     "restrictions": {
@@ -15195,6 +15342,9 @@
   "41649": {},
   "41650": {},
   "41651": {},
+  "41654": {},
+  "41655": {},
+  "41656": {},
   "41657": {
     "restrictions": {
       "classification": {
@@ -15282,48 +15432,6 @@
       }
     }
   },
-  "41664": {
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "MATH 2010",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "nested": [
-            {
-              "course": "ENGR 2600",
-              "min_grade": "D",
-              "type": "course"
-            },
-            {
-              "course": "MGMT 2100",
-              "min_grade": "D",
-              "type": "course"
-            },
-            {
-              "course": "MATP 4600",
-              "min_grade": "D",
-              "type": "course"
-            },
-            {
-              "course": "PSYC 2310",
-              "min_grade": "D",
-              "type": "course"
-            },
-            {
-              "course": "BIOL 4200",
-              "min_grade": "D",
-              "type": "course"
-            }
-          ],
-          "type": "or"
-        }
-      ],
-      "type": "and"
-    }
-  },
   "41666": {
     "prerequisites": {
       "course": "GSAS 4510",
@@ -15350,18 +15458,14 @@
       }
     }
   },
-  "41668": {
-    "prerequisites": {
-      "course": "GSAS 2520",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
   "41669": {
     "cross_list_courses": [
       "CSCI-4971",
       "CSCI-6971",
-      "ECSE-6490"
+      "ECSE-6490",
+      "MANE-4963",
+      "MANE-6963",
+      "ROBT-4020"
     ],
     "prerequisites": {
       "nested": [
@@ -15383,7 +15487,10 @@
     "cross_list_courses": [
       "CSCI-4971",
       "CSCI-6971",
-      "ECSE-4490"
+      "ECSE-4490",
+      "MANE-4963",
+      "MANE-6963",
+      "ROBT-4020"
     ],
     "restrictions": {
       "level": {
@@ -15631,13 +15738,6 @@
       "ECSE-4660"
     ],
     "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Freshman",
-          "Junior",
-          "Sophomore"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -15648,57 +15748,199 @@
   "41687": {
     "corequisites": [
       "BIOL-2125"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41688": {
     "corequisites": [
       "BIOL-2125"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41689": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41690": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41691": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41692": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ"
+        ]
+      }
+    }
   },
   "41693": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41694": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41695": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41696": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41697": {
     "corequisites": [
       "BIOL-2120"
-    ]
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biochemistry & Biophysics",
+          "Biology",
+          "Biology",
+          "Biological Neuroscience",
+          "Biomedical Engineering",
+          "Biotechnology & Health Econ",
+          "Computational Biology"
+        ]
+      }
+    }
   },
   "41698": {
     "prerequisites": {
@@ -15758,7 +16000,9 @@
   },
   "41703": {
     "cross_list_courses": [
-      "ISYE-6020"
+      "ISYE-6020",
+      "MANE-4967",
+      "MANE-6961"
     ],
     "prerequisites": {
       "nested": [
@@ -15867,8 +16111,7 @@
   },
   "41709": {
     "cross_list_courses": [
-      "BCBP-4710",
-      "BIOL-4710"
+      "BCBP-4710"
     ],
     "prerequisites": {
       "nested": [
@@ -15898,7 +16141,6 @@
   },
   "41710": {
     "cross_list_courses": [
-      "BCBP-4710",
       "BIOL-4710"
     ],
     "prerequisites": {
@@ -15930,7 +16172,9 @@
   },
   "41711": {
     "cross_list_courses": [
-      "ISYE-4330"
+      "ISYE-4330",
+      "MANE-4967",
+      "MANE-6961"
     ],
     "restrictions": {
       "level": {
@@ -16597,15 +16841,7 @@
       }
     }
   },
-  "41756": {
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Senior"
-        ]
-      }
-    }
-  },
+  "41756": {},
   "41757": {
     "restrictions": {
       "level": {
@@ -16615,15 +16851,8 @@
       }
     }
   },
-  "41758": {
-    "cross_list_courses": [
-      "WRIT-2330"
-    ]
-  },
+  "41758": {},
   "41759": {
-    "cross_list_courses": [
-      "WRIT-2330"
-    ],
     "restrictions": {
       "major": {
         "must_be": [
@@ -16797,15 +17026,6 @@
         }
       ],
       "type": "or"
-    },
-    "restrictions": {
-      "major": {
-        "must_be": [
-          "Communication, Media, & Design",
-          "Electronic Arts",
-          "Games & Simulation Arts & Sci"
-        ]
-      }
     }
   },
   "41783": {},
@@ -17048,7 +17268,6 @@
   "41810": {},
   "41811": {},
   "41812": {},
-  "41813": {},
   "41814": {
     "restrictions": {
       "level": {
@@ -17175,9 +17394,6 @@
     }
   },
   "41829": {
-    "cross_list_courses": [
-      "ARTS-6160"
-    ],
     "prerequisites": {
       "course": "ARTS 2020",
       "min_grade": "D",
@@ -17492,6 +17708,9 @@
     ]
   },
   "41877": {
+    "cross_list_courses": [
+      "ENVE-4960"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -17503,12 +17722,35 @@
   "41878": {},
   "41884": {
     "cross_list_courses": [
-      "CSCI-4964",
       "CSCI-4966",
-      "CSCI-6964",
       "CSCI-6966",
       "ECSE-6963"
-    ]
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 2500",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2800",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "ECSE 2610",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "ECSE 4770",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
   },
   "41886": {
     "cross_list_courses": [
@@ -17516,6 +17758,9 @@
     ]
   },
   "41887": {
+    "cross_list_courses": [
+      "ENGR-4720"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -17533,6 +17778,9 @@
     }
   },
   "41888": {
+    "cross_list_courses": [
+      "ENGR-4720"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -17630,15 +17878,6 @@
       "type": "course"
     }
   },
-  "41897": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "41899": {
     "prerequisites": {
       "course": "CHEM 1120",
@@ -17730,6 +17969,9 @@
     }
   },
   "41908": {
+    "cross_list_courses": [
+      "CSCI-4450"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -17818,6 +18060,7 @@
   },
   "41918": {
     "cross_list_courses": [
+      "COGS-4210",
       "COGS-6210"
     ],
     "prerequisites": {
@@ -18006,28 +18249,6 @@
       "type": "or"
     }
   },
-  "41945": {
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "INQR 1200",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "IHSS 1200",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "ECON 1200",
-          "min_grade": "TR",
-          "type": "course"
-        }
-      ],
-      "type": "or"
-    }
-  },
   "41946": {
     "cross_list_courses": [
       "ECON-6290"
@@ -18051,13 +18272,6 @@
         }
       ],
       "type": "or"
-    },
-    "restrictions": {
-      "major": {
-        "may_not_be": [
-          "Biotechnology & Health Econ"
-        ]
-      }
     }
   },
   "41948": {
@@ -18092,40 +18306,6 @@
         }
       ],
       "type": "or"
-    }
-  },
-  "41950": {
-    "cross_list_courses": [
-      "INQR-1220"
-    ],
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman"
-        ]
-      },
-      "major": {
-        "may_not_be": [
-          "Information Tech & Web Science"
-        ]
-      }
-    }
-  },
-  "41951": {
-    "cross_list_courses": [
-      "INQR-1220"
-    ],
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman"
-        ]
-      },
-      "major": {
-        "may_not_be": [
-          "Information Tech & Web Science"
-        ]
-      }
     }
   },
   "41952": {
@@ -18332,9 +18512,7 @@
   "41973": {},
   "41974": {
     "cross_list_courses": [
-      "CSCI-4964",
       "CSCI-4966",
-      "CSCI-6964",
       "ECSE-4963",
       "ECSE-6963"
     ],
@@ -18467,6 +18645,7 @@
     }
   },
   "42003": {},
+  "42004": {},
   "42005": {
     "cross_list_courses": [
       "ENGR-2300"
@@ -18521,19 +18700,6 @@
   "42008": {},
   "42009": {},
   "42010": {},
-  "42011": {
-    "cross_list_courses": [
-      "INQR-1220"
-    ],
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
   "42013": {},
   "42014": {},
   "42015": {
@@ -18996,7 +19162,7 @@
     ],
     "prerequisites": {
       "course": "BIOL 2120",
-      "min_grade": null,
+      "min_grade": "D",
       "type": "course"
     }
   },
@@ -19121,6 +19287,9 @@
     }
   },
   "42086": {
+    "cross_list_courses": [
+      "CSCI-6170"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -19140,6 +19309,16 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42087": {
@@ -19147,6 +19326,16 @@
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42088": {
@@ -19154,6 +19343,16 @@
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42089": {
@@ -19161,12 +19360,37 @@
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42090": {
     "cross_list_courses": [
       "CSCI-6965"
-    ]
+    ],
+    "prerequisites": {
+      "course": "CSCI 4020",
+      "min_grade": "D",
+      "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
   },
   "42091": {
     "cross_list_courses": [
@@ -19659,6 +19883,9 @@
     ]
   },
   "42138": {
+    "cross_list_courses": [
+      "CHEM-2540"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -19681,6 +19908,9 @@
     }
   },
   "42140": {
+    "cross_list_courses": [
+      "ERTH-2140"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -19702,7 +19932,11 @@
       "type": "or"
     }
   },
-  "42141": {},
+  "42141": {
+    "cross_list_courses": [
+      "PHIL-4130"
+    ]
+  },
   "42142": {
     "cross_list_courses": [
       "CHEM-4120"
@@ -19838,6 +20072,9 @@
   "42157": {
     "corequisites": [
       "ARCH-5210"
+    ],
+    "cross_list_courses": [
+      "ARCH-2360"
     ]
   },
   "42158": {
@@ -19889,15 +20126,6 @@
   },
   "42165": {},
   "42166": {},
-  "42167": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "42168": {
     "restrictions": {
       "level": {
@@ -20247,19 +20475,6 @@
       }
     }
   },
-  "42192": {
-    "cross_list_courses": [
-      "INQR-1220"
-    ],
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
   "42195": {
     "cross_list_courses": [
       "ISYE-4300"
@@ -20305,15 +20520,6 @@
         }
       ],
       "type": "or"
-    }
-  },
-  "42204": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
     }
   },
   "42205": {
@@ -20451,6 +20657,7 @@
       }
     }
   },
+  "42228": {},
   "42229": {
     "restrictions": {
       "level": {
@@ -20858,7 +21065,8 @@
       "ARCH-2830"
     ],
     "cross_list_courses": [
-      "ARCH-2360"
+      "ARCH-2360",
+      "ARCH-5310"
     ],
     "prerequisites": {
       "course": "ARCH 2370",
@@ -21273,6 +21481,9 @@
   "42671": {},
   "42672": {},
   "42674": {
+    "cross_list_courses": [
+      "GSAS-6963"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -21304,7 +21515,13 @@
       "type": "or"
     }
   },
-  "42675": {},
+  "42675": {
+    "cross_list_courses": [
+      "ARTS-2960",
+      "ARTS-2961",
+      "GSAS-2961"
+    ]
+  },
   "42680": {
     "cross_list_courses": [
       "MANE-6380"
@@ -21318,7 +21535,12 @@
   "42689": {
     "cross_list_courses": [
       "MANE-6960"
-    ]
+    ],
+    "prerequisites": {
+      "course": "MANE 4480",
+      "min_grade": "D",
+      "type": "course"
+    }
   },
   "42690": {
     "cross_list_courses": [
@@ -21335,6 +21557,9 @@
   "42696": {},
   "42706": {},
   "42708": {
+    "cross_list_courses": [
+      "BMED-6650"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -21487,6 +21712,9 @@
   "42803": {},
   "42804": {},
   "42805": {
+    "cross_list_courses": [
+      "CSCI-4220"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -21506,9 +21734,23 @@
         }
       ],
       "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42806": {
+    "cross_list_courses": [
+      "CSCI-4700",
+      "CSCI-4710"
+    ],
     "prerequisites": {
       "course": "CSCI 2700",
       "min_grade": "D",
@@ -21516,6 +21758,9 @@
     }
   },
   "42807": {
+    "cross_list_courses": [
+      "CSCI-4170"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -21542,6 +21787,16 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "42809": {
@@ -21562,11 +21817,39 @@
     "cross_list_courses": [
       "CSCI-6963"
     ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 4100",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 4160",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 4390",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    },
     "restrictions": {
       "classification": {
         "must_be": [
           "Junior",
           "Senior"
+        ]
+      },
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
         ]
       }
     }
@@ -21586,7 +21869,22 @@
   "42822": {
     "cross_list_courses": [
       "CSCI-6967"
-    ]
+    ],
+    "prerequisites": {
+      "course": "CSCI 2300",
+      "min_grade": "D",
+      "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
   },
   "42823": {
     "cross_list_courses": [
@@ -21601,6 +21899,9 @@
     }
   },
   "42824": {
+    "cross_list_courses": [
+      "CSCI-4700"
+    ],
     "prerequisites": {
       "course": "CSCI 2600",
       "min_grade": "D",
@@ -21710,6 +22011,14 @@
           "Junior",
           "Senior"
         ]
+      },
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
       }
     }
   },
@@ -21731,6 +22040,41 @@
       "ISYE-6620",
       "MANE-6964"
     ],
+    "prerequisites": {
+      "nested": [
+        {
+          "nested": [
+            {
+              "course": "ENGR 2600",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATP 4600",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        },
+        {
+          "nested": [
+            {
+              "course": "MANE 2110",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "CSCI 1100",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        }
+      ],
+      "type": "and"
+    },
     "restrictions": {
       "major": {
         "must_be": [
@@ -21768,18 +22112,11 @@
   },
   "42862": {
     "cross_list_courses": [
-      "CSCI-4964",
       "CSCI-4966",
-      "CSCI-6964",
       "CSCI-6966",
       "ECSE-4963"
     ],
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -21802,11 +22139,9 @@
       "ECSE-4210"
     ],
     "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Freshman",
-          "Junior",
-          "Sophomore"
+      "level": {
+        "must_be": [
+          "Graduate"
         ]
       }
     }
@@ -22103,7 +22438,14 @@
   "42898": {
     "cross_list_courses": [
       "ECSE-4370"
-    ]
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
   },
   "42899": {
     "prerequisites": {
@@ -22129,22 +22471,12 @@
   },
   "42902": {
     "cross_list_courses": [
-      "COMM-4567"
+      "COMM-4567",
+      "COMM-6567",
+      "GSAS-4567"
     ]
   },
   "42907": {},
-  "42908": {
-    "cross_list_courses": [
-      "ARTS-4160"
-    ],
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
   "42913": {
     "cross_list_courses": [
       "ISYE-4500"
@@ -22216,7 +22548,6 @@
   "42988": {},
   "42989": {},
   "42990": {},
-  "42991": {},
   "42992": {},
   "42993": {},
   "42994": {},
@@ -22265,7 +22596,6 @@
   "43037": {},
   "43038": {},
   "43039": {},
-  "43040": {},
   "43041": {},
   "43042": {},
   "43043": {},
@@ -22314,7 +22644,6 @@
   "43086": {},
   "43087": {},
   "43088": {},
-  "43089": {},
   "43090": {},
   "43091": {},
   "43092": {},
@@ -22363,7 +22692,6 @@
   "43135": {},
   "43136": {},
   "43137": {},
-  "43138": {},
   "43139": {},
   "43140": {},
   "43141": {},
@@ -22433,23 +22761,44 @@
     }
   },
   "43152": {},
-  "43155": {},
+  "43155": {
+    "cross_list_courses": [
+      "MANE-6969"
+    ]
+  },
   "43156": {
     "cross_list_courses": [
-      "CSCI-4966",
-      "CSCI-6964",
-      "CSCI-6966",
-      "ECSE-4963",
-      "ECSE-6963"
-    ]
+      "CSCI-6964"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 4150",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 4390",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
   },
   "43157": {
     "cross_list_courses": [
-      "CSCI-4964",
-      "CSCI-4966",
-      "CSCI-6966",
-      "ECSE-4963",
-      "ECSE-6963"
+      "CSCI-4964"
     ],
     "restrictions": {
       "classification": {
@@ -22506,16 +22855,6 @@
   "43197": {
     "prerequisites": {
       "course": "COMM 2660",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
-  "43199": {
-    "cross_list_courses": [
-      "PHIL-4140"
-    ],
-    "prerequisites": {
-      "course": "PHIL 2140",
       "min_grade": "D",
       "type": "course"
     }
@@ -22640,18 +22979,48 @@
     ]
   },
   "43307": {},
-  "43308": {},
   "43309": {
     "cross_list_courses": [
-      "CSCI-4964",
-      "CSCI-6964",
       "CSCI-6966",
       "ECSE-4963",
       "ECSE-6963"
-    ]
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 2500",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2800",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "ECSE 2610",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "ECSE 4770",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
   },
-  "43311": {},
-  "43312": {},
   "43313": {
     "restrictions": {
       "classification": {
@@ -22863,16 +23232,6 @@
       }
     }
   },
-  "43337": {
-    "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Freshman",
-          "Sophomore"
-        ]
-      }
-    }
-  },
   "43338": {},
   "43339": {},
   "43340": {},
@@ -22949,26 +23308,10 @@
       "type": "and"
     },
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Junior",
-          "Sophomore"
-        ]
-      },
       "major": {
         "must_be": [
-          "Aeronautical Engineering",
-          "Aerospace Engineering",
-          "Biomedical Engineering",
-          "Chemical Engineering",
-          "Civil Engineering",
           "Computer & Systems Engineering",
-          "Electrical Engineering",
-          "Undeclared Engineering",
-          "Environmental Engineering",
-          "Materials Engineering",
-          "Industrial & Management Engr",
-          "Nuclear Engineering"
+          "Electrical Engineering"
         ]
       }
     }
@@ -23012,7 +23355,23 @@
       "type": "course"
     }
   },
-  "43356": {},
+  "43356": {
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MANE 2110",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 1100",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
+  },
   "43357": {},
   "43359": {},
   "43361": {},
@@ -23047,7 +23406,11 @@
       "type": "and"
     }
   },
-  "43367": {},
+  "43367": {
+    "cross_list_courses": [
+      "ENVE-6960"
+    ]
+  },
   "43370": {
     "restrictions": {
       "classification": {
@@ -23265,7 +23628,6 @@
   "43440": {},
   "43441": {},
   "43445": {},
-  "43446": {},
   "43447": {},
   "43448": {},
   "43449": {},
@@ -23362,8 +23724,6 @@
   "43490": {},
   "43493": {},
   "43494": {},
-  "43495": {},
-  "43496": {},
   "43497": {},
   "43498": {},
   "43499": {},
@@ -24504,16 +24864,6 @@
       "type": "and"
     }
   },
-  "43709": {
-    "cross_list_courses": [
-      "MATH-4140"
-    ],
-    "prerequisites": {
-      "course": "PHIL 2140",
-      "min_grade": "D",
-      "type": "course"
-    }
-  },
   "43710": {
     "prerequisites": {
       "course": "MGMT 1240",
@@ -24521,15 +24871,18 @@
       "type": "course"
     },
     "restrictions": {
-      "major": {
-        "must_be": [
-          "Business and Management",
-          "Business and Management"
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
         ]
       }
     }
   },
   "43713": {
+    "cross_list_courses": [
+      "MANE-2550",
+      "ROBT-2010"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24547,6 +24900,10 @@
     }
   },
   "43714": {
+    "cross_list_courses": [
+      "ECSE-2470",
+      "MANE-2550"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24561,9 +24918,20 @@
         }
       ],
       "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43715": {
+    "cross_list_courses": [
+      "ECSE-2470",
+      "ROBT-2010"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24590,7 +24958,8 @@
       "classification": {
         "must_be": [
           "Junior",
-          "Sophomore"
+          "Sophomore",
+          "Senior"
         ]
       },
       "major": {
@@ -24614,6 +24983,9 @@
     }
   },
   "43717": {
+    "cross_list_courses": [
+      "ECSE-6170"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24651,6 +25023,9 @@
     }
   },
   "43718": {
+    "cross_list_courses": [
+      "ECSE-4170"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -24793,6 +25168,14 @@
     ]
   },
   "43729": {
+    "cross_list_courses": [
+      "CSCI-4971",
+      "CSCI-6971",
+      "ECSE-4490",
+      "ECSE-6490",
+      "MANE-4963",
+      "MANE-6963"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24810,6 +25193,10 @@
     }
   },
   "43730": {
+    "cross_list_courses": [
+      "COGS-4210",
+      "COGS-6210"
+    ],
     "prerequisites": {
       "course": "CSCI 2300",
       "min_grade": "D",
@@ -24839,8 +25226,24 @@
       "PHIL-4440"
     ]
   },
-  "43735": {},
+  "43735": {
+    "cross_list_courses": [
+      "PHIL-4130"
+    ],
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Cognitive Science",
+          "Philosophy"
+        ]
+      }
+    }
+  },
   "43736": {
+    "cross_list_courses": [
+      "COGS-4330",
+      "PSYC-4330"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24858,6 +25261,10 @@
     }
   },
   "43737": {
+    "cross_list_courses": [
+      "COGS-4330",
+      "PSYC-4330"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24872,9 +25279,22 @@
         }
       ],
       "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biological Neuroscience",
+          "Cognitive Science",
+          "Psychological Science"
+        ]
+      }
     }
   },
   "43738": {
+    "cross_list_courses": [
+      "COGS-4330",
+      "PSYC-4330"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24892,6 +25312,10 @@
     }
   },
   "43739": {
+    "cross_list_courses": [
+      "COGS-4330",
+      "PSYC-4330"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -24906,6 +25330,15 @@
         }
       ],
       "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Biological Neuroscience",
+          "Cognitive Science",
+          "Psychological Science"
+        ]
+      }
     }
   },
   "43740": {
@@ -24931,7 +25364,7 @@
       "major": {
         "must_be": [
           "Cognitive Science",
-          "Psychology"
+          "Psychological Science"
         ]
       }
     }
@@ -25007,6 +25440,9 @@
     }
   },
   "43744": {
+    "cross_list_courses": [
+      "ARCH-2830"
+    ],
     "prerequisites": {
       "course": "ARCH 5200",
       "min_grade": "D",
@@ -25409,14 +25845,113 @@
     }
   },
   "43762": {
+    "cross_list_courses": [
+      "MANE-6610"
+    ],
     "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Freshman",
-          "Junior",
-          "Sophomore"
+      "level": {
+        "must_be": [
+          "Graduate"
         ]
       }
+    }
+  },
+  "43764": {
+    "cross_list_courses": [
+      "ECSE-4480",
+      "ECSE-6470",
+      "MANE-4560",
+      "MANE-6120",
+      "ROBT-4010"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 2400",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "nested": [
+            {
+              "nested": [
+                {
+                  "course": "MATH 2010",
+                  "min_grade": "D",
+                  "type": "course"
+                },
+                {
+                  "course": "MATH 2011",
+                  "min_grade": "D",
+                  "type": "course"
+                }
+              ],
+              "type": "or"
+            },
+            {
+              "course": "MATH 2012",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "and"
+        }
+      ],
+      "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
+  },
+  "43765": {
+    "cross_list_courses": [
+      "CSCI-4480",
+      "ECSE-4480",
+      "ECSE-6470",
+      "MANE-6120",
+      "ROBT-4010"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 2400",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "nested": [
+            {
+              "nested": [
+                {
+                  "course": "MATH 2010",
+                  "min_grade": "D",
+                  "type": "course"
+                },
+                {
+                  "course": "MATH 2011",
+                  "min_grade": "D",
+                  "type": "course"
+                }
+              ],
+              "type": "or"
+            },
+            {
+              "course": "MATH 2012",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "and"
+        }
+      ],
+      "type": "and"
     }
   },
   "43767": {
@@ -25442,17 +25977,26 @@
       "type": "course"
     },
     "restrictions": {
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
+      },
       "major": {
         "must_be": [
           "Business and Management",
-          "Business and Management"
+          "Business Analytics",
+          "Fin, Markets & Emerge Tech",
+          "Marketing and Advanced Comp"
         ]
       }
     }
   },
   "43769": {
     "cross_list_courses": [
-      "COMM-4567"
+      "COMM-4567",
+      "COMM-6567",
+      "GSAS-4567"
     ],
     "restrictions": {
       "classification": {
@@ -25478,9 +26022,19 @@
     "prerequisites": {
       "nested": [
         {
-          "course": "CHEM 1100",
-          "min_grade": "D",
-          "type": "course"
+          "nested": [
+            {
+              "course": "CHEM 1100",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "CHEM 1110",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
         },
         {
           "course": "BMED 4500",
@@ -25496,14 +26050,17 @@
       "BMED-4520"
     ],
     "restrictions": {
-      "classification": {
+      "level": {
         "must_be": [
-          "Graduate Student"
+          "Graduate"
         ]
       }
     }
   },
   "43772": {
+    "cross_list_courses": [
+      "BMED-4650"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -25520,7 +26077,7 @@
     },
     "restrictions": {
       "major": {
-        "may_not_be": [
+        "must_be": [
           "Biomedical Engineering"
         ]
       }
@@ -25772,6 +26329,9 @@
     }
   },
   "43799": {
+    "cross_list_courses": [
+      "ARTS-2255"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -25809,16 +26369,28 @@
     ],
     "restrictions": {
       "major": {
-        "may_not_be": [
+        "must_be": [
+          "Communication, Media, & Design",
+          "Electronic Arts",
           "Games & Simulation Arts & Sci"
         ]
       }
     }
   },
-  "43802": {},
-  "43803": {},
-  "43804": {},
+  "43803": {
+    "cross_list_courses": [
+      "CHEM-6965"
+    ]
+  },
+  "43804": {
+    "cross_list_courses": [
+      "CHEM-4965"
+    ]
+  },
   "43805": {
+    "cross_list_courses": [
+      "CHEM-6330"
+    ],
     "prerequisites": {
       "course": "CHEM 2260",
       "min_grade": "D",
@@ -25826,6 +26398,9 @@
     }
   },
   "43806": {
+    "cross_list_courses": [
+      "CHEM-4330"
+    ],
     "restrictions": {
       "classification": {
         "may_not_be": [
@@ -25835,11 +26410,18 @@
       }
     }
   },
-  "43807": {},
+  "43807": {
+    "cross_list_courses": [
+      "CHEM-6630"
+    ]
+  },
   "43808": {
+    "cross_list_courses": [
+      "CHEM-4630"
+    ],
     "restrictions": {
       "level": {
-        "may_not_be": [
+        "must_be": [
           "Graduate"
         ]
       }
@@ -25856,6 +26438,9 @@
     }
   },
   "43811": {
+    "cross_list_courses": [
+      "ECSE-4966"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -25879,17 +26464,16 @@
       }
     }
   },
-  "43812": {},
+  "43812": {
+    "cross_list_courses": [
+      "ECSE-6140"
+    ]
+  },
   "43813": {
     "cross_list_courses": [
       "ECSE-4770"
     ],
     "restrictions": {
-      "classification": {
-        "must_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
         "must_be": [
           "Graduate"
@@ -25903,13 +26487,29 @@
     ]
   },
   "43816": {
+    "cross_list_courses": [
+      "CSCI-4150"
+    ],
     "prerequisites": {
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43817": {
+    "cross_list_courses": [
+      "CSCI-6050"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -25924,9 +26524,22 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43818": {
+    "cross_list_courses": [
+      "CSCI-4050"
+    ],
     "prerequisites": {
       "course": "CSCI 2300",
       "min_grade": "D",
@@ -25934,6 +26547,9 @@
     }
   },
   "43819": {
+    "cross_list_courses": [
+      "CSCI-4220"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -25953,6 +26569,16 @@
         }
       ],
       "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43820": {
@@ -25960,31 +26586,23 @@
       "course": "CSCI 2300",
       "min_grade": "D",
       "type": "course"
-    }
-  },
-  "43821": {
-    "prerequisites": {
-      "nested": [
-        {
-          "course": "CSCI 2300",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "CSCI 2600",
-          "min_grade": "D",
-          "type": "course"
-        },
-        {
-          "course": "CSCI 2800",
-          "min_grade": "D",
-          "type": "course"
-        }
-      ],
-      "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43822": {
+    "cross_list_courses": [
+      "CSCI-4700",
+      "CSCI-4710"
+    ],
     "prerequisites": {
       "course": "CSCI 2700",
       "min_grade": "D",
@@ -25992,6 +26610,10 @@
     }
   },
   "43823": {
+    "cross_list_courses": [
+      "CSCI-4700",
+      "CSCI-4710"
+    ],
     "prerequisites": {
       "course": "CSCI 2700",
       "min_grade": "D",
@@ -25999,20 +26621,49 @@
     }
   },
   "43824": {
+    "cross_list_courses": [
+      "CSCI-6450"
+    ],
     "prerequisites": {
       "course": "CSCI 4430",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43825": {
+    "cross_list_courses": [
+      "CSCI-6460"
+    ],
     "prerequisites": {
       "course": "CSCI 2600",
       "min_grade": "D",
       "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43826": {
+    "cross_list_courses": [
+      "CSCI-4460"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -26039,6 +26690,16 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43828": {
@@ -26071,6 +26732,16 @@
         }
       ],
       "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
     }
   },
   "43830": {
@@ -26101,6 +26772,9 @@
     }
   },
   "43831": {
+    "cross_list_courses": [
+      "CSCI-6570"
+    ],
     "prerequisites": {
       "course": "CSCI 4430",
       "min_grade": "D",
@@ -26108,6 +26782,9 @@
     }
   },
   "43832": {
+    "cross_list_courses": [
+      "CSCI-4570"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -26117,6 +26794,10 @@
     }
   },
   "43833": {
+    "cross_list_courses": [
+      "CSCI-4962",
+      "CSCI-6962"
+    ],
     "restrictions": {
       "classification": {
         "may_not_be": [
@@ -26127,18 +26808,85 @@
       }
     }
   },
-  "43834": {},
-  "43835": {},
-  "43836": {
+  "43834": {
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 2300",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2600",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "and"
+    },
     "restrictions": {
       "major": {
         "must_be": [
-          "Computer Science"
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Robotics Engineering"
+        ]
+      }
+    }
+  },
+  "43835": {
+    "prerequisites": {
+      "course": "CSCI 2200",
+      "min_grade": "D",
+      "type": "course"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
+  },
+  "43836": {
+    "cross_list_courses": [
+      "CSCI-6968",
+      "ISYE-6968"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 4020",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2300",
+          "min_grade": "A-",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
         ]
       }
     }
   },
   "43837": {
+    "cross_list_courses": [
+      "CSCI-4968",
+      "ISYE-6968"
+    ],
     "restrictions": {
       "classification": {
         "may_not_be": [
@@ -26149,8 +26897,45 @@
       }
     }
   },
-  "43838": {},
+  "43838": {
+    "cross_list_courses": [
+      "CSCI-6969"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 4100",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 4160",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 4390",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
+  },
   "43839": {
+    "cross_list_courses": [
+      "CSCI-4969"
+    ],
     "restrictions": {
       "classification": {
         "may_not_be": [
@@ -26468,13 +27253,6 @@
         }
       ],
       "type": "and"
-    },
-    "restrictions": {
-      "classification": {
-        "must_be": [
-          "Junior"
-        ]
-      }
     }
   },
   "43858": {
@@ -26635,6 +27413,9 @@
     }
   },
   "43867": {
+    "cross_list_courses": [
+      "CHEM-6130"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -26652,6 +27433,9 @@
     }
   },
   "43868": {
+    "cross_list_courses": [
+      "CHEM-4130"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -26754,14 +27538,35 @@
     "cross_list_courses": [
       "CSCI-6971",
       "ECSE-4490",
-      "ECSE-6490"
-    ]
+      "ECSE-6490",
+      "MANE-4963",
+      "MANE-6963",
+      "ROBT-4020"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 2010",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MATH 2012",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
   },
   "43874": {
     "cross_list_courses": [
       "CSCI-4971",
       "ECSE-4490",
-      "ECSE-6490"
+      "ECSE-6490",
+      "MANE-4963",
+      "MANE-6963",
+      "ROBT-4020"
     ],
     "restrictions": {
       "classification": {
@@ -26941,7 +27746,7 @@
     ],
     "restrictions": {
       "level": {
-        "may_not_be": [
+        "must_be": [
           "Graduate"
         ]
       }
@@ -27258,6 +28063,9 @@
     }
   },
   "43925": {
+    "cross_list_courses": [
+      "MGMT-6260"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -27295,6 +28103,9 @@
     }
   },
   "43929": {
+    "cross_list_courses": [
+      "MGMT-4540"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -27366,6 +28177,9 @@
     }
   },
   "43935": {
+    "cross_list_courses": [
+      "ECSE-6969"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27374,8 +28188,20 @@
       }
     }
   },
-  "43936": {},
+  "43936": {
+    "cross_list_courses": [
+      "MANE-6962"
+    ],
+    "prerequisites": {
+      "course": "MANE 2720",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
   "43937": {
+    "cross_list_courses": [
+      "MANE-4962"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27385,15 +28211,6 @@
     }
   },
   "43938": {
-    "restrictions": {
-      "level": {
-        "must_be": [
-          "Graduate"
-        ]
-      }
-    }
-  },
-  "43939": {
     "restrictions": {
       "level": {
         "must_be": [
@@ -27421,6 +28238,9 @@
     }
   },
   "43942": {
+    "cross_list_courses": [
+      "MGMT-6968"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27451,6 +28271,11 @@
           "Senior"
         ]
       },
+      "degree": {
+        "may_not_be": [
+          "Non-Degree Seeking"
+        ]
+      },
       "major": {
         "must_be": [
           "Mechanical Engineering"
@@ -27458,8 +28283,45 @@
       }
     }
   },
-  "43944": {},
+  "43944": {
+    "cross_list_courses": [
+      "CSCI-4971",
+      "CSCI-6971",
+      "ECSE-4490",
+      "ECSE-6490",
+      "MANE-6963",
+      "ROBT-4020"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MATH 2010",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MATH 2012",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MATH 2100",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
+  },
   "43945": {
+    "cross_list_courses": [
+      "CSCI-4971",
+      "CSCI-6971",
+      "ECSE-4490",
+      "ECSE-6490",
+      "MANE-4963",
+      "ROBT-4020"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27469,6 +28331,9 @@
     }
   },
   "43946": {
+    "cross_list_courses": [
+      "ECSE-6420"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -27493,6 +28358,9 @@
     }
   },
   "43947": {
+    "cross_list_courses": [
+      "MANE-4966"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27501,7 +28369,26 @@
       }
     }
   },
-  "43948": {},
+  "43948": {
+    "cross_list_courses": [
+      "MANE-6966"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "MANE 4350",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "MANE 4470",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
+  },
   "43949": {
     "prerequisites": {
       "nested": [
@@ -27546,13 +28433,8 @@
       "type": "course"
     },
     "restrictions": {
-      "classification": {
-        "may_not_be": [
-          "Graduate Student"
-        ]
-      },
       "level": {
-        "may_not_be": [
+        "must_be": [
           "Graduate"
         ]
       }
@@ -27615,9 +28497,23 @@
       }
     }
   },
-  "43954": {},
-  "43955": {},
+  "43954": {
+    "cross_list_courses": [
+      "ARTS-4600",
+      "ARTS-6600"
+    ]
+  },
+  "43955": {
+    "cross_list_courses": [
+      "ARTS-2600",
+      "ARTS-6600"
+    ]
+  },
   "43956": {
+    "cross_list_courses": [
+      "ARTS-2600",
+      "ARTS-4600"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27707,9 +28603,20 @@
       }
     }
   },
-  "43962": {},
-  "43963": {},
+  "43962": {
+    "cross_list_courses": [
+      "MTLE-6960"
+    ]
+  },
+  "43963": {
+    "cross_list_courses": [
+      "MTLE-6440"
+    ]
+  },
   "43964": {
+    "cross_list_courses": [
+      "MTLE-4400"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -27732,6 +28639,9 @@
     }
   },
   "43965": {
+    "cross_list_courses": [
+      "MTLE-4400"
+    ],
     "prerequisites": {
       "nested": [
         {
@@ -27761,6 +28671,9 @@
     }
   },
   "43967": {
+    "cross_list_courses": [
+      "MTLE-4440"
+    ],
     "restrictions": {
       "level": {
         "must_be": [
@@ -27880,6 +28793,10 @@
     }
   },
   "43980": {
+    "cross_list_courses": [
+      "CSCI-4700",
+      "CSCI-4710"
+    ],
     "prerequisites": {
       "course": "CSCI 2700",
       "min_grade": "D",
@@ -27928,8 +28845,19 @@
       "CHME-4965"
     ]
   },
-  "43988": {},
+  "43988": {
+    "cross_list_courses": [
+      "ARTS-2961",
+      "GSAS-2960",
+      "GSAS-2961"
+    ]
+  },
   "43989": {
+    "cross_list_courses": [
+      "ARTS-2960",
+      "GSAS-2960",
+      "GSAS-2961"
+    ],
     "restrictions": {
       "major": {
         "must_be": [
@@ -28018,5 +28946,632 @@
       "type": "or"
     }
   },
-  "43999": {}
+  "43999": {
+    "cross_list_courses": [
+      "COMM-2660"
+    ]
+  },
+  "44000": {
+    "cross_list_courses": [
+      "GSAS-2255"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "ARTS 1040",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "GSAS 1040",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "COMM 2660",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "ARTS 2220",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "or"
+    }
+  },
+  "44001": {},
+  "44003": {},
+  "44004": {},
+  "44005": {},
+  "44006": {},
+  "44007": {},
+  "44008": {},
+  "44009": {},
+  "44010": {},
+  "44011": {},
+  "44012": {},
+  "44013": {},
+  "44014": {},
+  "44015": {},
+  "44016": {},
+  "44017": {},
+  "44018": {},
+  "44019": {},
+  "44020": {},
+  "44021": {},
+  "44022": {},
+  "44023": {},
+  "44024": {},
+  "44025": {},
+  "44026": {},
+  "44027": {},
+  "44028": {},
+  "44029": {},
+  "44030": {},
+  "44031": {},
+  "44032": {},
+  "44033": {},
+  "44034": {},
+  "44035": {},
+  "44036": {},
+  "44037": {},
+  "44038": {},
+  "44039": {},
+  "44040": {},
+  "44041": {},
+  "44042": {},
+  "44043": {},
+  "44044": {},
+  "44045": {},
+  "44046": {},
+  "44047": {},
+  "44048": {},
+  "44049": {},
+  "44050": {},
+  "44051": {},
+  "44052": {},
+  "44053": {},
+  "44054": {},
+  "44055": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44056": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44057": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44058": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44059": {},
+  "44060": {},
+  "44061": {},
+  "44062": {},
+  "44063": {},
+  "44064": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44065": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44073": {
+    "cross_list_courses": [
+      "GSAS-4270"
+    ]
+  },
+  "44074": {
+    "cross_list_courses": [
+      "CSCI-4968",
+      "CSCI-6968"
+    ]
+  },
+  "44075": {
+    "prerequisites": {
+      "nested": [
+        {
+          "nested": [
+            {
+              "course": "ENGR 1100",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "ECSE 1010",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MANE 1960",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MANE 1010",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "ROBT 1010",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        },
+        {
+          "nested": [
+            {
+              "course": "PHYS 1100",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "PHYS 1150",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "PHYS 1110",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        },
+        {
+          "course": "MATH 2400",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Aeronautical Engineering",
+          "Aerospace Engineering",
+          "Biomedical Engineering",
+          "Chemical Engineering",
+          "Civil Engineering",
+          "Computer & Systems Engineering",
+          "Electrical Engineering",
+          "Undeclared Engineering",
+          "Environmental Engineering",
+          "Materials Engineering",
+          "Mechanical Engineering",
+          "Industrial & Management Engr",
+          "Nuclear Engineering"
+        ]
+      }
+    }
+  },
+  "44076": {
+    "prerequisites": {
+      "nested": [
+        {
+          "course": "CSCI 2300",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2600",
+          "min_grade": "D",
+          "type": "course"
+        },
+        {
+          "course": "CSCI 2800",
+          "min_grade": "D",
+          "type": "course"
+        }
+      ],
+      "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Computer Science",
+          "Computer & Systems Engineering",
+          "Information Tech & Web Science",
+          "Robotics Engineering"
+        ]
+      }
+    }
+  },
+  "44077": {
+    "cross_list_courses": [
+      "ARTS-2960",
+      "ARTS-2961",
+      "GSAS-2960"
+    ]
+  },
+  "44078": {},
+  "44079": {
+    "prerequisites": {
+      "course": "MGMT 2300",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "44080": {
+    "restrictions": {
+      "classification": {
+        "must_be": [
+          "Graduate Student"
+        ]
+      },
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44081": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "44083": {},
+  "44084": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "44085": {
+    "cross_list_courses": [
+      "ISYE-4330",
+      "ISYE-6020",
+      "MANE-4967"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44086": {
+    "cross_list_courses": [
+      "ISYE-4330",
+      "ISYE-6020",
+      "MANE-6961"
+    ],
+    "prerequisites": {
+      "course": "ENGR 2600",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "44087": {
+    "prerequisites": {
+      "course": "PHYS 4170",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "44088": {
+    "cross_list_courses": [
+      "MANE-6070"
+    ],
+    "prerequisites": {
+      "course": "MANE 4070",
+      "min_grade": "D",
+      "type": "course"
+    }
+  },
+  "44089": {
+    "cross_list_courses": [
+      "MANE-4130"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44090": {},
+  "44091": {
+    "cross_list_courses": [
+      "ECON-4570"
+    ],
+    "prerequisites": {
+      "nested": [
+        {
+          "nested": [
+            {
+              "course": "MATH 2010",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2011",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2012",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATH 2100",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        },
+        {
+          "nested": [
+            {
+              "course": "ENGR 2600",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MGMT 2100",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "MATP 4600",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "PSYC 2310",
+              "min_grade": "D",
+              "type": "course"
+            },
+            {
+              "course": "BIOL 4200",
+              "min_grade": "D",
+              "type": "course"
+            }
+          ],
+          "type": "or"
+        }
+      ],
+      "type": "and"
+    },
+    "restrictions": {
+      "major": {
+        "must_be": [
+          "Economics"
+        ]
+      }
+    }
+  },
+  "44092": {
+    "cross_list_courses": [
+      "MTLE-4430"
+    ],
+    "restrictions": {
+      "classification": {
+        "must_be": [
+          "Graduate Student"
+        ]
+      },
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44093": {
+    "cross_list_courses": [
+      "COMM-4567",
+      "GSAS-4567"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44094": {},
+  "44095": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44096": {},
+  "44097": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44098": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44099": {
+    "cross_list_courses": [
+      "CHME-6840"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44100": {
+    "cross_list_courses": [
+      "MANE-6840"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44101": {
+    "cross_list_courses": [
+      "COMM-4567",
+      "COMM-6567"
+    ]
+  },
+  "44102": {
+    "cross_list_courses": [
+      "MANE-6968"
+    ],
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44103": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44104": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44105": {},
+  "44106": {},
+  "44107": {},
+  "44108": {
+    "restrictions": {
+      "level": {
+        "must_be": [
+          "Graduate"
+        ]
+      }
+    }
+  },
+  "44109": {},
+  "44110": {},
+  "44111": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Junior",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "44112": {
+    "cross_list_courses": [
+      "CHEM-6140"
+    ]
+  },
+  "44113": {
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "44114": {
+    "cross_list_courses": [
+      "ARCH-4830"
+    ],
+    "prerequisites": {
+      "course": "ARCH 6610",
+      "min_grade": "B",
+      "type": "course"
+    },
+    "restrictions": {
+      "classification": {
+        "may_not_be": [
+          "Freshman",
+          "Junior",
+          "Sophomore"
+        ]
+      }
+    }
+  },
+  "44115": {}
 }
