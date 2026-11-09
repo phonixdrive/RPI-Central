@@ -7,14 +7,14 @@
         "id": "ADMN-1030",
         "sections": [
           {
-            "act": 17,
+            "act": 18,
             "attribute": "",
             "cap": 1000,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 41586,
             "crse": 1030,
-            "rem": 983,
+            "rem": 982,
             "sec": "01",
             "subj": "ADMN",
             "timeslots": [
@@ -31,14 +31,14 @@
             "title": "Career Explrtn:arch/hass/lally"
           },
           {
-            "act": 169,
+            "act": 171,
             "attribute": "",
             "cap": 1000,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 41529,
             "crse": 1030,
-            "rem": 831,
+            "rem": 829,
             "sec": "02",
             "subj": "ADMN",
             "timeslots": [
@@ -1265,14 +1265,14 @@
         "id": "ARCH-2360",
         "sections": [
           {
-            "act": 12,
+            "act": 13,
             "attribute": "Data Intensive I",
             "cap": 60,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40240,
             "crse": 2360,
-            "rem": 48,
+            "rem": 47,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -1290,7 +1290,7 @@
               }
             ],
             "title": "Environmental And Ecol System",
-            "xl_rem": 47
+            "xl_rem": 46
           },
           {
             "act": 0,
@@ -1318,7 +1318,7 @@
               }
             ],
             "title": "Environmental And Ecol System",
-            "xl_rem": 47
+            "xl_rem": 46
           }
         ],
         "subj": "ARCH",
@@ -1480,14 +1480,14 @@
         "id": "ARCH-2550",
         "sections": [
           {
-            "act": 11,
+            "act": 12,
             "attribute": "",
             "cap": 72,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41153,
             "crse": 2550,
-            "rem": 61,
+            "rem": 60,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -1504,7 +1504,7 @@
               }
             ],
             "title": "Digital Constructs 4",
-            "xl_rem": 53
+            "xl_rem": 52
           },
           {
             "act": 0,
@@ -1531,7 +1531,7 @@
               }
             ],
             "title": "Digital Constructs 4",
-            "xl_rem": 53
+            "xl_rem": 52
           },
           {
             "act": 0,
@@ -1558,7 +1558,7 @@
               }
             ],
             "title": "Digital Constructs 4",
-            "xl_rem": 53
+            "xl_rem": 52
           }
         ],
         "subj": "ARCH",
@@ -1729,14 +1729,14 @@
         "id": "ARCH-2830",
         "sections": [
           {
-            "act": 11,
+            "act": 12,
             "attribute": "",
             "cap": 70,
             "credMax": 5.0,
             "credMin": 5.0,
             "crn": 41149,
             "crse": 2830,
-            "rem": 59,
+            "rem": 58,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -1765,7 +1765,7 @@
               }
             ],
             "title": "Architectural Design Studio 4",
-            "xl_rem": 66
+            "xl_rem": 65
           },
           {
             "act": 0,
@@ -2456,14 +2456,14 @@
         "id": "ARCH-4150",
         "sections": [
           {
-            "act": 11,
+            "act": 12,
             "attribute": "",
             "cap": 70,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41270,
             "crse": 4150,
-            "rem": 59,
+            "rem": 58,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -2920,14 +2920,14 @@
         "id": "ARCH-4780",
         "sections": [
           {
-            "act": 30,
+            "act": 31,
             "attribute": "",
             "cap": 40,
             "credMax": 5.0,
             "credMin": 5.0,
             "crn": 41357,
             "crse": 4780,
-            "rem": 10,
+            "rem": 9,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -3230,14 +3230,14 @@
         "id": "ARCH-4920",
         "sections": [
           {
-            "act": 56,
+            "act": 57,
             "attribute": "Communication Intensive",
             "cap": 72,
             "credMax": 5.0,
             "credMin": 5.0,
             "crn": 41257,
             "crse": 4920,
-            "rem": 16,
+            "rem": 15,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -4943,7 +4943,7 @@
               }
             ],
             "title": "Cognitive Immersive Design",
-            "xl_rem": 16
+            "xl_rem": 15
           }
         ],
         "subj": "ARCH",
@@ -5152,7 +5152,7 @@
               }
             ],
             "title": "Digital Constructs 2",
-            "xl_rem": 53
+            "xl_rem": 52
           }
         ],
         "subj": "ARCH",
@@ -5199,7 +5199,7 @@
               }
             ],
             "title": "Graduate Architecture Design 2",
-            "xl_rem": 66
+            "xl_rem": 65
           }
         ],
         "subj": "ARCH",
@@ -5235,7 +5235,7 @@
               }
             ],
             "title": "Environmental & Ecological Sys",
-            "xl_rem": 47
+            "xl_rem": 46
           }
         ],
         "subj": "ARCH",
@@ -5803,14 +5803,14 @@
         "id": "ARCH-6900",
         "sections": [
           {
-            "act": 2,
+            "act": 3,
             "attribute": "",
             "cap": 12,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 43991,
             "crse": 6900,
-            "rem": 10,
+            "rem": 9,
             "sec": "01",
             "subj": "ARCH",
             "timeslots": [
@@ -6611,7 +6611,7 @@
               }
             ],
             "title": "Introduction To Game Art",
-            "xl_rem": 3
+            "xl_rem": 2
           },
           {
             "act": 15,
@@ -6639,7 +6639,7 @@
               }
             ],
             "title": "Introduction To Game Art",
-            "xl_rem": 3
+            "xl_rem": 2
           }
         ],
         "subj": "ARTS",
@@ -6712,14 +6712,14 @@
         "id": "ARTS-1220",
         "sections": [
           {
-            "act": 25,
+            "act": 26,
             "attribute": "",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42069,
             "crse": 1220,
-            "rem": 0,
+            "rem": -1,
             "sec": "01",
             "subj": "ARTS",
             "timeslots": [
@@ -6747,14 +6747,14 @@
         "id": "ARTS-1380",
         "sections": [
           {
-            "act": 22,
+            "act": 23,
             "attribute": "",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43859,
             "crse": 1380,
-            "rem": 18,
+            "rem": 17,
             "sec": "01",
             "subj": "ARTS",
             "timeslots": [
@@ -7008,14 +7008,14 @@
         "id": "ARTS-2300",
         "sections": [
           {
-            "act": 40,
+            "act": 41,
             "attribute": "",
             "cap": 85,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40302,
             "crse": 2300,
-            "rem": 45,
+            "rem": 44,
             "sec": "01",
             "subj": "ARTS",
             "timeslots": [
@@ -7078,14 +7078,14 @@
         "id": "ARTS-2340",
         "sections": [
           {
-            "act": 12,
+            "act": 14,
             "attribute": "",
             "cap": 50,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 42852,
             "crse": 2340,
-            "rem": 38,
+            "rem": 36,
             "sec": "01",
             "subj": "ARTS",
             "timeslots": [
@@ -7148,14 +7148,14 @@
         "id": "ARTS-2600",
         "sections": [
           {
-            "act": 9,
+            "act": 10,
             "attribute": "",
             "cap": 10,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 43954,
             "crse": 2600,
-            "rem": 1,
+            "rem": 0,
             "sec": "01",
             "subj": "ARTS",
             "timeslots": [
@@ -7172,7 +7172,7 @@
               }
             ],
             "title": "Ensemble Nonlinear",
-            "xl_rem": 2
+            "xl_rem": 1
           }
         ],
         "subj": "ARTS",
@@ -7659,7 +7659,7 @@
                 "dateEnd": "05/03",
                 "dateStart": "01/11",
                 "days": [],
-                "instructor": "Katherine Anne Skovira, Christopher James Fisher-Lochhead",
+                "instructor": "Katherine Skovira, Christopher James Fisher-Lochhead",
                 "location": "TBA",
                 "timeEnd": -1,
                 "timeStart": -1
@@ -8222,7 +8222,7 @@
               }
             ],
             "title": "Ensemble Non-linear",
-            "xl_rem": 2
+            "xl_rem": 1
           }
         ],
         "subj": "ARTS",
@@ -8666,7 +8666,7 @@
               }
             ],
             "title": "Ensemble Nonlinear",
-            "xl_rem": 2
+            "xl_rem": 1
           }
         ],
         "subj": "ARTS",
@@ -10890,14 +10890,14 @@
             "title": "Introduction To Biology Laboratory"
           },
           {
-            "act": 10,
+            "act": 11,
             "attribute": "Data Intensive I",
             "cap": 64,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40997,
             "crse": 1015,
-            "rem": 54,
+            "rem": 53,
             "sec": "02",
             "subj": "BIOL",
             "timeslots": [
@@ -11873,14 +11873,14 @@
         "id": "BIOL-4200",
         "sections": [
           {
-            "act": 35,
+            "act": 36,
             "attribute": "Data Intensive II",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41789,
             "crse": 4200,
-            "rem": 5,
+            "rem": 4,
             "sec": "01",
             "subj": "BIOL",
             "timeslots": [
@@ -12322,14 +12322,14 @@
         "id": "BIOL-4850",
         "sections": [
           {
-            "act": 26,
+            "act": 27,
             "attribute": "",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42589,
             "crse": 4850,
-            "rem": 14,
+            "rem": 13,
             "sec": "01",
             "subj": "BIOL",
             "timeslots": [
@@ -13293,14 +13293,14 @@
         "id": "BIOL-6900",
         "sections": [
           {
-            "act": 22,
+            "act": 23,
             "attribute": "",
             "cap": 60,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40073,
             "crse": 6900,
-            "rem": 38,
+            "rem": 37,
             "sec": "01",
             "subj": "BIOL",
             "timeslots": [
@@ -14932,14 +14932,14 @@
         "id": "BMED-4500",
         "sections": [
           {
-            "act": 40,
+            "act": 41,
             "attribute": "",
             "cap": 48,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40034,
             "crse": 4500,
-            "rem": 8,
+            "rem": 7,
             "sec": "01",
             "subj": "BMED",
             "timeslots": [
@@ -17484,14 +17484,14 @@
         "id": "BUSN-6305",
         "sections": [
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 30,
             "credMax": 6.0,
             "credMin": 6.0,
             "crn": 41910,
             "crse": 6305,
-            "rem": 30,
+            "rem": 29,
             "sec": "H01",
             "subj": "BUSN",
             "timeslots": [
@@ -17750,14 +17750,14 @@
         "id": "CHME-2020",
         "sections": [
           {
-            "act": 18,
+            "act": 19,
             "attribute": "",
             "cap": 60,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41494,
             "crse": 2020,
-            "rem": 42,
+            "rem": 41,
             "sec": "01",
             "subj": "CHME",
             "timeslots": [
@@ -17775,7 +17775,7 @@
               }
             ],
             "title": "Energy, Entropy, & Equilibrium",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "CHME",
@@ -18185,14 +18185,14 @@
         "id": "CHME-4020",
         "sections": [
           {
-            "act": 11,
+            "act": 12,
             "attribute": "",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40580,
             "crse": 4020,
-            "rem": 9,
+            "rem": 8,
             "sec": "01",
             "subj": "CHME",
             "timeslots": [
@@ -19859,14 +19859,14 @@
             "title": "Dissertation"
           },
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 5,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 41046,
             "crse": 9990,
-            "rem": 5,
+            "rem": 4,
             "sec": "15",
             "subj": "CHME",
             "timeslots": [
@@ -21040,7 +21040,7 @@
               }
             ],
             "title": "Intro To Geochemistry",
-            "xl_rem": 9
+            "xl_rem": 8
           }
         ],
         "subj": "CHEM",
@@ -21800,7 +21800,7 @@
               }
             ],
             "title": "Aqueous Geochemistry",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "CHEM",
@@ -23369,14 +23369,14 @@
         "id": "CIVL-1100",
         "sections": [
           {
-            "act": 18,
+            "act": 17,
             "attribute": "",
             "cap": 75,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 42044,
             "crse": 1100,
-            "rem": 57,
+            "rem": 58,
             "sec": "01",
             "subj": "CIVL",
             "timeslots": [
@@ -25409,14 +25409,14 @@
         "id": "CIVL-6900",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 15,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40077,
             "crse": 6900,
-            "rem": 12,
+            "rem": 11,
             "sec": "01",
             "subj": "CIVL",
             "timeslots": [
@@ -26658,7 +26658,7 @@
               }
             ],
             "title": "Animal Cog Int Humans",
-            "xl_rem": -3
+            "xl_rem": -2
           }
         ],
         "subj": "COGS",
@@ -31559,14 +31559,14 @@
         "id": "CSCI-4050",
         "sections": [
           {
-            "act": 17,
+            "act": 18,
             "attribute": "",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43817,
             "crse": 4050,
-            "rem": 3,
+            "rem": 2,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -31584,7 +31584,7 @@
               }
             ],
             "title": "Theory Of Computation",
-            "xl_rem": 0
+            "xl_rem": -1
           }
         ],
         "subj": "CSCI",
@@ -31595,14 +31595,14 @@
         "id": "CSCI-4150",
         "sections": [
           {
-            "act": 42,
+            "act": 46,
             "attribute": "Data Intensive II",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41041,
             "crse": 4150,
-            "rem": 3,
+            "rem": -1,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -31620,7 +31620,7 @@
               }
             ],
             "title": "Introduction To Artificial Intelligence",
-            "xl_rem": -11
+            "xl_rem": -15
           },
           {
             "act": 14,
@@ -31648,7 +31648,7 @@
               }
             ],
             "title": "Introduction To Artificial Intelligence",
-            "xl_rem": -11
+            "xl_rem": -15
           }
         ],
         "subj": "CSCI",
@@ -31868,14 +31868,14 @@
             "title": "Database Systems"
           },
           {
-            "act": 59,
+            "act": 60,
             "attribute": "",
             "cap": 60,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43820,
             "crse": 4380,
-            "rem": 1,
+            "rem": 0,
             "sec": "02",
             "subj": "CSCI",
             "timeslots": [
@@ -31938,7 +31938,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "CSCI",
@@ -33489,14 +33489,14 @@
         "id": "CSCI-4964",
         "sections": [
           {
-            "act": 5,
+            "act": 6,
             "attribute": "",
             "cap": 15,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43156,
             "crse": 4964,
-            "rem": 10,
+            "rem": 9,
             "sec": "01",
             "subj": "CSCI",
             "timeslots": [
@@ -33514,7 +33514,7 @@
               }
             ],
             "title": "Deep Learning On Graphs",
-            "xl_rem": 12
+            "xl_rem": 11
           }
         ],
         "subj": "CSCI",
@@ -33802,7 +33802,7 @@
               }
             ],
             "title": "Theory Of Computation",
-            "xl_rem": 0
+            "xl_rem": -1
           }
         ],
         "subj": "CSCI",
@@ -33909,7 +33909,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "CSCI",
@@ -34161,7 +34161,7 @@
               }
             ],
             "title": "Num Solution Of Par Diff Eq",
-            "xl_rem": 23
+            "xl_rem": 22
           }
         ],
         "subj": "CSCI",
@@ -34269,7 +34269,7 @@
               }
             ],
             "title": "Deep Learning On Graphs",
-            "xl_rem": 12
+            "xl_rem": 11
           }
         ],
         "subj": "CSCI",
@@ -37020,14 +37020,14 @@
             "title": "Eng Graphics & Cad"
           },
           {
-            "act": 2,
+            "act": 3,
             "attribute": "Introductory Level Course",
             "cap": 45,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40044,
             "crse": 1200,
-            "rem": 43,
+            "rem": 42,
             "sec": "05",
             "subj": "ENGR",
             "timeslots": [
@@ -37158,14 +37158,14 @@
             "title": "Engr Processes"
           },
           {
-            "act": 16,
+            "act": 17,
             "attribute": "Introductory Level Course",
             "cap": 24,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40047,
             "crse": 1300,
-            "rem": 8,
+            "rem": 7,
             "sec": "04",
             "subj": "ENGR",
             "timeslots": [
@@ -37210,14 +37210,14 @@
             "title": "Engr Processes"
           },
           {
-            "act": 9,
+            "act": 11,
             "attribute": "Introductory Level Course",
             "cap": 24,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 40069,
             "crse": 1300,
-            "rem": 15,
+            "rem": 13,
             "sec": "06",
             "subj": "ENGR",
             "timeslots": [
@@ -37741,14 +37741,14 @@
         "id": "ENGR-1960",
         "sections": [
           {
-            "act": 14,
+            "act": 15,
             "attribute": "Introductory Level Course",
             "cap": 250,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 43644,
             "crse": 1960,
-            "rem": 236,
+            "rem": 235,
             "sec": "01",
             "subj": "ENGR",
             "timeslots": [
@@ -37775,14 +37775,14 @@
         "id": "ENGR-2050",
         "sections": [
           {
-            "act": 25,
+            "act": 26,
             "attribute": "",
             "cap": 28,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40088,
             "crse": 2050,
-            "rem": 3,
+            "rem": 2,
             "sec": "01",
             "subj": "ENGR",
             "timeslots": [
@@ -38107,14 +38107,14 @@
             "title": "Engineering Dynamics"
           },
           {
-            "act": 51,
+            "act": 52,
             "attribute": "",
             "cap": 60,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40092,
             "crse": 2090,
-            "rem": 9,
+            "rem": 8,
             "sec": "02",
             "subj": "ENGR",
             "timeslots": [
@@ -38232,17 +38232,17 @@
               }
             ],
             "title": "Electronic Instrumentation",
-            "xl_rem": 21
+            "xl_rem": 20
           },
           {
-            "act": 51,
+            "act": 52,
             "attribute": "",
             "cap": 60,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40933,
             "crse": 2300,
-            "rem": 9,
+            "rem": 8,
             "sec": "02",
             "subj": "ENGR",
             "timeslots": [
@@ -38271,7 +38271,7 @@
               }
             ],
             "title": "Electronic Instrumentation",
-            "xl_rem": 21
+            "xl_rem": 20
           },
           {
             "act": 60,
@@ -38310,7 +38310,7 @@
               }
             ],
             "title": "Electronic Instrumentation",
-            "xl_rem": 21
+            "xl_rem": 20
           }
         ],
         "subj": "ENGR",
@@ -39796,14 +39796,14 @@
         "id": "ERTH-1510",
         "sections": [
           {
-            "act": 23,
+            "act": 24,
             "attribute": "",
             "cap": 24,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43880,
             "crse": 1510,
-            "rem": 1,
+            "rem": 0,
             "sec": "01",
             "subj": "ERTH",
             "timeslots": [
@@ -39821,7 +39821,7 @@
               }
             ],
             "title": "Intro To Astrobiology",
-            "xl_rem": -4
+            "xl_rem": -5
           }
         ],
         "subj": "ERTH",
@@ -39867,14 +39867,14 @@
         "id": "ERTH-2140",
         "sections": [
           {
-            "act": 9,
+            "act": 10,
             "attribute": "Data Intensive I",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42138,
             "crse": 2140,
-            "rem": 11,
+            "rem": 10,
             "sec": "01",
             "subj": "ERTH",
             "timeslots": [
@@ -39892,7 +39892,7 @@
               }
             ],
             "title": "Intro To Geochemistry",
-            "xl_rem": 9
+            "xl_rem": 8
           }
         ],
         "subj": "ERTH",
@@ -40266,7 +40266,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "ERTH",
@@ -40338,7 +40338,7 @@
               }
             ],
             "title": "Aqueous Geochemistry",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "ERTH",
@@ -41052,7 +41052,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "ERTH",
@@ -41099,14 +41099,14 @@
         "id": "ERTH-6690",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 24,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43878,
             "crse": 6690,
-            "rem": 21,
+            "rem": 20,
             "sec": "01",
             "subj": "ERTH",
             "timeslots": [
@@ -41124,7 +41124,7 @@
               }
             ],
             "title": "Aqueous Geochemistry",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "ERTH",
@@ -41521,14 +41521,14 @@
             "title": "Dissertation"
           },
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 10,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 43388,
             "crse": 9990,
-            "rem": 10,
+            "rem": 9,
             "sec": "06",
             "subj": "ERTH",
             "timeslots": [
@@ -41745,14 +41745,14 @@
         "id": "ECON-4130",
         "sections": [
           {
-            "act": 166,
+            "act": 169,
             "attribute": "",
             "cap": 200,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40061,
             "crse": 4130,
-            "rem": 34,
+            "rem": 31,
             "sec": "01",
             "subj": "ECON",
             "timeslots": [
@@ -42092,14 +42092,14 @@
         "id": "ECON-4390",
         "sections": [
           {
-            "act": 7,
+            "act": 8,
             "attribute": "Communication Intensive",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42888,
             "crse": 4390,
-            "rem": 18,
+            "rem": 17,
             "sec": "01",
             "subj": "ECON",
             "timeslots": [
@@ -42127,14 +42127,14 @@
         "id": "ECON-4430",
         "sections": [
           {
-            "act": 6,
+            "act": 7,
             "attribute": "",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43655,
             "crse": 4430,
-            "rem": 19,
+            "rem": 18,
             "sec": "01",
             "subj": "ECON",
             "timeslots": [
@@ -42152,7 +42152,7 @@
               }
             ],
             "title": "Economics Of Growth & Innov",
-            "xl_rem": 21
+            "xl_rem": 19
           }
         ],
         "subj": "ECON",
@@ -42387,14 +42387,14 @@
         "id": "ECON-6130",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 5,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 43656,
             "crse": 6130,
-            "rem": 2,
+            "rem": 1,
             "sec": "01",
             "subj": "ECON",
             "timeslots": [
@@ -42412,7 +42412,7 @@
               }
             ],
             "title": "Econ Of Growth & Innovation",
-            "xl_rem": 21
+            "xl_rem": 19
           }
         ],
         "subj": "ECON",
@@ -42832,14 +42832,14 @@
         "id": "ECSE-2050",
         "sections": [
           {
-            "act": 27,
+            "act": 28,
             "attribute": "Data Intensive II",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40067,
             "crse": 2050,
-            "rem": 13,
+            "rem": 12,
             "sec": "01",
             "subj": "ECSE",
             "timeslots": [
@@ -42879,7 +42879,7 @@
               }
             ],
             "title": "Introduction To Electronics",
-            "xl_rem": 31
+            "xl_rem": 30
           },
           {
             "act": 40,
@@ -42929,7 +42929,7 @@
               }
             ],
             "title": "Introduction To Electronics",
-            "xl_rem": 31
+            "xl_rem": 30
           },
           {
             "act": 12,
@@ -42979,7 +42979,7 @@
               }
             ],
             "title": "Introduction To Electronics",
-            "xl_rem": 31
+            "xl_rem": 30
           }
         ],
         "subj": "ECSE",
@@ -43026,17 +43026,17 @@
               }
             ],
             "title": "Fields And Waves I",
-            "xl_rem": 3
+            "xl_rem": 2
           },
           {
-            "act": 33,
+            "act": 34,
             "attribute": "",
             "cap": 34,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43346,
             "crse": 2100,
-            "rem": 1,
+            "rem": 0,
             "sec": "02",
             "subj": "ECSE",
             "timeslots": [
@@ -43065,7 +43065,7 @@
               }
             ],
             "title": "Fields And Waves I",
-            "xl_rem": 3
+            "xl_rem": 2
           }
         ],
         "subj": "ECSE",
@@ -43203,14 +43203,14 @@
         "id": "ECSE-2470",
         "sections": [
           {
-            "act": 17,
+            "act": 16,
             "attribute": "",
             "cap": 20,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 43713,
             "crse": 2470,
-            "rem": 3,
+            "rem": 4,
             "sec": "01",
             "subj": "ECSE",
             "timeslots": [
@@ -43228,7 +43228,7 @@
               }
             ],
             "title": "Intro To Robot Programming",
-            "xl_rem": 33
+            "xl_rem": 34
           }
         ],
         "subj": "ECSE",
@@ -43399,14 +43399,14 @@
         "id": "ECSE-2660",
         "sections": [
           {
-            "act": 18,
+            "act": 19,
             "attribute": "",
             "cap": 36,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43716,
             "crse": 2660,
-            "rem": 18,
+            "rem": 17,
             "sec": "01",
             "subj": "ECSE",
             "timeslots": [
@@ -44700,7 +44700,7 @@
               }
             ],
             "title": "Multidisciplinary Capstone Design",
-            "xl_rem": 26
+            "xl_rem": 25
           }
         ],
         "subj": "ECSE",
@@ -48836,7 +48836,7 @@
               }
             ],
             "title": "Aqueous Goechemistry",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "ENVE",
@@ -48999,7 +48999,7 @@
               }
             ],
             "title": "Aqueous Geochemistry",
-            "xl_rem": 7
+            "xl_rem": 6
           }
         ],
         "subj": "ENVE",
@@ -49134,14 +49134,14 @@
         "id": "ENVE-9990",
         "sections": [
           {
-            "act": 0,
+            "act": 1,
             "attribute": "",
             "cap": 10,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 40867,
             "crse": 9990,
-            "rem": 10,
+            "rem": 9,
             "sec": "01",
             "subj": "ENVE",
             "timeslots": [
@@ -49269,17 +49269,17 @@
               }
             ],
             "title": "Introduction To Game Art",
-            "xl_rem": 3
+            "xl_rem": 2
           },
           {
-            "act": 5,
+            "act": 6,
             "attribute": "",
             "cap": 15,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41552,
             "crse": 1040,
-            "rem": 10,
+            "rem": 9,
             "sec": "02",
             "subj": "GSAS",
             "timeslots": [
@@ -49297,7 +49297,7 @@
               }
             ],
             "title": "Introduction To Game Art",
-            "xl_rem": 3
+            "xl_rem": 2
           }
         ],
         "subj": "GSAS",
@@ -49589,17 +49589,17 @@
               }
             ],
             "title": "Intro To Game Programming",
-            "xl_rem": 11
+            "xl_rem": 10
           },
           {
-            "act": 1,
+            "act": 2,
             "attribute": "",
             "cap": 12,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43801,
             "crse": 2540,
-            "rem": 11,
+            "rem": 10,
             "sec": "04",
             "subj": "GSAS",
             "timeslots": [
@@ -49617,7 +49617,7 @@
               }
             ],
             "title": "Intro To Game Programming",
-            "xl_rem": 11
+            "xl_rem": 10
           }
         ],
         "subj": "GSAS",
@@ -50997,17 +50997,17 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           },
           {
-            "act": 3,
+            "act": 4,
             "attribute": "Communication Intensive, HASS Inquiry",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41933,
             "crse": 1100,
-            "rem": 17,
+            "rem": 16,
             "sec": "02",
             "subj": "INQR",
             "timeslots": [
@@ -51036,7 +51036,7 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           },
           {
             "act": 4,
@@ -51075,7 +51075,7 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           },
           {
             "act": 1,
@@ -51114,7 +51114,7 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           },
           {
             "act": 2,
@@ -51153,7 +51153,7 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           },
           {
             "act": 1,
@@ -51192,7 +51192,7 @@
               }
             ],
             "title": "Science, Tech, & Society",
-            "xl_rem": 96
+            "xl_rem": 95
           }
         ],
         "subj": "INQR",
@@ -51942,7 +51942,7 @@
               }
             ],
             "title": "Mulitdisciplinary Capstone Design",
-            "xl_rem": 26
+            "xl_rem": 25
           }
         ],
         "subj": "ISYE",
@@ -51978,7 +51978,7 @@
               }
             ],
             "title": "Discrete Event Simulation, Modeling And Analysis",
-            "xl_rem": 9
+            "xl_rem": 8
           }
         ],
         "subj": "ISYE",
@@ -52659,14 +52659,14 @@
         "id": "ISYE-6610",
         "sections": [
           {
-            "act": 6,
+            "act": 7,
             "attribute": "",
             "cap": 25,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41496,
             "crse": 6610,
-            "rem": 19,
+            "rem": 18,
             "sec": "H01",
             "subj": "ISYE",
             "timeslots": [
@@ -52691,14 +52691,14 @@
         "id": "ISYE-6620",
         "sections": [
           {
-            "act": 7,
+            "act": 8,
             "attribute": "",
             "cap": 20,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 40760,
             "crse": 6620,
-            "rem": 13,
+            "rem": 12,
             "sec": "01",
             "subj": "ISYE",
             "timeslots": [
@@ -52716,7 +52716,7 @@
               }
             ],
             "title": "Discrete Event Simulation",
-            "xl_rem": 9
+            "xl_rem": 8
           },
           {
             "act": 3,
@@ -53772,14 +53772,14 @@
         "id": "ITWS-4400",
         "sections": [
           {
-            "act": 5,
+            "act": 6,
             "attribute": "",
             "cap": 7,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 40987,
             "crse": 4400,
-            "rem": 2,
+            "rem": 1,
             "sec": "01",
             "subj": "ITWS",
             "timeslots": [
@@ -53796,7 +53796,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "ITWS",
@@ -54061,7 +54061,7 @@
               }
             ],
             "title": "Xinformatics",
-            "xl_rem": 22
+            "xl_rem": 21
           }
         ],
         "subj": "ITWS",
@@ -54136,14 +54136,14 @@
         "id": "ITWS-6700",
         "sections": [
           {
-            "act": 13,
+            "act": 14,
             "attribute": "",
             "cap": 24,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41909,
             "crse": 6700,
-            "rem": 11,
+            "rem": 10,
             "sec": "01",
             "subj": "ITWS",
             "timeslots": [
@@ -54287,14 +54287,14 @@
         "id": "IHSS-1260",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42891,
             "crse": 1260,
-            "rem": 37,
+            "rem": 36,
             "sec": "01",
             "subj": "IHSS",
             "timeslots": [
@@ -54312,7 +54312,7 @@
               }
             ],
             "title": "Business Ethics & Law",
-            "xl_rem": 18
+            "xl_rem": 17
           },
           {
             "act": 7,
@@ -54340,7 +54340,7 @@
               }
             ],
             "title": "Business Ethics & Law",
-            "xl_rem": 29
+            "xl_rem": 28
           }
         ],
         "subj": "IHSS",
@@ -54416,7 +54416,7 @@
               }
             ],
             "title": "Intro To Astrobiology",
-            "xl_rem": -4
+            "xl_rem": -5
           }
         ],
         "subj": "ISCI",
@@ -55204,7 +55204,7 @@
               }
             ],
             "title": "Advanced Lighting Design",
-            "xl_rem": 13
+            "xl_rem": 12
           }
         ],
         "subj": "LGHT",
@@ -55215,14 +55215,14 @@
         "id": "LGHT-6230",
         "sections": [
           {
-            "act": 3,
+            "act": 4,
             "attribute": "",
             "cap": 12,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42601,
             "crse": 6230,
-            "rem": 9,
+            "rem": 8,
             "sec": "01",
             "subj": "LGHT",
             "timeslots": [
@@ -55240,7 +55240,7 @@
               }
             ],
             "title": "Advanced Lighting Design",
-            "xl_rem": 13
+            "xl_rem": 12
           }
         ],
         "subj": "LGHT",
@@ -55497,14 +55497,14 @@
             "title": "Management In The Digital Age"
           },
           {
-            "act": 9,
+            "act": 10,
             "attribute": "Introductory Level Course",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41856,
             "crse": 1100,
-            "rem": 36,
+            "rem": 35,
             "sec": "03",
             "subj": "MGMT",
             "timeslots": [
@@ -55670,17 +55670,17 @@
               }
             ],
             "title": "Business Ethics & Law",
-            "xl_rem": 18
+            "xl_rem": 17
           },
           {
-            "act": 9,
+            "act": 10,
             "attribute": "Introductory Level Course",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43147,
             "crse": 1260,
-            "rem": 36,
+            "rem": 35,
             "sec": "02",
             "subj": "MGMT",
             "timeslots": [
@@ -55698,7 +55698,7 @@
               }
             ],
             "title": "Business Ethics & Law",
-            "xl_rem": 29
+            "xl_rem": 28
           }
         ],
         "subj": "MGMT",
@@ -55922,14 +55922,14 @@
         "id": "MGMT-2430",
         "sections": [
           {
-            "act": 33,
+            "act": 34,
             "attribute": "",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41087,
             "crse": 2430,
-            "rem": 12,
+            "rem": 11,
             "sec": "01",
             "subj": "MGMT",
             "timeslots": [
@@ -56286,14 +56286,14 @@
         "id": "MGMT-4140",
         "sections": [
           {
-            "act": 25,
+            "act": 26,
             "attribute": "Communication Intensive",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40171,
             "crse": 4140,
-            "rem": 20,
+            "rem": 19,
             "sec": "01",
             "subj": "MGMT",
             "timeslots": [
@@ -56429,14 +56429,14 @@
         "id": "MGMT-4190",
         "sections": [
           {
-            "act": 14,
+            "act": 15,
             "attribute": "",
             "cap": 45,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41868,
             "crse": 4190,
-            "rem": 31,
+            "rem": 30,
             "sec": "01",
             "subj": "MGMT",
             "timeslots": [
@@ -56454,7 +56454,7 @@
               }
             ],
             "title": "Intro To Machine Learning Apps",
-            "xl_rem": 13
+            "xl_rem": 12
           }
         ],
         "subj": "MGMT",
@@ -56994,14 +56994,14 @@
         "id": "MGMT-4860",
         "sections": [
           {
-            "act": 17,
+            "act": 18,
             "attribute": "",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43921,
             "crse": 4860,
-            "rem": 13,
+            "rem": 12,
             "sec": "02",
             "subj": "MGMT",
             "timeslots": [
@@ -57029,14 +57029,14 @@
         "id": "MGMT-4870",
         "sections": [
           {
-            "act": 34,
+            "act": 35,
             "attribute": "",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40476,
             "crse": 4870,
-            "rem": 16,
+            "rem": 15,
             "sec": "01",
             "subj": "MGMT",
             "timeslots": [
@@ -57707,7 +57707,7 @@
               }
             ],
             "title": "Introduction To Machine Learning Applications",
-            "xl_rem": 13
+            "xl_rem": 12
           }
         ],
         "subj": "MGMT",
@@ -59263,14 +59263,14 @@
         "id": "MTLE-4400",
         "sections": [
           {
-            "act": 6,
+            "act": 7,
             "attribute": "Data Intensive II",
             "cap": 10,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43964,
             "crse": 4400,
-            "rem": 4,
+            "rem": 3,
             "sec": "01",
             "subj": "MTLE",
             "timeslots": [
@@ -59299,7 +59299,7 @@
               }
             ],
             "title": "Synthesis And Processing",
-            "xl_rem": 8
+            "xl_rem": 7
           },
           {
             "act": 6,
@@ -59338,7 +59338,7 @@
               }
             ],
             "title": "Synthesis And Processing",
-            "xl_rem": 8
+            "xl_rem": 7
           }
         ],
         "subj": "MTLE",
@@ -59572,7 +59572,7 @@
               }
             ],
             "title": "Multidisciplinary Capstone Design",
-            "xl_rem": 26
+            "xl_rem": 25
           }
         ],
         "subj": "MTLE",
@@ -61850,7 +61850,7 @@
               }
             ],
             "title": "Calculus II",
-            "xl_rem": 104
+            "xl_rem": 105
           },
           {
             "act": 0,
@@ -61889,7 +61889,7 @@
               }
             ],
             "title": "Calculus II",
-            "xl_rem": 104
+            "xl_rem": 105
           },
           {
             "act": 1,
@@ -61928,17 +61928,17 @@
               }
             ],
             "title": "Calculus II",
-            "xl_rem": 104
+            "xl_rem": 105
           },
           {
-            "act": 4,
+            "act": 3,
             "attribute": "Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40176,
             "crse": 1020,
-            "rem": 26,
+            "rem": 27,
             "sec": "16",
             "subj": "MATH",
             "timeslots": [
@@ -61967,7 +61967,7 @@
               }
             ],
             "title": "Calculus II",
-            "xl_rem": 104
+            "xl_rem": 105
           },
           {
             "act": 10,
@@ -62181,7 +62181,7 @@
               }
             ],
             "title": "Math Mthds:  Arch, Mgmt,& Hass",
-            "xl_rem": 19
+            "xl_rem": 18
           },
           {
             "act": 30,
@@ -62231,7 +62231,7 @@
               }
             ],
             "title": "Math Mthds:  Arch, Mgmt,& Hass",
-            "xl_rem": 19
+            "xl_rem": 18
           },
           {
             "act": 30,
@@ -62281,17 +62281,17 @@
               }
             ],
             "title": "Math Mthds:  Arch, Mgmt,& Hass",
-            "xl_rem": 19
+            "xl_rem": 18
           },
           {
-            "act": 11,
+            "act": 12,
             "attribute": "Data Intensive I, Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41247,
             "crse": 1520,
-            "rem": 19,
+            "rem": 18,
             "sec": "04",
             "subj": "MATH",
             "timeslots": [
@@ -62331,7 +62331,7 @@
               }
             ],
             "title": "Math Mthds:  Arch, Mgmt,& Hass",
-            "xl_rem": 19
+            "xl_rem": 18
           }
         ],
         "subj": "MATH",
@@ -62378,7 +62378,7 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 95
+            "xl_rem": 94
           },
           {
             "act": 2,
@@ -62417,7 +62417,7 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 95
+            "xl_rem": 94
           },
           {
             "act": 2,
@@ -62456,17 +62456,17 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 95
+            "xl_rem": 94
           },
           {
-            "act": 4,
+            "act": 5,
             "attribute": "Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40094,
             "crse": 2010,
-            "rem": 26,
+            "rem": 25,
             "sec": "04",
             "subj": "MATH",
             "timeslots": [
@@ -62495,7 +62495,7 @@
               }
             ],
             "title": "Multivar Calc & Matrix Algebra",
-            "xl_rem": 95
+            "xl_rem": 94
           },
           {
             "act": 25,
@@ -63326,7 +63326,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 73
+            "xl_rem": 72
           },
           {
             "act": 12,
@@ -63376,17 +63376,17 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 73
+            "xl_rem": 72
           },
           {
-            "act": 4,
+            "act": 5,
             "attribute": "Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40298,
             "crse": 2400,
-            "rem": 26,
+            "rem": 25,
             "sec": "03",
             "subj": "MATH",
             "timeslots": [
@@ -63426,7 +63426,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 73
+            "xl_rem": 72
           },
           {
             "act": 30,
@@ -63476,7 +63476,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 73
+            "xl_rem": 72
           },
           {
             "act": 9,
@@ -63526,17 +63526,17 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 82
+            "xl_rem": 81
           },
           {
-            "act": 3,
+            "act": 4,
             "attribute": "Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40019,
             "crse": 2400,
-            "rem": 27,
+            "rem": 26,
             "sec": "06",
             "subj": "MATH",
             "timeslots": [
@@ -63576,7 +63576,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 82
+            "xl_rem": 81
           },
           {
             "act": 23,
@@ -63626,7 +63626,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 82
+            "xl_rem": 81
           },
           {
             "act": 3,
@@ -63676,7 +63676,7 @@
               }
             ],
             "title": "Intro Diff Equations",
-            "xl_rem": 82
+            "xl_rem": 81
           },
           {
             "act": 3,
@@ -64181,14 +64181,14 @@
         "id": "MATH-4090",
         "sections": [
           {
-            "act": 7,
+            "act": 9,
             "attribute": "Communication Intensive",
             "cap": 50,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40483,
             "crse": 4090,
-            "rem": 43,
+            "rem": 41,
             "sec": "01",
             "subj": "MATH",
             "timeslots": [
@@ -64243,14 +64243,14 @@
             "title": "Linear Algebra"
           },
           {
-            "act": 38,
+            "act": 39,
             "attribute": "Data Intensive II",
             "cap": 40,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43847,
             "crse": 4100,
-            "rem": 2,
+            "rem": 1,
             "sec": "02",
             "subj": "MATH",
             "timeslots": [
@@ -64749,14 +64749,14 @@
         "id": "MATH-6640",
         "sections": [
           {
-            "act": 5,
+            "act": 6,
             "attribute": "",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43854,
             "crse": 6640,
-            "rem": 25,
+            "rem": 24,
             "sec": "01",
             "subj": "MATH",
             "timeslots": [
@@ -64784,14 +64784,14 @@
         "id": "MATH-6790",
         "sections": [
           {
-            "act": 4,
+            "act": 5,
             "attribute": "",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 1.0,
             "crn": 43864,
             "crse": 6790,
-            "rem": 16,
+            "rem": 15,
             "sec": "01",
             "subj": "MATH",
             "timeslots": [
@@ -64809,7 +64809,7 @@
               }
             ],
             "title": "Statistic App Dynamical Models",
-            "xl_rem": 16
+            "xl_rem": 15
           }
         ],
         "subj": "MATH",
@@ -64820,14 +64820,14 @@
         "id": "MATH-6840",
         "sections": [
           {
-            "act": 6,
+            "act": 7,
             "attribute": "",
             "cap": 20,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41713,
             "crse": 6840,
-            "rem": 14,
+            "rem": 13,
             "sec": "01",
             "subj": "MATH",
             "timeslots": [
@@ -64845,7 +64845,7 @@
               }
             ],
             "title": "Numerical Solutions Of Pde",
-            "xl_rem": 23
+            "xl_rem": 22
           }
         ],
         "subj": "MATH",
@@ -65722,14 +65722,14 @@
         "id": "MANE-1100",
         "sections": [
           {
-            "act": 14,
+            "act": 15,
             "attribute": "",
             "cap": 150,
             "credMax": 1.0,
             "credMin": 1.0,
             "crn": 43692,
             "crse": 1100,
-            "rem": 136,
+            "rem": 135,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -65911,14 +65911,14 @@
         "id": "MANE-2110",
         "sections": [
           {
-            "act": 29,
+            "act": 30,
             "attribute": "",
             "cap": 45,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41455,
             "crse": 2110,
-            "rem": 16,
+            "rem": 15,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -65949,14 +65949,14 @@
             "title": "Numerical Methods And Programming For Engineers"
           },
           {
-            "act": 4,
+            "act": 5,
             "attribute": "",
             "cap": 45,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41544,
             "crse": 2110,
-            "rem": 41,
+            "rem": 40,
             "sec": "02",
             "subj": "MANE",
             "timeslots": [
@@ -66025,14 +66025,14 @@
             "title": "Numerical Methods And Programming For Engineers"
           },
           {
-            "act": 20,
+            "act": 21,
             "attribute": "",
             "cap": 45,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41546,
             "crse": 2110,
-            "rem": 25,
+            "rem": 24,
             "sec": "04",
             "subj": "MANE",
             "timeslots": [
@@ -66182,14 +66182,14 @@
         "id": "MANE-2400",
         "sections": [
           {
-            "act": 18,
+            "act": 19,
             "attribute": "",
             "cap": 100,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41464,
             "crse": 2400,
-            "rem": 82,
+            "rem": 81,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -66242,7 +66242,7 @@
               }
             ],
             "title": "Intro To Robot Programming",
-            "xl_rem": 33
+            "xl_rem": 34
           }
         ],
         "subj": "MANE",
@@ -66315,14 +66315,14 @@
         "id": "MANE-2720",
         "sections": [
           {
-            "act": 54,
+            "act": 56,
             "attribute": "",
             "cap": 150,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41466,
             "crse": 2720,
-            "rem": 96,
+            "rem": 94,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -70222,14 +70222,14 @@
             "xl_rem": 31
           },
           {
-            "act": 13,
+            "act": 14,
             "attribute": "Communication Intensive",
             "cap": 25,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 40586,
             "crse": 4260,
-            "rem": 12,
+            "rem": 11,
             "sec": "04",
             "subj": "MANE",
             "timeslots": [
@@ -70247,7 +70247,7 @@
               }
             ],
             "title": "Mulitdisciplinary Capstone Design",
-            "xl_rem": 26
+            "xl_rem": 25
           },
           {
             "act": 7,
@@ -70320,14 +70320,14 @@
         "id": "MANE-4350",
         "sections": [
           {
-            "act": 22,
+            "act": 23,
             "attribute": "",
             "cap": 100,
             "credMax": 3.0,
             "credMin": 3.0,
             "crn": 41477,
             "crse": 4350,
-            "rem": 78,
+            "rem": 77,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -74633,7 +74633,7 @@
               }
             ],
             "title": "Discrete Event Sim Modeling",
-            "xl_rem": 9
+            "xl_rem": 8
           }
         ],
         "subj": "MANE",
@@ -75125,14 +75125,14 @@
         "id": "MANE-6900",
         "sections": [
           {
-            "act": 39,
+            "act": 40,
             "attribute": "",
             "cap": 250,
             "credMax": 0.0,
             "credMin": 0.0,
             "crn": 40255,
             "crse": 6900,
-            "rem": 211,
+            "rem": 210,
             "sec": "01",
             "subj": "MANE",
             "timeslots": [
@@ -75360,7 +75360,7 @@
               }
             ],
             "title": "Discrete Event Simulation",
-            "xl_rem": 9
+            "xl_rem": 8
           }
         ],
         "subj": "MANE",
@@ -75604,14 +75604,14 @@
         "id": "MANE-6980",
         "sections": [
           {
-            "act": 4,
+            "act": 5,
             "attribute": "",
             "cap": 10,
             "credMax": 9.0,
             "credMin": 1.0,
             "crn": 40740,
             "crse": 6980,
-            "rem": 6,
+            "rem": 5,
             "sec": "02",
             "subj": "MANE",
             "timeslots": [
@@ -75916,14 +75916,14 @@
             "title": "Master's Project"
           },
           {
-            "act": 1,
+            "act": 2,
             "attribute": "",
             "cap": 10,
             "credMax": 9.0,
             "credMin": 1.0,
             "crn": 41045,
             "crse": 6980,
-            "rem": 9,
+            "rem": 8,
             "sec": "16",
             "subj": "MANE",
             "timeslots": [
@@ -78548,14 +78548,14 @@
             "title": "Dissertation"
           },
           {
-            "act": 1,
+            "act": 2,
             "attribute": "",
             "cap": 10,
             "credMax": 16.0,
             "credMin": 1.0,
             "crn": 40267,
             "crse": 9990,
-            "rem": 9,
+            "rem": 8,
             "sec": "45",
             "subj": "MANE",
             "timeslots": [
@@ -79528,17 +79528,17 @@
               }
             ],
             "title": "Critical Thinking",
-            "xl_rem": 24
+            "xl_rem": 23
           },
           {
-            "act": 14,
+            "act": 15,
             "attribute": "Data Intensive I",
             "cap": 15,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43774,
             "crse": 2100,
-            "rem": 1,
+            "rem": 0,
             "sec": "02",
             "subj": "PHIL",
             "timeslots": [
@@ -79556,7 +79556,7 @@
               }
             ],
             "title": "Critical Thinking",
-            "xl_rem": 24
+            "xl_rem": 23
           },
           {
             "act": 11,
@@ -79584,7 +79584,7 @@
               }
             ],
             "title": "Critical Thinking",
-            "xl_rem": 24
+            "xl_rem": 23
           },
           {
             "act": 6,
@@ -79612,7 +79612,7 @@
               }
             ],
             "title": "Critical Thinking",
-            "xl_rem": 24
+            "xl_rem": 23
           }
         ],
         "subj": "PHIL",
@@ -80422,14 +80422,14 @@
         "id": "PHYS-1050",
         "sections": [
           {
-            "act": 20,
+            "act": 21,
             "attribute": "Introductory Level Course",
             "cap": 105,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40055,
             "crse": 1050,
-            "rem": 85,
+            "rem": 84,
             "sec": "01",
             "subj": "PHYS",
             "timeslots": [
@@ -81061,14 +81061,14 @@
         "id": "PHYS-1200",
         "sections": [
           {
-            "act": 21,
+            "act": 22,
             "attribute": "Data Intensive I, Introductory Level Course",
             "cap": 30,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40212,
             "crse": 1200,
-            "rem": 9,
+            "rem": 8,
             "sec": "01",
             "subj": "PHYS",
             "timeslots": [
@@ -81109,17 +81109,17 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
-            "act": 7,
+            "act": 6,
             "attribute": "Data Intensive I, Introductory Level Course",
             "cap": 48,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43667,
             "crse": 1200,
-            "rem": 41,
+            "rem": 42,
             "sec": "02",
             "subj": "PHYS",
             "timeslots": [
@@ -81160,7 +81160,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
             "act": 18,
@@ -81211,17 +81211,17 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
-            "act": 13,
+            "act": 12,
             "attribute": "Data Intensive I, Introductory Level Course",
             "cap": 48,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43669,
             "crse": 1200,
-            "rem": 35,
+            "rem": 36,
             "sec": "04",
             "subj": "PHYS",
             "timeslots": [
@@ -81262,7 +81262,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
             "act": 16,
@@ -81313,7 +81313,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
             "act": 7,
@@ -81364,7 +81364,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
             "act": 11,
@@ -81415,7 +81415,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           },
           {
             "act": 6,
@@ -81466,7 +81466,7 @@
               }
             ],
             "title": "Physics II",
-            "xl_rem": 201
+            "xl_rem": 202
           }
         ],
         "subj": "PHYS",
@@ -86070,14 +86070,14 @@
         "id": "PSYC-1200",
         "sections": [
           {
-            "act": 57,
+            "act": 58,
             "attribute": "",
             "cap": 150,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 40060,
             "crse": 1200,
-            "rem": 93,
+            "rem": 92,
             "sec": "01",
             "subj": "PSYC",
             "timeslots": [
@@ -86343,14 +86343,14 @@
         "id": "PSYC-4220",
         "sections": [
           {
-            "act": 17,
+            "act": 16,
             "attribute": "",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 43742,
             "crse": 4220,
-            "rem": 8,
+            "rem": 9,
             "sec": "01",
             "subj": "PSYC",
             "timeslots": [
@@ -86368,7 +86368,7 @@
               }
             ],
             "title": "Animal Cog Int Humans",
-            "xl_rem": -3
+            "xl_rem": -2
           }
         ],
         "subj": "PSYC",
@@ -86862,14 +86862,14 @@
         "id": "PSYC-4730",
         "sections": [
           {
-            "act": 69,
+            "act": 70,
             "attribute": "",
             "cap": 110,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41297,
             "crse": 4730,
-            "rem": 41,
+            "rem": 40,
             "sec": "01",
             "subj": "PSYC",
             "timeslots": [
@@ -86887,7 +86887,7 @@
               }
             ],
             "title": "Positive Psychology",
-            "xl_rem": 67
+            "xl_rem": 66
           },
           {
             "act": 14,
@@ -86915,7 +86915,7 @@
               }
             ],
             "title": "Positive Psychology",
-            "xl_rem": 67
+            "xl_rem": 66
           }
         ],
         "subj": "PSYC",
@@ -87147,7 +87147,7 @@
               }
             ],
             "title": "Intro To Robot Programming",
-            "xl_rem": 33
+            "xl_rem": 34
           }
         ],
         "subj": "ROBT",
@@ -87523,14 +87523,14 @@
         "id": "STSO-4100",
         "sections": [
           {
-            "act": 11,
+            "act": 10,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41641,
             "crse": 4100,
-            "rem": 24,
+            "rem": 25,
             "sec": "01",
             "subj": "STSO",
             "timeslots": [
@@ -87627,14 +87627,14 @@
             "title": "Pd - Tech Issues & Solutions"
           },
           {
-            "act": 35,
+            "act": 34,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41644,
             "crse": 4100,
-            "rem": 0,
+            "rem": 1,
             "sec": "07",
             "subj": "STSO",
             "timeslots": [
@@ -87705,14 +87705,14 @@
             "title": "Pd - Tech Issues & Solutions"
           },
           {
-            "act": 9,
+            "act": 10,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41647,
             "crse": 4100,
-            "rem": 26,
+            "rem": 25,
             "sec": "10",
             "subj": "STSO",
             "timeslots": [
@@ -87731,14 +87731,14 @@
             "title": "Pd - Tech Issues & Solutions"
           },
           {
-            "act": 14,
+            "act": 16,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41651,
             "crse": 4100,
-            "rem": 21,
+            "rem": 19,
             "sec": "11",
             "subj": "STSO",
             "timeslots": [
@@ -87757,14 +87757,14 @@
             "title": "Pd - Tech Issues & Solutions"
           },
           {
-            "act": 11,
+            "act": 12,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41649,
             "crse": 4100,
-            "rem": 24,
+            "rem": 23,
             "sec": "12",
             "subj": "STSO",
             "timeslots": [
@@ -87783,14 +87783,14 @@
             "title": "Pd - Tech Issues & Solutions"
           },
           {
-            "act": 12,
+            "act": 14,
             "attribute": "PDII Option for Engr Majors",
             "cap": 35,
             "credMax": 2.0,
             "credMin": 2.0,
             "crn": 41650,
             "crse": 4100,
-            "rem": 23,
+            "rem": 21,
             "sec": "13",
             "subj": "STSO",
             "timeslots": [
@@ -87958,14 +87958,14 @@
         "id": "STSO-4360",
         "sections": [
           {
-            "act": 16,
+            "act": 17,
             "attribute": "",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42066,
             "crse": 4360,
-            "rem": 9,
+            "rem": 8,
             "sec": "01",
             "subj": "STSO",
             "timeslots": [
@@ -88961,17 +88961,17 @@
               }
             ],
             "title": "Strategic Writing",
-            "xl_rem": 2
+            "xl_rem": 1
           },
           {
-            "act": 21,
+            "act": 22,
             "attribute": "Communication Intensive",
             "cap": 22,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 42217,
             "crse": 2110,
-            "rem": 1,
+            "rem": 0,
             "sec": "02",
             "subj": "WRIT",
             "timeslots": [
@@ -88989,7 +88989,7 @@
               }
             ],
             "title": "Strategic Writing",
-            "xl_rem": 2
+            "xl_rem": 1
           }
         ],
         "subj": "WRIT",
@@ -89000,14 +89000,14 @@
         "id": "WRIT-2320",
         "sections": [
           {
-            "act": 10,
+            "act": 11,
             "attribute": "Communication Intensive",
             "cap": 25,
             "credMax": 4.0,
             "credMin": 4.0,
             "crn": 41039,
             "crse": 2320,
-            "rem": 15,
+            "rem": 14,
             "sec": "01",
             "subj": "WRIT",
             "timeslots": [
